@@ -1,17 +1,17 @@
+use rand::Rng;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
 use std::hash::Hasher;
-use rand::Rng;
 
-const HASH_MAX: u64 = 100000000000;
-
+const HASH_MAX: u64 = 1000000000000;
+#[derive(Debug)]
 pub struct Block {
     id: u64,
     last_block: u64,
     transactions: Vec<Transaction>,
     answer: u64,
 }
-
+#[derive(Debug)]
 pub struct Transaction {
     initiating: u64,
     receiver: u64,
@@ -36,7 +36,7 @@ impl Block {
     }
 
     pub fn verification(&self) -> bool {
-        hash_int(self.last_block + self.answer) < HASH_MAX
+        hash_int(self.last_block.wrapping_add(self.answer)) < HASH_MAX
     }
     pub fn new_block(&self, new_transa: Vec<Transaction>, answer: u64) -> Block {
         Block {
@@ -50,16 +50,17 @@ impl Block {
 
 pub fn mine(last_block: &Block) -> u64 {
     let mut hasher: DefaultHasher = DefaultHasher::new();
-    let last_answer = last_block.answer;
-    let mut number = 0;
+    let last_id = last_block.id;
+    let mut number;
     let mut rng = rand::thread_rng();
     loop {
         number = rng.gen::<u64>();
-        let to_hash = number + last_answer;
+        let to_hash = number.wrapping_add(last_id);
         to_hash.hash(&mut hasher);
-        let answer = hasher.finish();
+        // let answer: u64 = hasher.finish();
+        let answer:u64 = hash_int(to_hash);
         if answer < HASH_MAX {
-            return answer;
+            return number;
         }
     }
     return 0;
