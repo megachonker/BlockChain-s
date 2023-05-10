@@ -8,9 +8,9 @@ fn main() {
 
     loop{
         println!("Search for the current block : {:?}",last_block);
-        let answer = mine(&last_block);
+        let answer = mine(&last_block);             //find the answer
         println!("Answer : {}",answer);
-        last_block = last_block.new_block(vec![], answer,1);
+        last_block = last_block.new_block(vec![], answer,1);        //create the new block with the correct answer 
         println!("The block is {} ",last_block.verification());
     }
 }
