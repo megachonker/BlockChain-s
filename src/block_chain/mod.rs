@@ -63,5 +63,4 @@ pub fn mine(last_block: &Block) -> u64 {
             return number;
         }
     }
-    return 0;
 }
