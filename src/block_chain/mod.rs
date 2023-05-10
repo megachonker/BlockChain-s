@@ -6,12 +6,12 @@ use std::hash::Hasher;
 const HASH_MAX: u64 = 1000000000000;
 #[derive(Debug)]
 pub struct Block {
-    number : u64,
+    number: u64,
     id: u64,
     last_block: u64,
     transactions: Vec<Transaction>,
     answer: u64,
-    finder : u64,       //Who find the answer
+    finder: u64, //Who find the answer
 }
 #[derive(Debug)]
 pub struct Transaction {
@@ -26,31 +26,64 @@ fn hash_int(value: u64) -> u64 {
     hasher.finish()
 }
 
+// fn hash_int(value: u64) -> u64 {
+//     let mut hasher = DefaultHasher::new();
+//     value.hash(&mut hasher);
+//     hasher.finish()
+// }
+
+fn hash<T : Hash>(value: T) -> u64{
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish() 
+}
+
 impl Block {
-    pub fn new(last_block: u64, answer: u64, transactions: Vec<Transaction>, number : u64, finder: u64) -> Block {
+    pub fn new(
+        last_block: u64,
+        answer: u64,
+        transactions: Vec<Transaction>,
+        number: u64,
+        finder: u64,
+    ) -> Block {
         let id = answer; //for the momment
         return Block {
-            number : number,
-            id : id,
+            number: number,
+            id: id,
             last_block: last_block,
             transactions: transactions,
             answer: answer,
-            finder : finder,
+            finder: finder,
         };
     }
 
     pub fn verification(&self) -> bool {
-        hash_int(self.last_block.wrapping_add(self.answer)) < HASH_MAX
+        hash(self.last_block.wrapping_add(self.answer)) < HASH_MAX && hash(&self) == self.id
     }
-    pub fn new_block(&self, new_transa: Vec<Transaction>, answer: u64, finder : u64) -> Block {
-        Block {
-            number : self.number+1,
-            id: answer,
+    pub fn new_block(&self, new_transa: Vec<Transaction>, answer: u64, finder: u64) -> Block {
+        let mut new_block = Block {
+            number: self.number + 1,
+            id: 0,
             last_block: self.id,
             transactions: new_transa,
             answer: answer,
-            finder : finder,
-        }
+            finder: finder,
+        };
+        let mut hasher = DefaultHasher::new();
+        new_block.hash(&mut hasher);
+        new_block.id = hasher.finish();
+        new_block
+
+    }
+}
+
+impl Hash for Block {
+    fn hash<H: Hasher>(&self, state: &mut H) {      //If Block have more element had it here
+        // self.transactions(state);        //need to impl hash for Transactions
+        self.answer.hash(state);
+        self.last_block.hash(state);
+        self.number.hash(state);
+        self.finder.hash(state);
     }
 }
 
@@ -64,7 +97,7 @@ pub fn mine(last_block: &Block) -> u64 {
         let to_hash = number.wrapping_add(last_id);
         // to_hash.hash(&mut hasher);       //pose probleme
         // let answer: u64 = hasher.finish();
-        let answer:u64 = hash_int(to_hash);
+        let answer: u64 = hash_int(to_hash);
         if answer < HASH_MAX {
             return number;
         }
