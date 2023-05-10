@@ -2,6 +2,7 @@ mod block_chain;
 
 use block_chain::*;
 
+
 // const HASH_MAX: u64 = 3453209151749857438 / 100000;
 
 // pub fn new_block(last_block: Block, new_transa: Vec<Transaction>) -> Block {

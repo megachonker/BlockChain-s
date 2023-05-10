@@ -1,6 +1,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
 use std::hash::Hasher;
+use rand::Rng;
 
 const HASH_MAX: u64 = 100000000000;
 
@@ -51,8 +52,9 @@ pub fn mine(last_block: &Block) -> u64 {
     let mut hasher: DefaultHasher = DefaultHasher::new();
     let last_answer = last_block.answer;
     let mut number = 0;
+    let mut rng = rand::thread_rng();
     loop {
-        number += 1;
+        number = rng.gen::<u64>();
         let to_hash = number + last_answer;
         to_hash.hash(&mut hasher);
         let answer = hasher.finish();
