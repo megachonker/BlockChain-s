@@ -2,7 +2,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
 use std::hash::Hasher;
 
-const HASH_MAX:u64 = 1000000;
+const HASH_MAX:u64 = 100;
 
 
 
@@ -40,6 +40,17 @@ impl Block{
     }
 
     pub fn verification(&self)->bool{
-        hash_int(self.last_block + self.answer) == HASH_MAX
+        hash_int(self.last_block + self.answer) < HASH_MAX
     }
+}
+pub fn new_block(last_answer:u64)->u64{
+    let mut hasher = DefaultHasher::new();
+    for number in {1..1000}  {
+        let to_hash = number+last_answer;
+        to_hash.hash(&mut hasher);
+        if(hasher.finish() < HASH_MAX){
+            return  number;
+        }
+    }
+    return  0;        
 }
