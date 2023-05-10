@@ -6,13 +6,6 @@ const HASH_MAX:u64 = 100;
 
 
 
-pub struct Block {
-    id : u64,
-    last_block : u64,
-    transactions : Vec<Transaction>,
-    answer : u64,
-}
-
 
 
 pub struct Transaction{
