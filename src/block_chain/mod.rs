@@ -134,26 +134,6 @@ pub fn mine(block: &Block) -> u64 {
     }
 }
 
-pub fn mine_fc_hash(block: &Block) -> u64 {
-    let mut rng = rand::thread_rng(); //to pick random value
-    loop {
-        let nonce_to_test = rng.gen::<u64>();
-        let mut hasher = DefaultHasher::new();
-
-        //playload of block to hash
-        block.block_height.hash(&mut hasher);
-        block.parent_hash.hash(&mut hasher);
-        block.transactions.hash(&mut hasher);
-        block.miner_hash.hash(&mut hasher);
-        nonce_to_test.hash(&mut hasher);   
-        let answer: u64 = hasher.finish();
-
-        if answer < HASH_MAX {
-            return nonce_to_test;
-        }
-    }
-}
-
 impl Transaction {
     pub fn new(src: u64, dst: u64, qqt: u32) -> Transaction {
         Transaction {
