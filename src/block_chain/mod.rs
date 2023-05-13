@@ -49,7 +49,7 @@ impl Block {
 
     pub fn check(&self) -> bool {
 
-        let mut hasher = DefaultHasher::new();
+        let mut hasher = DefaultHasher::new();   //why don't use hash fun ? hash(self) ?? like in last commit 
 
         //playload of block to hash
         self.block_height.hash(&mut hasher);
@@ -158,7 +158,7 @@ mod tests {
         let transaction_a = Transaction::new(maximator, chonker, 100);
         let transaction_b = Transaction::new(chonker, neeto, 10);
 
-        let origin_block = Block::new(vec![transaction_a]);
+        let origin_block = Block::new(vec![  ]);
         assert!(origin_block.check());
 
         let block_1 = origin_block.new_block(vec![transaction_b], chonker);
