@@ -3,8 +3,6 @@ name = "blockchain"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 rand = "0.8.5"
 
@@ -12,9 +10,8 @@ rand = "0.8.5"
 criterion = "0.4"
 
 [[bench]]
-name = "mining_OPT"
+name = "mining_comparaison"
 harness = false
-
 
 [lib]
 name = "block_chain"

@@ -3,7 +3,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
 use std::hash::Hasher;
 
-const HASH_MAX: u64 = 100000000000000;
+const HASH_MAX: u64 = 10000000000000;
 #[derive(Debug)]
 pub struct Block {
     block_id: u64, //the hash of whole block
