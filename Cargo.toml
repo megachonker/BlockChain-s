@@ -7,3 +7,15 @@ edition = "2021"
 
 [dependencies]
 rand = "0.8.5"
+
+[dev-dependencies]
+criterion = "0.4"
+
+[[bench]]
+name = "mining_OPT"
+harness = false
+
+
+[lib]
+name = "block_chain"
+path = "src/block_chain/mod.rs"
