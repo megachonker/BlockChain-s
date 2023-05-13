@@ -62,13 +62,13 @@ impl Block {
         answer < HASH_MAX && hash(self) == self.block_id
     }
 
-    pub fn generate_block(&self, new_transa: Vec<Transaction>, answer: u64, finder: u64) -> Block {
+    pub fn generate_block(&self, new_transa: Vec<Transaction>, finder: u64) -> Block {
         let mut new_block = Block {
             block_height: self.block_height + 1,
             block_id: 0,
             parent_hash: self.block_id,
             transactions: new_transa,
-            nonce: answer,
+            nonce:0,
             miner_hash: finder,
         };
         new_block.nonce = mine(&new_block);
@@ -76,7 +76,7 @@ impl Block {
         new_block
     }
     pub fn new_block(&self, new_transa: Vec<Transaction>, finder: u64) -> Block {
-        self.generate_block(new_transa,mine(self),finder)
+        self.generate_block(new_transa,finder)
     }
 }
 
