@@ -6,19 +6,18 @@ use std::hash::Hasher;
 const HASH_MAX: u64 = 10000000000000;
 #[derive(Debug)]
 pub struct Block {
-    block_id: u64, //the hash of whole block
-    block_height: u64, //the number of the current block
-    parent_hash: u64, //the id of last block (block are chain with that)
+    block_id: u64,                  //the hash of whole block
+    block_height: u64,              //the number of the current block
+    parent_hash: u64,               //the id of last block (block are chain with that)
     transactions: Vec<Transaction>, //the vector of all transaction validated with this block
-    miner_hash: u64, //Who find the answer
-    nonce: u64, //the answer of the defi
+    miner_hash: u64,                //Who find the answer
+    nonce: u64,                     //the answer of the defi
 }
-#[derive(Debug)]
-#[derive(Hash)]
+#[derive(Debug, Hash)]
 pub struct Transaction {
-    src: u64, //who send coin
-    dst: u64,   //who recive
-    qqty: u32,     //the acount
+    src: u64,  //who send coin
+    dst: u64,  //who recive
+    qqty: u32, //the acount
 }
 
 pub fn hash<T: Hash>(value: T) -> u64 {
@@ -30,9 +29,7 @@ pub fn hash<T: Hash>(value: T) -> u64 {
 
 impl Block {
     /// crée le bloque génésis
-    pub fn new(
-        transactions: Vec<Transaction>,
-    ) -> Block {
+    pub fn new(transactions: Vec<Transaction>) -> Block {
         //create a new block (just use for create the first one)
         let mut block = Block {
             block_height: 0,
@@ -48,8 +45,7 @@ impl Block {
     }
 
     pub fn check(&self) -> bool {
-
-        let mut hasher = DefaultHasher::new();   //why don't use hash fun ? hash(self) ?? like in last commit 
+        let mut hasher = DefaultHasher::new(); //why don't use hash fun ? hash(self) ?? like in last commit
 
         //playload of block to hash
         self.block_height.hash(&mut hasher);
@@ -68,7 +64,7 @@ impl Block {
             block_id: 0,
             parent_hash: self.block_id,
             transactions: new_transa,
-            nonce:0,
+            nonce: 0,
             miner_hash: finder,
         };
         new_block.nonce = mine(&new_block);
@@ -76,7 +72,7 @@ impl Block {
         new_block
     }
     pub fn new_block(&self, new_transa: Vec<Transaction>, finder: u64) -> Block {
-        self.generate_block(new_transa,finder)
+        self.generate_block(new_transa, finder)
     }
 }
 
@@ -94,20 +90,20 @@ impl Hash for Block {
 pub fn mine_hasher_clone(block: &Block) -> u64 {
     let mut rng = rand::thread_rng(); //to pick random value
     let mut hasher = DefaultHasher::new();
-    
+
     //playload of block to hash
     block.block_height.hash(&mut hasher);
     block.parent_hash.hash(&mut hasher);
     block.transactions.hash(&mut hasher);
     block.miner_hash.hash(&mut hasher);
-    
+
     loop {
         let mut to_hash = hasher.clone(); //save l'état du hasher
         let nonce_to_test = rng.gen::<u64>();
-        
+
         nonce_to_test.hash(&mut to_hash);
         let answer = to_hash.finish();
-        
+
         if answer < HASH_MAX {
             return nonce_to_test;
         }
@@ -125,7 +121,7 @@ pub fn mine(block: &Block) -> u64 {
         block.parent_hash.hash(&mut hasher);
         block.transactions.hash(&mut hasher);
         block.miner_hash.hash(&mut hasher);
-        nonce_to_test.hash(&mut hasher);   
+        nonce_to_test.hash(&mut hasher);
         let answer: u64 = hasher.finish();
 
         if answer < HASH_MAX {
@@ -134,21 +130,45 @@ pub fn mine(block: &Block) -> u64 {
     }
 }
 
+pub fn mine_hasher_lessrng(block: &Block) -> u64 {
+    let mut rng = rand::thread_rng(); //to pick random value
+    let mut hasher = DefaultHasher::new();
+
+    //playload of block to hash
+    block.block_height.hash(&mut hasher);
+    block.parent_hash.hash(&mut hasher);
+    block.transactions.hash(&mut hasher);
+    block.miner_hash.hash(&mut hasher);
+
+    let mut nonce_to_test = rng.gen::<u64>();
+
+    loop {
+        let mut to_hash = hasher.clone(); //save l'état du hasher
+        nonce_to_test.hash(&mut to_hash);
+        
+        let answer = to_hash.finish();
+        
+        if answer < HASH_MAX {
+            return nonce_to_test;
+        }
+        nonce_to_test = nonce_to_test.wrapping_add(1);
+    }
+}
+
 impl Transaction {
     pub fn new(src: u64, dst: u64, qqt: u32) -> Transaction {
         Transaction {
             src,
             dst,
-            qqty: qqt
+            qqty: qqt,
         }
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_block_creation_and_check() {
         let maximator = hash("uss");
@@ -158,7 +178,7 @@ mod tests {
         let transaction_a = Transaction::new(maximator, chonker, 100);
         let transaction_b = Transaction::new(chonker, neeto, 10);
 
-        let origin_block = Block::new(vec![  ]);
+        let origin_block = Block::new(vec![]);
         assert!(origin_block.check());
 
         let block_1 = origin_block.new_block(vec![transaction_b], chonker);
@@ -166,17 +186,25 @@ mod tests {
     }
 
     #[test]
-    fn test_miner_hash_standar(){
+    fn test_miner_hash_standar() {
         let mut fist_block = Block::new(vec![]);
-        fist_block.nonce =  mine(&fist_block);
+        fist_block.nonce = mine(&fist_block);
         fist_block.block_id = hash(&fist_block);
         assert!(fist_block.check());
     }
 
     #[test]
-    fn test_mine_hasher_clone(){
+    fn test_mine_hasher_clone() {
         let mut fist_block = Block::new(vec![]);
-        fist_block.nonce =  mine_hasher_clone(&fist_block);
+        fist_block.nonce = mine_hasher_clone(&fist_block);
+        fist_block.block_id = hash(&fist_block);
+        assert!(fist_block.check());
+    }
+
+    #[test]
+    fn test_mine_hasher_lessrng() {
+        let mut fist_block = Block::new(vec![]);
+        fist_block.nonce = mine_hasher_lessrng(&fist_block);
         fist_block.block_id = hash(&fist_block);
         assert!(fist_block.check());
     }
