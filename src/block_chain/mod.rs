@@ -3,93 +3,202 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
 use std::hash::Hasher;
 
-const HASH_MAX: u64 = 1000000000000;
+const HASH_MAX: u64 = 100000000000000;
 #[derive(Debug)]
 pub struct Block {
-    number: u64,        //the block number increment each new block
-    id: u64,            //the id of the block -> the hash of the rest of element. So it is depences of all parameters
-    last_block: u64,    //the id of last block (block are chain with that)
+    block_id: u64, //the hash of whole block
+    block_height: u64, //the number of the current block
+    parent_hash: u64, //the id of last block (block are chain with that)
     transactions: Vec<Transaction>, //the vector of all transaction validated with this block
-    answer: u64,        //the answer of the defi
-    finder: u64,        //Who find the answer
+    miner_hash: u64, //Who find the answer
+    nonce: u64, //the answer of the defi
 }
 #[derive(Debug)]
-pub struct Transaction {    
-    initiating: u64,    //who send coin
-    receiver: u64,      //who recive
-    amount: u32,        //the acount
+#[derive(Hash)]
+pub struct Transaction {
+    src: u64, //who send coin
+    dst: u64,   //who recive
+    qqty: u32,     //the acount
 }
 
-
-
-fn hash<T : Hash>(value: T) -> u64{         //return the hash of the item (need to have Hash trait)
+pub fn hash<T: Hash>(value: T) -> u64 {
+    //return the hash of the item (need to have Hash trait)
     let mut hasher = DefaultHasher::new();
     value.hash(&mut hasher);
-    hasher.finish() 
+    hasher.finish()
 }
 
 impl Block {
+    /// crée le bloque génésis
     pub fn new(
-        last_block: u64,
-        answer: u64,
         transactions: Vec<Transaction>,
-        number: u64,
-        finder: u64,
-    ) -> Block {                            //create a new block (just use for create the first one)             
-        let mut block= Block {
-            number: number,
-            id: 0,
-            last_block: last_block,
+    ) -> Block {
+        //create a new block (just use for create the first one)
+        let mut block = Block {
+            block_height: 0,
+            block_id: 0,
+            parent_hash: 0,
             transactions: transactions,
-            answer: answer,
-            finder: finder,
+            nonce: 0,
+            miner_hash: 0,
         };
-        block.id = hash(& block);           //set the correct id
+        block.nonce = mine(&block);
+        block.block_id = hash(&block);
         block
-
     }
 
-    pub fn verification(&self) -> bool {        //simple function to check if a block is valid
-        hash(self.last_block.wrapping_add(self.answer)) < HASH_MAX && hash(&self) == self.id
-    }
+    pub fn check(&self) -> bool {
 
-    pub fn new_block(&self, new_transa: Vec<Transaction>, answer: u64, finder: u64) -> Block {  //create a new block with the precendent (self)
-        let mut new_block = Block {
-            number: self.number + 1,
-            id: 0,
-            last_block: self.id,
-            transactions: new_transa,
-            answer: answer,
-            finder: finder,
-        };
         let mut hasher = DefaultHasher::new();
-        new_block.hash(&mut hasher);
-        new_block.id = hasher.finish();             //set the id of the block 
+
+        //playload of block to hash
+        self.block_height.hash(&mut hasher);
+        self.parent_hash.hash(&mut hasher);
+        self.transactions.hash(&mut hasher);
+        self.miner_hash.hash(&mut hasher);
+        self.nonce.hash(&mut hasher);
+
+        let answer = hasher.finish();
+        answer < HASH_MAX && hash(&self) == self.block_id
+    }
+
+    pub fn generate_block(&self, new_transa: Vec<Transaction>, answer: u64, finder: u64) -> Block {
+        let mut new_block = Block {
+            block_height: self.block_height + 1,
+            block_id: 0,
+            parent_hash: self.block_id,
+            transactions: new_transa,
+            nonce: answer,
+            miner_hash: finder,
+        };
+        new_block.nonce = mine(&new_block);
+        new_block.block_id = hash(&new_block); //set the correct id
         new_block
-
+    }
+    pub fn new_block(&self, new_transa: Vec<Transaction>, finder: u64) -> Block {
+        self.generate_block(new_transa,mine(self),finder)
     }
 }
 
-impl Hash for Block {       //implement the Hash's trait for Block 
-    fn hash<H: Hasher>(&self, state: &mut H) {      //If Block have more element had it here
-        // self.transactions(state);        //need to impl hash for Transactions
-        self.answer.hash(state);
-        self.last_block.hash(state);
-        self.number.hash(state);
-        self.finder.hash(state);
+impl Hash for Block {
+    //implement the Hash's trait for Block
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.block_height.hash(state);
+        self.parent_hash.hash(state);
+        self.transactions.hash(state);
+        self.miner_hash.hash(state);
+        self.nonce.hash(state);
     }
 }
 
-pub fn mine(last_block: &Block) -> u64 {            //mine the search the answer of the defi
-    let last_id = last_block.id;
-    let mut number;
-    let mut rng = rand::thread_rng();   //to pick random value
+pub fn mine_hasher_clone(block: &Block) -> u64 {
+    let mut rng = rand::thread_rng(); //to pick random value
+    let mut hasher = DefaultHasher::new();
+    
+    //playload of block to hash
+    block.block_height.hash(&mut hasher);
+    block.parent_hash.hash(&mut hasher);
+    block.transactions.hash(&mut hasher);
+    block.miner_hash.hash(&mut hasher);
+    
     loop {
-        number = rng.gen::<u64>();
-        let to_hash = number.wrapping_add(last_id);
-        let answer: u64 = hash(to_hash);
-        if answer < HASH_MAX {              //If hash<u64>(anwser + last_block.id) < HASH_MAX
-            return number;      
+        let mut to_hash = hasher.clone(); //save l'état du hasher
+        let nonce_to_test = rng.gen::<u64>();
+        
+        nonce_to_test.hash(&mut to_hash);
+        let answer = to_hash.finish();
+        
+        if answer < HASH_MAX {
+            return nonce_to_test;
         }
+    }
+}
+
+pub fn mine(block: &Block) -> u64 {
+    let mut rng = rand::thread_rng(); //to pick random value
+    loop {
+        let nonce_to_test = rng.gen::<u64>();
+        let mut hasher = DefaultHasher::new();
+
+        //playload of block to hash
+        block.block_height.hash(&mut hasher);
+        block.parent_hash.hash(&mut hasher);
+        block.transactions.hash(&mut hasher);
+        block.miner_hash.hash(&mut hasher);
+        nonce_to_test.hash(&mut hasher);   
+        let answer: u64 = hasher.finish();
+
+        if answer < HASH_MAX {
+            return nonce_to_test;
+        }
+    }
+}
+
+pub fn mine_fc_hash(block: &Block) -> u64 {
+    let mut rng = rand::thread_rng(); //to pick random value
+    loop {
+        let nonce_to_test = rng.gen::<u64>();
+        let mut hasher = DefaultHasher::new();
+
+        //playload of block to hash
+        block.block_height.hash(&mut hasher);
+        block.parent_hash.hash(&mut hasher);
+        block.transactions.hash(&mut hasher);
+        block.miner_hash.hash(&mut hasher);
+        nonce_to_test.hash(&mut hasher);   
+        let answer: u64 = hasher.finish();
+
+        if answer < HASH_MAX {
+            return nonce_to_test;
+        }
+    }
+}
+
+impl Transaction {
+    pub fn new(src: u64, dst: u64, qqt: u32) -> Transaction {
+        let transaction = Transaction {
+            src,
+            dst,
+            qqty: qqt
+        };
+        transaction
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_block_creation_and_check() {
+        let maximator = hash("uss");
+        let neeto = hash("neeto");
+        let chonker = hash("chonker");
+
+        let transaction_a = Transaction::new(maximator, chonker, 100);
+        let transaction_b = Transaction::new(chonker, neeto, 10);
+
+        let origin_block = Block::new(vec![transaction_a]);
+        assert!(origin_block.check());
+
+        let block_1 = origin_block.new_block(vec![transaction_b], chonker);
+        assert!(block_1.check());
+    }
+
+    #[test]
+    fn test_miner_hash_standar(){
+        let mut fist_block = Block::new(vec![]);
+        fist_block.nonce =  mine(&fist_block);
+        fist_block.block_id = hash(&fist_block);
+        assert!(fist_block.check());
+    }
+
+    #[test]
+    fn test_mine_hasher_clone(){
+        let mut fist_block = Block::new(vec![]);
+        fist_block.nonce =  mine_hasher_clone(&fist_block);
+        fist_block.block_id = hash(&fist_block);
+        assert!(fist_block.check());
     }
 }
