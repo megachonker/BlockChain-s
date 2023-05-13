@@ -38,7 +38,7 @@ impl Block {
             block_height: 0,
             block_id: 0,
             parent_hash: 0,
-            transactions: transactions,
+            transactions,
             nonce: 0,
             miner_hash: 0,
         };
@@ -59,7 +59,7 @@ impl Block {
         self.nonce.hash(&mut hasher);
 
         let answer = hasher.finish();
-        answer < HASH_MAX && hash(&self) == self.block_id
+        answer < HASH_MAX && hash(self) == self.block_id
     }
 
     pub fn generate_block(&self, new_transa: Vec<Transaction>, answer: u64, finder: u64) -> Block {
@@ -156,12 +156,11 @@ pub fn mine_fc_hash(block: &Block) -> u64 {
 
 impl Transaction {
     pub fn new(src: u64, dst: u64, qqt: u32) -> Transaction {
-        let transaction = Transaction {
+        Transaction {
             src,
             dst,
             qqty: qqt
-        };
-        transaction
+        }
     }
 }
 
