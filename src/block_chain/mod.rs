@@ -27,6 +27,16 @@ pub fn hash<T: Hash>(value: T) -> u64 {
     hasher.finish()
 }
 
+pub struct  BlockChain{
+    block: Vec<Block>
+}
+
+impl BlockChain {
+    pub fn new() -> BlockChain{
+        BlockChain{block:Vec::<Block>::new()}
+    }
+}
+
 impl Block {
     /// crée le bloque génésis
     pub fn new(transactions: Vec<Transaction>) -> Block {
