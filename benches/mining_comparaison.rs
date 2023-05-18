@@ -1,6 +1,8 @@
-use block_chain::{mine, mine_hasher_clone,Block, mine_hasher_lessrng}; // Import the functions from the block_chain module
-
+use lib_block::*;
+// use blockchain
 use criterion::{criterion_group, criterion_main, Criterion};
+// use crate::block_chain::block::{mine, mine_hasher_clone, Block, mine_hasher_lessrng};
+// use crate::block_chain::block::Block;
 
 // Define the benchmarking function
 fn benchmark_functions(c: &mut Criterion) {

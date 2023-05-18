@@ -27,16 +27,6 @@ pub fn hash<T: Hash>(value: T) -> u64 {
     hasher.finish()
 }
 
-pub struct  BlockChain{
-    block: Vec<Block>
-}
-
-impl BlockChain {
-    pub fn new() -> BlockChain{
-        BlockChain{block:Vec::<Block>::new()}
-    }
-}
-
 impl Block {
     /// crée le bloque génésis
     pub fn new(transactions: Vec<Transaction>) -> Block {
@@ -182,16 +172,14 @@ mod tests {
     #[test]
     fn test_block_creation_and_check() {
         let maximator = hash("uss");
-        let neeto = hash("neeto");
         let chonker = hash("chonker");
 
         let transaction_a = Transaction::new(maximator, chonker, 100);
-        let transaction_b = Transaction::new(chonker, neeto, 10);
 
         let origin_block = Block::new(vec![]);
         assert!(origin_block.check());
 
-        let block_1 = origin_block.new_block(vec![transaction_b], chonker);
+        let block_1 = origin_block.new_block(vec![transaction_a], chonker);
         assert!(block_1.check());
     }
 

@@ -1,9 +1,18 @@
-use std::mem::transmute;
+mod block_chain {
+    pub mod interconnect;
+}
 
-use block_chain::{hash, Block, Transaction};
+
+use block_chain::interconnect::p2p_simulate;
+use lib_block::{hash, Block, Transaction};
 use rand::{seq::SliceRandom, thread_rng, Rng};
 
 fn main() {
+    p2p_simulate();
+}
+
+fn fakemine(){
+
     let mut rng = thread_rng();
 
     //guy's
@@ -36,20 +45,5 @@ fn main() {
         if !block.check() {
             println!("The block is false");
         }
-    }
-}
-
-use w3f_bls::{Keypair, Message, Signed, ZBLS};
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_sig() {
-        let mut keypair = Keypair::<ZBLS>::generate(::rand::thread_rng());
-        let message = Message::new(b"Some context", b"Some message");
-        let sig = keypair.sign(&message);
-        assert!(sig.verify(&message, &keypair.public));
     }
 }
