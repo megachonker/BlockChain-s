@@ -2,12 +2,14 @@ mod block_chain {
     pub mod interconnect;
 }
 
+use block_chain::interconnect::detect_interlock;
 
 use block_chain::interconnect::p2p_simulate;
 use lib_block::{hash, Block, Transaction};
 use rand::{seq::SliceRandom, thread_rng, Rng};
 
 fn main() {
+    // detect_interlock();
     p2p_simulate();
 }
 

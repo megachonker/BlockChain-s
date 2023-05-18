@@ -2,16 +2,17 @@
 use std::net::{UdpSocket, SocketAddr,IpAddr};
 use std::thread;
 use std::sync::{Arc,Barrier};
-use std::time::Duration;
+use std::time::{Duration,Instant};
 //remplacer par un énume les noms
+
 
 #[derive(Clone)]
 #[repr(u8)]
 enum Name {
-    Isa,
-    Net,
-    Max,
-    Lex,
+    Isa=1,
+    Net=2,
+    Max=3,
+    Lex=4,
 }
 
 impl Copy for Name {}
@@ -73,13 +74,14 @@ impl Node {
         let name = self.name;
         let barrier = self.barrier.clone();
     
+        let mut buf = [0; 3];
         thread::spawn(move || {
-            let mut buf = [0; 3];
 
 
         //CASSER La qsdmlfjhnqsdfiogu avec timeout
 
-        socket.set_read_timeout(Some(Duration::new(1, 0))).expect("set_read_timeout call failed");
+        socket.set_read_timeout(Some(Duration::new(0, 1000000))).expect("set_read_timeout call failed");
+        println!("{} Whait Timeout: ",name.get_name());
         match socket.recv_from(&mut buf) {
             Ok((amt, src)) => {
                 barrier.wait(); // Unblock the send operation
@@ -96,6 +98,7 @@ impl Node {
             Err(_) => {
                 // Handle timeout here
                 barrier.wait(); // Unblock the send operation even if no packet received
+                println!("{} unlock Timeout",name.get_name());
             }
         }
         socket.set_read_timeout(None).expect("set_read_timeout call failed");
@@ -115,6 +118,10 @@ impl Node {
         println!("Node {} to {} send: {}",self.name.get_name(),id.get_name(),self.name.get_name());
         self.socket.send_to(self.name.get_name().as_bytes(), id.get_ip()).expect(&("Failed to send data to:".to_owned()+&self.name.get_name()));//3
     }
+
+    fn quit(&mut self){
+        ;
+    }
 }
 
 pub fn p2p_simulate(){
@@ -129,19 +136,33 @@ pub fn p2p_simulate(){
     }
 
     for (node) in nodes.iter_mut().enumerate() {
-
-        println!("lunch {}:",node.1.name.get_name());
         node.1.run_send(Name::Isa);
-
-        // for (inner_index, inner_node) in nodes.iter().enumerate() {
-        //     if index != inner_index {
-        //         node.run_send(inner_node.name);
-        //     }
-        // }
+        node.1.run_send(Name::Lex);
+        node.1.run_send(Name::Max);
     }
 }
 
+pub fn detect_interlock(){
+    for _ in [..10]{
+        // Specify the timeout duration in milliseconds
+        let timeout_duration_ms = 1500;
 
+        // Spawn a new thread to perform the time-consuming operation
+        let handle = thread::spawn(move || {
+            // Perform the time-consuming operation here
+            p2p_simulate();
+        });
+
+        // Wait for the timeout duration
+        thread::sleep(Duration::from_millis(timeout_duration_ms));
+
+        // Check if the spawned thread has finished executing
+        if handle.join().is_err() {
+            // Timeout exceeded, the test should fail
+            assert!(false, "Timeout exceeded!");
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -151,5 +172,11 @@ mod tests {
     fn p2p_test() {
         p2p_simulate();
         assert!(true);        
+    }
+
+    #[test]
+//d'ont work idk
+    fn p2p_deadlock(){
+        detect_interlock();
     }
 }
