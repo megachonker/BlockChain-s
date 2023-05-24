@@ -1,7 +1,9 @@
 mod block_chain {
     pub mod interconnect;
+    pub mod block;
 }
 
+use block_chain::interconnect;
 use block_chain::interconnect::detect_interlock;
 
 use block_chain::interconnect::p2p_simulate;
@@ -11,6 +13,8 @@ use rand::{seq::SliceRandom, thread_rng, Rng};
 fn main() {
     // detect_interlock();
     p2p_simulate();
+
+    
 }
 
 fn fakemine(){

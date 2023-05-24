@@ -4,6 +4,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 
 const HASH_MAX: u64 = 10000000000000;
+
 #[derive(Debug)]
 pub struct Block {
     block_id: u64,                  //the hash of whole block
@@ -74,6 +75,64 @@ impl Block {
     pub fn new_block(&self, new_transa: Vec<Transaction>, finder: u64) -> Block {
         self.generate_block(new_transa, finder)
     }
+
+    pub fn as_bytes(&self) -> Vec<u8>{
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&self.block_id.to_be_bytes());
+        bytes.extend_from_slice(&self.block_height.to_be_bytes());
+        bytes.extend_from_slice(&self.parent_hash.to_be_bytes());
+        bytes.extend_from_slice(&(self.transactions.len()  as u32).to_be_bytes());
+        //put the transaction here
+        bytes.extend_from_slice(&self.miner_hash.to_be_bytes());
+        bytes.extend_from_slice(&self.nonce.to_be_bytes());
+
+        bytes
+
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Block> {
+        if bytes.len() < 48 {
+            // Ensure the byte slice has enough length to deserialize a Block
+            return None;
+        }
+
+        let block_id_bytes = &bytes[0..8];
+        let block_height_bytes = &bytes[8..16];
+        let parent_hash_bytes = &bytes[16..24];
+        let transactions_len_bytes = &bytes[24..28];
+        let transactions_bytes = &bytes[28..];
+        let miner_hash_bytes = &transactions_bytes[0..8];
+        let nonce_bytes = &transactions_bytes[8..16];
+
+        let block_id = u64::from_be_bytes(block_id_bytes.try_into().ok()?);
+        let block_height = u64::from_be_bytes(block_height_bytes.try_into().ok()?);
+        let parent_hash = u64::from_be_bytes(parent_hash_bytes.try_into().ok()?);
+        let transactions_len = u32::from_be_bytes(transactions_len_bytes.try_into().ok()?);
+        
+        // Extract transactions from byte slice (assuming Transaction has its own serialization logic)
+        // let transactions: Vec<Transaction> = (0..transactions_len)
+        //     .into_iter()
+        //     .flat_map(|i| {
+        //         let start = 16 * i as usize;
+        //         let end = start + 16;
+        //         Transaction::from_bytes(&transactions_bytes[start..end])
+        //     })
+        //     .collect::<Option<Vec<Transaction>>>()?;
+        let transactions = vec![];
+        
+        let miner_hash = u64::from_be_bytes(miner_hash_bytes.try_into().ok()?);
+        let nonce = u64::from_be_bytes(nonce_bytes.try_into().ok()?);
+
+        Some(Block {
+            block_id,
+            block_height,
+            parent_hash,
+            transactions,
+            miner_hash,
+            nonce,
+        })
+    }
+
 }
 
 impl Hash for Block {
@@ -86,7 +145,6 @@ impl Hash for Block {
         self.nonce.hash(state);
     }
 }
-
 pub fn mine_hasher_clone(block: &Block) -> u64 {
     let mut rng = rand::thread_rng(); //to pick random value
     let mut hasher = DefaultHasher::new();
@@ -145,9 +203,9 @@ pub fn mine_hasher_lessrng(block: &Block) -> u64 {
     loop {
         let mut to_hash = hasher.clone(); //save l'état du hasher
         nonce_to_test.hash(&mut to_hash);
-        
+
         let answer = to_hash.finish();
-        
+
         if answer < HASH_MAX {
             return nonce_to_test;
         }
