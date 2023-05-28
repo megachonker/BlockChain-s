@@ -2,8 +2,9 @@ use rand::Rng;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
 use std::hash::Hasher;
+use std::sync::{Arc, Mutex};
 
-const HASH_MAX: u64 = 10000000000000;
+const HASH_MAX: u64 = 100000000000;
 
 #[derive(Debug)]
 pub struct Block {
@@ -40,7 +41,8 @@ impl Block {
             nonce: 0,
             miner_hash: 0,
         };
-        block.nonce = mine(&block);
+        // block.nonce = mine(&block);      //for the first
+        block.nonce = 0;
         block.block_id = hash(&block);
         block
     }
@@ -72,22 +74,40 @@ impl Block {
         new_block.block_id = hash(&new_block); //set the correct id
         new_block
     }
+
+    pub fn generate_block_stop(
+        &self,
+        new_transa: Vec<Transaction>,
+        finder: u64,
+        sould_stop: &Arc<Mutex<bool>>,
+    ) -> Option<Block> {
+        let mut new_block = Block {
+            block_height: self.block_height + 1,
+            block_id: 0,
+            parent_hash: self.block_id,
+            transactions: new_transa,
+            nonce: 0,
+            miner_hash: finder,
+        };
+        new_block.nonce = mine_stop(&new_block, sould_stop)?;
+        new_block.block_id = hash(&new_block); //set the correct id
+        Some(new_block)
+    }
     pub fn new_block(&self, new_transa: Vec<Transaction>, finder: u64) -> Block {
         self.generate_block(new_transa, finder)
     }
 
-    pub fn as_bytes(&self) -> Vec<u8>{
+    pub fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = vec![];
         bytes.extend_from_slice(&self.block_id.to_be_bytes());
         bytes.extend_from_slice(&self.block_height.to_be_bytes());
         bytes.extend_from_slice(&self.parent_hash.to_be_bytes());
-        bytes.extend_from_slice(&(self.transactions.len()  as u32).to_be_bytes());
+        bytes.extend_from_slice(&(self.transactions.len() as u32).to_be_bytes());
         //put the transaction here
         bytes.extend_from_slice(&self.miner_hash.to_be_bytes());
         bytes.extend_from_slice(&self.nonce.to_be_bytes());
 
         bytes
-
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Option<Block> {
@@ -108,7 +128,7 @@ impl Block {
         let block_height = u64::from_be_bytes(block_height_bytes.try_into().ok()?);
         let parent_hash = u64::from_be_bytes(parent_hash_bytes.try_into().ok()?);
         let transactions_len = u32::from_be_bytes(transactions_len_bytes.try_into().ok()?);
-        
+
         // Extract transactions from byte slice (assuming Transaction has its own serialization logic)
         // let transactions: Vec<Transaction> = (0..transactions_len)
         //     .into_iter()
@@ -119,7 +139,7 @@ impl Block {
         //     })
         //     .collect::<Option<Vec<Transaction>>>()?;
         let transactions = vec![];
-        
+
         let miner_hash = u64::from_be_bytes(miner_hash_bytes.try_into().ok()?);
         let nonce = u64::from_be_bytes(nonce_bytes.try_into().ok()?);
 
@@ -132,7 +152,6 @@ impl Block {
             nonce,
         })
     }
-
 }
 
 impl Hash for Block {
@@ -184,6 +203,36 @@ pub fn mine(block: &Block) -> u64 {
 
         if answer < HASH_MAX {
             return nonce_to_test;
+        }
+    }
+}
+
+pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
+    let mut rng = rand::thread_rng(); //to pick random value
+    loop {
+        let nonce_to_test = rng.gen::<u64>();
+        let mut hasher = DefaultHasher::new();
+
+        //playload of block to hash
+        block.block_height.hash(&mut hasher);
+        block.parent_hash.hash(&mut hasher);
+        block.transactions.hash(&mut hasher);
+        block.miner_hash.hash(&mut hasher);
+        nonce_to_test.hash(&mut hasher);
+        let answer: u64 = hasher.finish();
+
+        if answer < HASH_MAX {
+            return Some(nonce_to_test);
+        }
+        if nonce_to_test % 100 == 0 {
+            //test not all time (mutex has big complexity)
+            {
+                let mut val = should_stop.lock().unwrap();
+                if *val {
+                    *val = false;
+                    return None;
+                }
+            }
         }
     }
 }

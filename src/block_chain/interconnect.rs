@@ -1,9 +1,10 @@
 use std::net::{IpAddr, SocketAddr, UdpSocket};
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use lib_block::Block;
+use std::sync::mpsc;
 
 use super::block;
 //remplacer par un énume les noms
@@ -24,15 +25,22 @@ pub enum Name {
 impl Copy for Name {}
 
 impl Name {
-
-    pub fn create(num :u8) -> Name{
+    pub fn create(num: u8) -> Name {
         match num {
             1 => Name::Isa,
             2 => Name::Net,
             3 => Name::Max,
             4 => Name::Lex,
             _ => Name::Isa,
-            
+        }
+    }
+    pub fn creat_str(name: &str) -> Name {
+        match name {
+            "Isa" => Name::Isa,
+            "Net" => Name::Net,
+            "Max" => Name::Max,
+            "Lex" => Name::Lex,
+            _ => Name::Isa,
         }
     }
 
@@ -84,6 +92,16 @@ impl Node {
             name,
             socket,
             barrier,
+        }
+    }
+
+    pub fn clone(&self) -> Node {
+        let barrier = Arc::new(Barrier::new(2));
+
+        Node {
+            name: self.name,
+            socket: self.socket.try_clone().unwrap(),
+            barrier: barrier,
         }
     }
 
@@ -159,19 +177,72 @@ impl Node {
 
     fn quit(&mut self) {}
 
-
-    pub fn send_block(&self,block : & Block,addr :SocketAddr){
-        self.socket.send_to(&block.as_bytes(), addr).expect("Error to send the block");
+    fn send_block(&self, block: &Block, addr: SocketAddr) {
+        self.socket
+            .send_to(&block.as_bytes(), addr)
+            .expect("Error to send the block");
     }
 
-    pub fn recive_block(&self) ->  Option<Block>{
-        let mut buf : [u8;100] = [0;100];
-        self.socket.recv_from(& mut buf).unwrap();
-        let new_block = Block::from_bytes(& mut buf)?;
+    fn recive_block(&self) -> Option<Block> {
+        let mut buf: [u8; 100] = [0; 100];
+        self.socket.recv_from(&mut buf).unwrap();
+        let new_block = Block::from_bytes(&mut buf)?;
         Some(new_block)
     }
 
-    pub fn get_ip(&self)-> SocketAddr{
+    pub fn listen_newblock(&self, tx: mpsc::Sender<Block>, should_stop: Arc<Mutex<bool>>) {
+        loop {
+            let new_block = self.recive_block();
+            if let Some(new_block) = new_block {
+                if new_block.check() {
+                    tx.send(new_block).unwrap();
+                    {
+                        let mut val = should_stop.lock().unwrap();
+                        *val = true;
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn mine(
+        &self,
+        participent: Vec<SocketAddr>,
+        rx: mpsc::Receiver<Block>,
+        should_stop: Arc<Mutex<bool>>,
+        mut block: Block,
+    ) {
+        let my_id = match self.name {
+            Name::Isa => 1,
+            Name::Net => 2,
+            Name::Max => 3,
+            Name::Lex => 4,
+            _=> 0,
+        };
+        loop {
+            println!("The block is {:?} ", block);
+
+            match block.generate_block_stop(vec![], my_id, &should_stop) {
+                Some(block) => {
+                    println!("I found the block !!!");
+                    for addr in &participent {
+                        self.send_block(&block, *addr);
+                    }
+                }
+                None => {
+                    println!("An other find the block")
+                }
+            }
+
+            block = rx.recv().unwrap();
+            {
+                let mut val = should_stop.lock().unwrap();
+                *val = false;
+            }
+        }
+    }
+
+    pub fn get_ip(&self) -> SocketAddr {
         self.name.get_ip()
     }
 }
@@ -232,16 +303,16 @@ mod tests {
     //d'ont work idk
     fn p2p_deadlock() {
         detect_interlock();
-    } 
+    }
 
     #[test]
     fn sendrecive_block() {
         let block = Block::new(vec![]);
         let me = Node::create(Name::Isa);
 
-        me.send_block(&block,me.get_ip());
+        me.send_block(&block, me.get_ip());
         let new_block = me.recive_block().unwrap();
 
-        assert_eq!(block::hash(block),block::hash(new_block));
+        assert_eq!(block::hash(block), block::hash(new_block));
     }
 }
