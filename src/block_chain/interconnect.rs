@@ -218,6 +218,8 @@ pub fn detect_interlock() {
 
 #[cfg(test)]
 mod tests {
+    use std::hash::Hash;
+
     use super::*;
 
     #[test]
@@ -230,7 +232,7 @@ mod tests {
     //d'ont work idk
     fn p2p_deadlock() {
         detect_interlock();
-    }
+    } 
 
     #[test]
     fn sendrecive_block() {
@@ -240,6 +242,6 @@ mod tests {
         me.send_block(&block,me.get_ip());
         let new_block = me.recive_block().unwrap();
 
-        assert_eq!(block.as_bytes(),new_block.as_bytes());
+        assert_eq!(block::hash(block),block::hash(new_block));
     }
 }
