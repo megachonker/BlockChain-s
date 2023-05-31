@@ -2,41 +2,76 @@ use core::time;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket};
 use std::sync::{Arc,Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::mem;
+use std::io::Cursor;
+
+use serde::{Serialize, Deserialize};
+use bincode::{serialize, deserialize};
 //remplacer par un énume les noms
 use rand::Rng;
 
-//bootstrap
-// 127.0.1.1/24
+#[derive(Serialize, Deserialize, Debug)]
+enum Packet {
+    GET_PEERS,
+    REP_PERS(Vec<SocketAddr>),
+}
+
+
 struct Node {
     node_addr: SocketAddr,
     peers_addr: Vec<SocketAddr>,
     output_lock: Arc<Mutex<()>>,
 }
 
+
 impl Node {
     fn create(address: SocketAddr, bootstraps: Vec<SocketAddr>,output_lock: Arc<Mutex<()>>)  {
-        let node = Node {
+        let mut node = Node {
             node_addr: address,
             peers_addr: bootstraps,
             output_lock,
         };
+        node.print();
+        
+        //listener
+        let socket_sender = UdpSocket::bind(node.node_addr).unwrap();
+
+        let socklist: UdpSocket = socket_sender.try_clone().expect("try clone socket err");
+        let bootstrap_list = node.peers_addr.clone();
+
         thread::spawn(move||{
-            // time::Duration()
-            node.print();
+            let mut buffer = vec![0u8; mem::size_of::<SocketAddr>()*5];//on veux 
+
+            loop {
+                match socklist.recv(&mut buffer) {
+                    
+                    Ok(received) => {
+                        
+                        
+                        let mut v: Vec<SocketAddr>  = deserialize(&buffer[..received]).expect("errreur deserial");
+                        for peer in &v {
+                            println!("ADDED:{}",peer);
+                        }
+                        node.peers_addr.append(&mut v);
+                    
+                    } ,
+                    Err(e) => println!("recv function failed: {e:?}"),}
+            }
+
         });
+
+        //sender
+        // let socket = UdpSocket::bind(node.node_addr).unwrap();
+        let serialized_packet = serialize(&bootstrap_list).expect("Serialization error");
+        for dest in &bootstrap_list{
+            socket_sender.send_to(&serialized_packet, dest).expect("envoit erreur");
+        }
+
+        // node.print();
+
+
     }
 
-    // fn moar_peers(&self){
-    //     for peer in self.peers_addr{
-    //         //send get peers
-    //         //receive
-    //     }
-    // }
-
-    // fn search_item(&self){
-
-    // }
 
     fn print(&self) {
 
@@ -56,12 +91,11 @@ pub fn kademlia_simulate() {
     //INIT
     let output_lock = Arc::new(Mutex::new(())); // Create a single output lock
     let mut rng = rand::thread_rng();
-    // let mut nodes: Vec<Node> = Vec::with_capacity(255);
     for id in 1..=254 {
-        let mut bootstrap_socket: Vec<SocketAddr> = Vec::with_capacity(10);
+        let mut bootstrap_socket: Vec<SocketAddr> = Vec::with_capacity(5);
         
-        //génère 10addresse random que la node peut rejoindre
-        for _ in 0..10 {
+        //génère 5addresse random que la node peut rejoindre
+        for _ in 0..5 {
             let socket = SocketAddr::V4(SocketAddrV4::new(
                 Ipv4Addr::new(127, 0, 1, rng.gen::<u8>()),
                 6021,
@@ -69,11 +103,6 @@ pub fn kademlia_simulate() {
             bootstrap_socket.push(socket);
         }
         Node::create(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 1, id as u8), 6021)), bootstrap_socket,Arc::clone(&output_lock));
-        //ajoute nouvel node
-        // nodes.push(Node {
-        //     node_addr: SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 1, id as u8), 6021)),
-        //     peers_addr: bootstrap_socket,
-        // });
     }
 }
 
