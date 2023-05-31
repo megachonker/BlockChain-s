@@ -1,5 +1,5 @@
 use std::mem;
-use std::net::{IpAddr,Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time;
@@ -20,17 +20,6 @@ struct Node {
     peers_addr: Vec<SocketAddr>,
 }
 
-// fn print_ip(socket_addr: SocketAddr) {
-//     match socket_addr.ip() {
-//         IpAddr::V4(ipv4) => {
-//             println!("IPv4 address: {}", ipv4);
-//         }
-//         IpAddr::V6(ipv6) => {
-//             println!("IPv6 address: {}", ipv6);
-//         }
-//     }
-// }
-
 impl Node {
     fn create(address: SocketAddr, bootstraps: Vec<SocketAddr>, starting_barr: Arc<Barrier>) {
         let mut node = Node {
@@ -41,33 +30,30 @@ impl Node {
         thread::spawn(move || {
             let socket = UdpSocket::bind(node.node_addr).unwrap();
             starting_barr.wait();
-            
+
             let mut buffer = vec![0u8; mem::size_of::<SocketAddr>() * 100]; //on veux 100 addres
-            let serialized_packet = serialize(&node.peers_addr).expect("Serialization error");
-            
-            
+
             //send initial
-            socket.send_to(&serialized_packet, &node.peers_addr[0]).expect("first batch send_to");
-        
-            // for peer in &node.peers_addr {
-            //     socket.send_to(&serialized_packet, peer).expect("first batch send_to");
-            // }
+            let serialized_packet = serialize(&Packet::GetPeers).expect("Serialization error");
+            for peer in &node.peers_addr {
+                socket.send_to(&serialized_packet, peer).expect("first batch send_to");
+            }
 
             loop {
-                let (data, remote) = socket.recv_from(&mut buffer).expect("err recv_from");
-                match deserialize(&buffer[..data]).expect("errreur deserial") {
+                let (offset, remote) = socket.recv_from(&mut buffer).expect("err recv_from");
+                let message = deserialize(&buffer[..offset]).expect("errreur deserial");
+                match message {
                     Packet::GetPeers => {
-                        let serialized_packet = serialize(&node.peers_addr).expect("Serialization error");
+                        let serialized_packet = serialize(&Packet::RepPeers(node.peers_addr.clone())).expect("Serialization error"); //CLONE
+
                         socket
                             .send_to(&serialized_packet, remote)
                             .expect("err sendto");
-                        // println!("GetPeers from {}:", remote);
+                        println!("GetPeers from {}:", remote);
                     }
                     Packet::RepPeers(mut response_packet) => {
-                        node.peers_addr.append(&mut response_packet); // Modify the Vec
-                        // print_ip(remote)
-                        // println!("RepPeers from {}:", remote.ip());
-                        // println!("{:?}", response_packet);
+                        println!("RepPeers from {}: {:?}", remote,response_packet);
+                        node.peers_addr.append(&mut response_packet);
                     }
                 }
             }
@@ -101,13 +87,11 @@ pub fn kademlia_simulate() {
         );
     }
     //Fake starting
-    thread::sleep(time::Duration::from_secs(1));
-
-    // thread::sleep(time::Duration::from_millis(100));
+    thread::sleep(time::Duration::from_millis(2000));
 
     // let mut buffer = vec![0u8; mem::size_of::<SocketAddr>() * 100]; //on veux 100 addres
 
-    // let src = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 1, 1 as u8), 9026));
+    // let src = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 10, 1 as u8), 9026));
     // let dst = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 1, 2 as u8), 9026));
 
     // let test_socket = UdpSocket::bind(src).unwrap();
@@ -118,7 +102,7 @@ pub fn kademlia_simulate() {
     //     .expect("err sendto");
 
     // let (data, remote) = test_socket.recv_from(&mut buffer).expect("err receve to");
-    // print!("{:?}", &buffer[..data]);
+    // print!("from {}: {:?}", remote, &buffer[..data]);
 
     // match deserialize(&buffer[..data]).expect("errreur deserial") {
     //     Packet::GetPeers => {
