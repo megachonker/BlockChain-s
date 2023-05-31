@@ -33,23 +33,16 @@ impl Node {
 
             let mut buffer = vec![0u8; mem::size_of::<SocketAddr>() * 100]; //on veux 100 addres
 
-            // Refresh PEER !
-            // thread::spawn(move || {
-            //     let refresh_sock = socket.clone();
-            //     let serialized_packet = serialize(&Packet::GetPeers).expect("Serialization error");
-            //     thread::sleep(time::Duration::from_millis(100));
-            //     for peer in &node.peers_addr.into() {
-            //         refresh_sock
-            //             .send_to(&serialized_packet, peer)
-            //             .expect("first batch send_to");
-            //     }
-            // });
             let socket_refresh_peer = socket.clone();
             let copy_peer_addr = node.peers_addr.clone();
             thread::spawn(move || {
-                let serialized_packet = serialize(&Packet::GetPeers).expect("Serialization error");
-                for peer in copy_peer_addr.iter()  {     
-                    socket_refresh_peer.send_to(&serialized_packet, &peer).expect("send to imposible");
+                for _ in 1..10 {
+                    
+                    let serialized_packet = serialize(&Packet::GetPeers).expect("Serialization error");
+                    for peer in copy_peer_addr.iter()  {     
+                        socket_refresh_peer.send_to(&serialized_packet, &peer).expect("send to imposible");
+                    }
+                    thread::sleep(time::Duration::from_millis(500));
                 }
             });
 
@@ -106,7 +99,7 @@ pub fn kademlia_simulate() {
         );
     }
     //Fake starting
-    thread::sleep(time::Duration::from_millis(2500));
+    thread::sleep(time::Duration::from_millis(5000));
 
     // let mut buffer = vec![0u8; mem::size_of::<SocketAddr>() * 100]; //on veux 100 addres
 
