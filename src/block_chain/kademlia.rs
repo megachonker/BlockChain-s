@@ -17,34 +17,51 @@ enum Packet {
 
 struct Node {
     node_addr: SocketAddr,
-    peers_addr: Vec<SocketAddr>,
+    peers_addr: Arc<Vec<SocketAddr>>,
 }
 
 impl Node {
-    fn create(address: SocketAddr, bootstraps: Vec<SocketAddr>, starting_barr: Arc<Barrier>) {
+    fn create(address: SocketAddr, bootstraps: Arc<Vec<SocketAddr>>, start_barrier: Arc<Barrier>) {
         let mut node = Node {
             node_addr: address,
             peers_addr: bootstraps,
         };
 
         thread::spawn(move || {
-            let socket = UdpSocket::bind(node.node_addr).unwrap();
-            starting_barr.wait();
+            let socket = Arc::new(UdpSocket::bind(node.node_addr).unwrap());
+            start_barrier.wait();
 
             let mut buffer = vec![0u8; mem::size_of::<SocketAddr>() * 100]; //on veux 100 addres
 
-            //send initial
-            let serialized_packet = serialize(&Packet::GetPeers).expect("Serialization error");
-            for peer in &node.peers_addr {
-                socket.send_to(&serialized_packet, peer).expect("first batch send_to");
-            }
+            // Refresh PEER !
+            // thread::spawn(move || {
+            //     let refresh_sock = socket.clone();
+            //     let serialized_packet = serialize(&Packet::GetPeers).expect("Serialization error");
+            //     thread::sleep(time::Duration::from_millis(100));
+            //     for peer in &node.peers_addr.into() {
+            //         refresh_sock
+            //             .send_to(&serialized_packet, peer)
+            //             .expect("first batch send_to");
+            //     }
+            // });
+            let socket_refresh_peer = socket.clone();
+            let copy_peer_addr = node.peers_addr.clone();
+            thread::spawn(move || {
+                let serialized_packet = serialize(&Packet::GetPeers).expect("Serialization error");
+                for peer in copy_peer_addr.iter()  {     
+                    socket_refresh_peer.send_to(&serialized_packet, &peer).expect("send to imposible");
+                }
+            });
+
 
             loop {
                 let (offset, remote) = socket.recv_from(&mut buffer).expect("err recv_from");
                 let message = deserialize(&buffer[..offset]).expect("errreur deserial");
                 match message {
                     Packet::GetPeers => {
-                        let serialized_packet = serialize(&Packet::RepPeers(node.peers_addr.clone())).expect("Serialization error"); //CLONE
+                        let test = node.peers_addr.clone().to_vec();
+                        let serialized_packet =
+                            serialize(&Packet::RepPeers(test)).expect("Serialization error"); //CLONE
 
                         socket
                             .send_to(&serialized_packet, remote)
@@ -52,8 +69,10 @@ impl Node {
                         println!("GetPeers from {}:", remote);
                     }
                     Packet::RepPeers(mut response_packet) => {
-                        println!("RepPeers from {}: {:?}", remote,response_packet);
-                        node.peers_addr.append(&mut response_packet);
+                        println!("RepPeers from {}: {:?}", remote, &response_packet);
+                        let mut test = node.peers_addr.clone().to_vec();
+                        test.append(&mut response_packet);
+                        node.peers_addr = Arc::new(test);
                     }
                 }
             }
@@ -66,7 +85,7 @@ pub fn kademlia_simulate() {
     let nb_ip = 254;
     let nb_boostrap = 5;
 
-    let start_barrierre = Arc::new(Barrier::new(nb_ip));
+    let start_barrier = Arc::new(Barrier::new(nb_ip));
     let mut rng = rand::thread_rng();
 
     for id in 1..=nb_ip {
@@ -82,12 +101,12 @@ pub fn kademlia_simulate() {
         }
         Node::create(
             SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 1, id as u8), 9026)),
-            bootstrap_socket,
-            start_barrierre.clone(),
+            bootstrap_socket.into(),
+            start_barrier.clone(),
         );
     }
     //Fake starting
-    thread::sleep(time::Duration::from_millis(2000));
+    thread::sleep(time::Duration::from_millis(2500));
 
     // let mut buffer = vec![0u8; mem::size_of::<SocketAddr>() * 100]; //on veux 100 addres
 
