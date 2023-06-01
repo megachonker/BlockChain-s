@@ -4,7 +4,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::shared::Shared;
-use lib_block::Block;
+use bincode::{deserialize, serialize};
+use lib_block::{Block, Transaction};
+use serde::{Deserialize, Serialize};
 use std::sync::mpsc;
 
 use super::block;
@@ -14,6 +16,15 @@ use super::block;
 // mod block_chain {
 //     pub use super::block_chain::Block;
 // }
+
+#[derive(Serialize, Deserialize, Debug)]
+enum Packet {
+    Keepalive,
+    Transaction(Transaction),
+    Block(Block),
+    GetPeer,
+    RepPeers(Vec<SocketAddr>),
+}
 
 #[derive(Clone)]
 #[repr(u8)]
@@ -179,9 +190,9 @@ impl Node {
 
     fn quit(&mut self) {}
 
-    fn send_block(&self, block: &Block, addr: SocketAddr) {
+    fn send_block(&self, block: &Vec<u8>, addr: SocketAddr) {
         self.socket
-            .send_to(&block.as_bytes(), addr)
+            .send_to(&block, addr)
             .expect("Error to send the block");
     }
 
@@ -192,22 +203,35 @@ impl Node {
         Some(new_block)
     }
 
-    pub fn listen(&self, share: Shared,rx : mpsc::Sender<Block>) {
+    fn hear(&self) -> Packet {
+        let mut buffer = vec![0u8; 1024]; //MAXSIZE a def ??
+
+        let (offset, _) = self.socket.recv_from(&mut buffer).expect("err recv_from");
+        deserialize(&buffer[..offset]).expect("errreur deserial")
+    }
+
+    pub fn listen(&self, share: Shared, rx: mpsc::Sender<Block>) {
         loop {
-            let new_block = self.recive_block();
-            if let Some(new_block) = new_block {
-                if new_block.check() {
-                    rx.send(new_block).unwrap();
-                    {
-                        let mut val = share.should_stop.lock().unwrap();
-                        *val = true;
+            match self.hear() {
+                Packet::Keepalive => {}
+                Packet::Block(block) => {
+                    if block.check() {
+                        rx.send(block).unwrap();
+                        {
+                            let mut val = share.should_stop.lock().unwrap();
+                            *val = true;
+                        }
                     }
                 }
+                Packet::Transaction(trans) => {
+
+                }
+                _ => {}
             }
         }
     }
 
-    pub fn mine(&self, share: Shared, mut block: Block,tx : mpsc::Receiver<Block>) {
+    pub fn mine(&self, share: Shared, mut block: Block, tx: mpsc::Receiver<Block>) {
         let my_id = match self.name {
             Name::Isa => 1,
             Name::Net => 2,
@@ -222,18 +246,19 @@ impl Node {
                 Some(block) => {
                     println!("I found the block !!!");
                     {
-                        let peer  = share.peer.lock().unwrap();
+                        let peer = share.peer.lock().unwrap();
+                        let block_sera:Vec<u8> = serialize(& Packet::Block( block)).expect("Error serialize block");
                         for addr in &*peer {
-                            self.send_block(&block, *addr);
+                            self.send_block(&block_sera, *addr);
                         }
                     }
                 }
                 None => {
-                    println!("An other find the block")
+                    println!("An other found the block")
                 }
             }
 
-            block = tx.recv().unwrap();
+            block = tx.recv().expect("Error block can't be read from the channel");
             {
                 let mut val = share.should_stop.lock().unwrap();
                 *val = false;

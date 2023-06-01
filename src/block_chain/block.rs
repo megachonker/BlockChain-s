@@ -3,10 +3,14 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::sync::{Arc, Mutex};
+use serde::{Deserialize, Serialize};
+use bincode::{deserialize, serialize};
 
-const HASH_MAX: u64 = 100000000000;
 
-#[derive(Debug)]
+
+const HASH_MAX: u64 = 10000000000000;
+
+#[derive(Debug,Serialize,Deserialize)]
 pub struct Block {
     block_id: u64,                  //the hash of whole block
     block_height: u64,              //the number of the current block
@@ -15,7 +19,7 @@ pub struct Block {
     miner_hash: u64,                //Who find the answer
     nonce: u64,                     //the answer of the defi
 }
-#[derive(Debug, Hash)]
+#[derive(Debug, Hash,Serialize,Deserialize)]
 pub struct Transaction {
     src: u64,  //who send coin
     dst: u64,  //who recive
