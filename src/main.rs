@@ -9,7 +9,7 @@ use block_chain::node::{self, Name, Node};
 // use core::num::flt2dec::strategy;
 use crate::shared::Shared;
 use block_chain::shared;
-use std::env;
+use std::env::{self, args};
 
 use block_chain::node::p2p_simulate;
 use lib_block::{hash, Block, Transaction};
@@ -23,10 +23,14 @@ fn main() {
     // detect_interlock();
     // p2p_simulate();
     let args: Vec<String> = env::args().collect();
-    let name = Name::creat_str(&args[1]);
+    let name = Name::creat_str(&args[2]);
     let me = Node::create(name);
+    if args[1] == "send"{
+        me.send_transactions(SocketAddr::from(([127, 0, 0, 1], 6021)),Name::creat_str(&args[3]),args[4].parse::<u32>().expect("arg 3 must be integer")); //hardcode gate
+        return;
+    } 
     let me_clone = me.clone();
-
+    
     let should_stop = Arc::new(Mutex::new(false));
 
     let peer = Arc::new(Mutex::new(vec![

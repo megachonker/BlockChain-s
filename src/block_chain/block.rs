@@ -1,16 +1,14 @@
+use bincode::{deserialize, serialize};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::sync::{Arc, Mutex};
-use serde::{Deserialize, Serialize};
-use bincode::{deserialize, serialize};
 
+const HASH_MAX: u64 = 1000000000000;
 
-
-const HASH_MAX: u64 = 10000000000000;
-
-#[derive(Debug,Serialize,Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Block {
     block_id: u64,                  //the hash of whole block
     block_height: u64,              //the number of the current block
@@ -19,7 +17,7 @@ pub struct Block {
     miner_hash: u64,                //Who find the answer
     nonce: u64,                     //the answer of the defi
 }
-#[derive(Debug, Hash,Serialize,Deserialize)]
+#[derive(Debug, Hash, Serialize, Deserialize,Clone)]
 pub struct Transaction {
     src: u64,  //who send coin
     dst: u64,  //who recive
@@ -57,7 +55,7 @@ impl Block {
         //playload of block to hash
         self.block_height.hash(&mut hasher);
         self.parent_hash.hash(&mut hasher);
-        self.transactions.hash(&mut hasher);
+        // self.transactions.hash(&mut hasher);     //tres variable donc osef
         self.miner_hash.hash(&mut hasher);
         self.nonce.hash(&mut hasher);
 
@@ -81,7 +79,6 @@ impl Block {
 
     pub fn generate_block_stop(
         &self,
-        new_transa: Vec<Transaction>,
         finder: u64,
         sould_stop: &Arc<Mutex<bool>>,
     ) -> Option<Block> {
@@ -89,7 +86,7 @@ impl Block {
             block_height: self.block_height + 1,
             block_id: 0,
             parent_hash: self.block_id,
-            transactions: new_transa,
+            transactions: vec![],  //put after
             nonce: 0,
             miner_hash: finder,
         };
@@ -156,6 +153,11 @@ impl Block {
             nonce,
         })
     }
+
+    pub fn set_transactions(mut self,transactions: Vec<Transaction>) -> Self{
+        self.transactions = transactions;
+        self
+    }
 }
 
 impl Hash for Block {
@@ -163,7 +165,7 @@ impl Hash for Block {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.block_height.hash(state);
         self.parent_hash.hash(state);
-        self.transactions.hash(state);
+        // self.transactions.hash(state);
         self.miner_hash.hash(state);
         self.nonce.hash(state);
     }
@@ -200,7 +202,7 @@ pub fn mine(block: &Block) -> u64 {
         //playload of block to hash
         block.block_height.hash(&mut hasher);
         block.parent_hash.hash(&mut hasher);
-        block.transactions.hash(&mut hasher);
+        // block.transactions.hash(&mut hasher);
         block.miner_hash.hash(&mut hasher);
         nonce_to_test.hash(&mut hasher);
         let answer: u64 = hasher.finish();
@@ -220,7 +222,7 @@ pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
         //playload of block to hash
         block.block_height.hash(&mut hasher);
         block.parent_hash.hash(&mut hasher);
-        block.transactions.hash(&mut hasher);
+        // block.transactions.hash(&mut hasher);
         block.miner_hash.hash(&mut hasher);
         nonce_to_test.hash(&mut hasher);
         let answer: u64 = hasher.finish();
@@ -228,7 +230,7 @@ pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
         if answer < HASH_MAX {
             return Some(nonce_to_test);
         }
-        if nonce_to_test % 100 == 0 {
+        if nonce_to_test % 100000 == 0 {
             //test not all time (mutex has big complexity)
             {
                 let mut val = should_stop.lock().unwrap();

@@ -9,7 +9,7 @@ use lib_block::{Block, Transaction};
 use serde::{Deserialize, Serialize};
 use std::sync::mpsc;
 
-use super::block;
+use super::{block, shared};
 
 //remplacer par un énume les noms
 
@@ -215,16 +215,22 @@ impl Node {
             match self.hear() {
                 Packet::Keepalive => {}
                 Packet::Block(block) => {
+                    println!("Here");
                     if block.check() {
                         rx.send(block).unwrap();
                         {
                             let mut val = share.should_stop.lock().unwrap();
                             *val = true;
                         }
+                        let mut val = share.transaction.lock().unwrap();
+                        (*val) = vec![]; //on remet a zero les transactions peut être a modiifier
                     }
                 }
                 Packet::Transaction(trans) => {
-
+                    println!("Recive a new transactions");
+                    let mut val = share.transaction.lock().unwrap();
+                    (*val).push(trans);
+                    //share the new transa ???
                 }
                 _ => {}
             }
@@ -242,12 +248,23 @@ impl Node {
         loop {
             println!("The block is {:?} ", block);
 
-            match block.generate_block_stop(vec![], my_id, &share.should_stop) {
-                Some(block) => {
+            match block.generate_block_stop(my_id, &share.should_stop) {
+                Some(mut block) => {
                     println!("I found the block !!!");
+                    println!("The block is {}", block.check());
+                    {
+                        //add the transactions see during the mining
+                        let val = share
+                            .transaction
+                            .lock()
+                            .expect("Error during lock of transaction");
+                        block = block.set_transactions((*val).clone());
+                        println!("The block is {}", block.check());
+                    }
                     {
                         let peer = share.peer.lock().unwrap();
-                        let block_sera:Vec<u8> = serialize(& Packet::Block( block)).expect("Error serialize block");
+                        let block_sera: Vec<u8> =
+                            serialize(&Packet::Block(block)).expect("Error serialize block");
                         for addr in &*peer {
                             self.send_block(&block_sera, *addr);
                         }
@@ -258,7 +275,9 @@ impl Node {
                 }
             }
 
-            block = tx.recv().expect("Error block can't be read from the channel");
+            block = tx
+                .recv()
+                .expect("Error block can't be read from the channel");
             {
                 let mut val = share.should_stop.lock().unwrap();
                 *val = false;
@@ -268,6 +287,16 @@ impl Node {
 
     pub fn get_ip(&self) -> SocketAddr {
         self.name.get_ip()
+    }
+
+    pub fn send_transactions(&self, gate: SocketAddr, to: Name, count: u32) {
+        // let him = Node::create(to);
+        let transa = Transaction::new(0, 1, count);
+        let transa =
+            serialize(&Packet::Transaction(transa)).expect("Error serialize transactions ");
+        self.socket
+            .send_to(&transa, gate)
+            .expect("Error send transaction ");
     }
 }
 
