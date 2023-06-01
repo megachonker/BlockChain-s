@@ -3,10 +3,12 @@ use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::shared::Shared;
 use lib_block::Block;
 use std::sync::mpsc;
 
 use super::block;
+
 //remplacer par un énume les noms
 
 // mod block_chain {
@@ -190,14 +192,14 @@ impl Node {
         Some(new_block)
     }
 
-    pub fn listen_newblock(&self, tx: mpsc::Sender<Block>, should_stop: Arc<Mutex<bool>>) {
+    pub fn listen(&self, share: Shared,rx : mpsc::Sender<Block>) {
         loop {
             let new_block = self.recive_block();
             if let Some(new_block) = new_block {
                 if new_block.check() {
-                    tx.send(new_block).unwrap();
+                    rx.send(new_block).unwrap();
                     {
-                        let mut val = should_stop.lock().unwrap();
+                        let mut val = share.should_stop.lock().unwrap();
                         *val = true;
                     }
                 }
@@ -205,28 +207,25 @@ impl Node {
         }
     }
 
-    pub fn mine(
-        &self,
-        participent: Vec<SocketAddr>,
-        rx: mpsc::Receiver<Block>,
-        should_stop: Arc<Mutex<bool>>,
-        mut block: Block,
-    ) {
+    pub fn mine(&self, share: Shared, mut block: Block,tx : mpsc::Receiver<Block>) {
         let my_id = match self.name {
             Name::Isa => 1,
             Name::Net => 2,
             Name::Max => 3,
             Name::Lex => 4,
-            _=> 0,
+            _ => 0,
         };
         loop {
             println!("The block is {:?} ", block);
 
-            match block.generate_block_stop(vec![], my_id, &should_stop) {
+            match block.generate_block_stop(vec![], my_id, &share.should_stop) {
                 Some(block) => {
                     println!("I found the block !!!");
-                    for addr in &participent {
-                        self.send_block(&block, *addr);
+                    {
+                        let peer  = share.peer.lock().unwrap();
+                        for addr in &*peer {
+                            self.send_block(&block, *addr);
+                        }
                     }
                 }
                 None => {
@@ -234,9 +233,9 @@ impl Node {
                 }
             }
 
-            block = rx.recv().unwrap();
+            block = tx.recv().unwrap();
             {
-                let mut val = should_stop.lock().unwrap();
+                let mut val = share.should_stop.lock().unwrap();
                 *val = false;
             }
         }

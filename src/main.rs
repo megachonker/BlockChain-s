@@ -1,56 +1,53 @@
 mod block_chain {
-    pub mod interconnect;
     pub mod block;
+    pub mod node;
+    pub mod shared;
 }
 
-use block_chain::interconnect::{self, Node,Name};
-use block_chain::interconnect::detect_interlock;
+use block_chain::node::detect_interlock;
+use block_chain::node::{self, Name, Node};
+// use core::num::flt2dec::strategy;
+use crate::shared::Shared;
+use block_chain::shared;
 use std::env;
 
-use block_chain::interconnect::p2p_simulate;
+use block_chain::node::p2p_simulate;
 use lib_block::{hash, Block, Transaction};
 use rand::{seq::SliceRandom, thread_rng, Rng};
-use std::thread;
-use std::sync::{Arc, Mutex};
-use std::sync::mpsc;
 use std::net::SocketAddr;
+use std::sync::mpsc::{self, Receiver};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 fn main() {
     // detect_interlock();
     // p2p_simulate();
     let args: Vec<String> = env::args().collect();
-    let name = Name::creat_str(& args[1]);    
+    let name = Name::creat_str(&args[1]);
     let me = Node::create(name);
-    let me_clone =me.clone();
-
-    let (tx,rx) =mpsc::channel();
+    let me_clone = me.clone();
 
     let should_stop = Arc::new(Mutex::new(false));
-    let should_stop_clone = Arc::clone(&should_stop);
 
-    let participent = vec![
+    let peer = Arc::new(Mutex::new(vec![
         SocketAddr::from(([127, 0, 0, 1], 6021)),
         SocketAddr::from(([127, 0, 0, 2], 6021)),
-    ];
+    ]));
 
-
+    let (rx, tx) = mpsc::channel();
+    let share = Shared::new(peer, should_stop);
+    let share_copy = share.clone();
 
     let thread = thread::spawn(move || {
-        me.listen_newblock(tx, should_stop_clone);
+        me.listen(share_copy,rx);
     });
 
     let starting_block = Block::new(vec![]);
 
-    me_clone.mine(participent,rx, should_stop,starting_block);   
-
-
-    
-
-    
+    me_clone.mine(share, starting_block,tx);
 }
 
-fn fakemine(){
-
+fn fakemine() {
     let mut rng = thread_rng();
 
     //guy's
