@@ -20,35 +20,33 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 fn main() {
-    // detect_interlock();
-    // p2p_simulate();
-    let args: Vec<String> = env::args().collect();
-    let name = Name::creat_str(&args[2]);
-    let me = Node::create(name);
-    if args[1] == "send"{
-        me.send_transactions(SocketAddr::from(([127, 0, 0, 1], 6021)),Name::creat_str(&args[3]),args[4].parse::<u32>().expect("arg 3 must be integer")); //hardcode gate
-        return;
-    } 
-    let me_clone = me.clone();
+    Node::start();
+    // let name = Name::creat_str(&args[2]);
+    // let me: Node = Node::create(name);
+    // if args[1] == "send"{
+    //     me.send_transactions(SocketAddr::from(([127, 0, 0, 1], 6021)),Name::creat_str(&args[3]),args[4].parse::<u32>().expect("arg 3 must be integer")); //hardcode gate
+    //     return;
+    // } 
+    // let me_clone: Node = me.clone();
     
-    let should_stop = Arc::new(Mutex::new(false));
+    // let should_stop = Arc::new(Mutex::new(false));
 
-    let peer = Arc::new(Mutex::new(vec![
-        SocketAddr::from(([127, 0, 0, 1], 6021)),
-        SocketAddr::from(([127, 0, 0, 2], 6021)),
-    ]));
+    // let peer = Arc::new(Mutex::new(vec![
+    //     SocketAddr::from(([127, 0, 0, 1], 6021)),
+    //     SocketAddr::from(([127, 0, 0, 2], 6021)),
+    // ]));
 
-    let (rx, tx) = mpsc::channel();
-    let share = Shared::new(peer, should_stop);
-    let share_copy = share.clone();
+    // let (rx, tx) = mpsc::channel();
+    // let share = Shared::new(peer, should_stop);
+    // let share_copy = share.clone();
 
-    let thread = thread::spawn(move || {
-        me.listen(share_copy,rx);
-    });
+    // let thread = thread::spawn(move || {
+    //     me.listen(share_copy,rx);
+    // });
 
-    let starting_block = Block::new(vec![]);
+    // let starting_block = Block::new(vec![]);
 
-    me_clone.mine(share, starting_block,tx);
+    // me_clone.mine(share, starting_block,tx);
 }
 
 fn fakemine() {

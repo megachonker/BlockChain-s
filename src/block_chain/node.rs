@@ -1,13 +1,15 @@
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::{Arc, Barrier, Mutex};
-use std::thread;
 use std::time::{Duration, Instant};
+use std::{default, thread};
 
 use crate::shared::Shared;
 use bincode::{deserialize, serialize};
 use lib_block::{Block, Transaction};
 use serde::{Deserialize, Serialize};
 use std::sync::mpsc;
+
+use clap::{arg, ArgAction, ArgMatches, Command, Parser};
 
 use super::{block, shared};
 
@@ -96,7 +98,74 @@ pub struct Node {
     barrier: Arc<Barrier>,
 }
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Name of the person to greet
+    #[arg(short, long)]
+    name: String,
+
+    /// Number of times to greet
+    #[arg(short, long, default_value_t = 1)]
+    count: u8,
+}
+
+fn parse_args() -> ArgMatches {
+    Command::new("NIC")
+        .version("1.0")
+        .author("Thompson")
+        .about("A great Block Chain")
+        .arg(
+            arg!(-p --ip <IP> "Your IP:port for bind the socket")
+                .required(false)
+                .action(ArgAction::Set),
+        )
+        .arg(
+            arg!(-r --receive <num> "The id of the receiver ")
+                .required(false)
+                .action(ArgAction::Set),
+        )
+        .arg(
+            arg!(-s --sender  <num> "Your Id")
+                .required(true)
+                .action(ArgAction::Set),
+        )
+        .arg(
+            arg!(-m --mode  <MODE> "Wich mode (send, mine) ")
+                .required(false)
+                .action(ArgAction::Set)
+                .default_value("mine"),
+        )
+        .arg(
+            arg!(-g --gate <IP> "The IP:port of the entry point")
+                .required(true)
+                .action(ArgAction::Set),
+        )
+        .arg(
+            arg!(-c --count <count> "The value amount for the  transaction")
+                .required(false)
+                .action(ArgAction::Set)
+                .default_value("0"),
+        )
+        .get_matches()
+}
+
 impl Node {
+    pub fn start() -> Option<()> {
+        let matches = parse_args();
+        let me = Node::create(Name::creat_str(matches.get_one::<String>("sender")?));
+        if matches.get_one::<String>("mode")? == "send" {
+            me.send_transactions(
+                matches.get_one::<String>("gate")?.parse().unwrap(),
+                Name::creat_str(matches.get_one::<String>("receive")?),
+                matches.get_one::<String>("count")?.parse::<u32>().unwrap(),
+            )
+        } else {
+            me.setup_mine();
+        }
+        Some(())
+    }
+
     pub fn create(name: Name) -> Node {
         let socket = UdpSocket::bind(name.get_ip())
             .expect(&(name.get_name() + ": couldn't bind to address:")); //1
@@ -215,7 +284,6 @@ impl Node {
             match self.hear() {
                 Packet::Keepalive => {}
                 Packet::Block(block) => {
-                    println!("Here");
                     if block.check() {
                         rx.send(block).unwrap();
                         {
@@ -237,6 +305,29 @@ impl Node {
         }
     }
 
+    fn setup_mine(&self) {
+        let me_clone: Node = self.clone();
+
+        let should_stop = Arc::new(Mutex::new(false));
+
+        let peer = Arc::new(Mutex::new(vec![
+            SocketAddr::from(([127, 0, 0, 1], 6021)),
+            SocketAddr::from(([127, 0, 0, 2], 6021)),
+        ]));
+
+        let (rx, tx) = mpsc::channel();
+        let share = Shared::new(peer, should_stop);
+        let share_copy = share.clone();
+
+        let thread = thread::spawn(move || {
+            me_clone.listen(share_copy, rx);
+        });
+
+        let starting_block = Block::new(vec![]);
+
+        self.mine(share, starting_block, tx);
+    }
+
     pub fn mine(&self, share: Shared, mut block: Block, tx: mpsc::Receiver<Block>) {
         let my_id = match self.name {
             Name::Isa => 1,
@@ -251,7 +342,6 @@ impl Node {
             match block.generate_block_stop(my_id, &share.should_stop) {
                 Some(mut block) => {
                     println!("I found the block !!!");
-                    println!("The block is {}", block.check());
                     {
                         //add the transactions see during the mining
                         let val = share
@@ -259,7 +349,6 @@ impl Node {
                             .lock()
                             .expect("Error during lock of transaction");
                         block = block.set_transactions((*val).clone());
-                        println!("The block is {}", block.check());
                     }
                     {
                         let peer = share.peer.lock().unwrap();
