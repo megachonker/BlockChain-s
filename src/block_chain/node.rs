@@ -93,7 +93,7 @@ impl Name {
 }
 
 pub struct Node {
-    name: Name,
+    id: u64,
     socket: UdpSocket,
     barrier: Arc<Barrier>,
 }
@@ -153,7 +153,13 @@ fn parse_args() -> ArgMatches {
 impl Node {
     pub fn start() -> Option<()> {
         let matches = parse_args();
-        let me = Node::create(Name::creat_str(matches.get_one::<String>("sender")?));
+        let me: Node = Node::create(
+            matches
+                .get_one::<String>("sender")?
+                .parse::<u64>()
+                .expect("Pas un entier"),
+            String::from(matches.get_one::<String>("ip")?),
+        );
         if matches.get_one::<String>("mode")? == "send" {
             me.send_transactions(
                 matches.get_one::<String>("gate")?.parse().unwrap(),
@@ -166,12 +172,11 @@ impl Node {
         Some(())
     }
 
-    pub fn create(name: Name) -> Node {
-        let socket = UdpSocket::bind(name.get_ip())
-            .expect(&(name.get_name() + ": couldn't bind to address:")); //1
+    pub fn create(id: u64, ip: String) -> Node {
+        let socket = UdpSocket::bind(ip).expect("{id} couldn't bind to address:"); //1
         let barrier = Arc::new(Barrier::new(2));
         Node {
-            name,
+            id,
             socket,
             barrier,
         }
@@ -181,7 +186,7 @@ impl Node {
         let barrier = Arc::new(Barrier::new(2));
 
         Node {
-            name: self.name,
+            id: self.id,
             socket: self.socket.try_clone().unwrap(),
             barrier: barrier,
         }
@@ -189,7 +194,7 @@ impl Node {
 
     pub fn run_listen(&self) {
         let socket = self.socket.try_clone().expect("fail to clone socket");
-        let name = self.name;
+        let id = self.id;
         let barrier = self.barrier.clone();
 
         let mut buf = [0; 3];
@@ -199,61 +204,56 @@ impl Node {
             socket
                 .set_read_timeout(Some(Duration::new(0, 1000000)))
                 .expect("set_read_timeout call failed");
-            println!("{} Whait Timeout: ", name.get_name());
+            println!("{} Whait Timeout: ", id);
             match socket.recv_from(&mut buf) {
                 Ok((amt, src)) => {
                     barrier.wait(); // Unblock the send operation
                     println!(
                         "Node {} from {} received: {}",
-                        name.get_name(),
+                        id,
                         Name::from_ip(&src).get_name(),
                         String::from_utf8_lossy(&buf[..amt])
                     );
                     socket
-                        .send_to(name.get_name().as_bytes(), src)
+                        .send_to("Here".as_bytes(), format!("17.0.0.{}", id))
                         .expect("Failed to send data");
                 }
                 Err(_) => {
                     // Handle timeout here
                     barrier.wait(); // Unblock the send operation even if no packet received
-                    println!("{} unlock Timeout", name.get_name());
+                    println!("{} unlock Timeout", id);
                 }
             }
             socket
                 .set_read_timeout(None)
                 .expect("set_read_timeout call failed");
 
-            println!("{}: started", name.get_name());
+            println!("{}: started", id);
             loop {
                 let (amt, src) = socket
                     .recv_from(&mut buf)
-                    .expect(&format!("{} Failed to receive data", name.get_str())); //2
+                    .expect(&format!("{} Failed to receive data", id)); //2
                 barrier.wait();
                 println!(
                     "Node {} from {} received: {}",
-                    name.get_name(),
+                    id,
                     Name::from_ip(&src).get_name(),
                     String::from_utf8_lossy(&buf[..amt])
                 );
                 socket
-                    .send_to(name.get_name().as_bytes(), src)
-                    .expect(&("Failed to send data to:".to_owned() + &name.get_name()));
+                    .send_to("Here".as_bytes(), format!("17.0.0.{}", id))
+                    .expect(&("Failed to send data to:"));
                 //3
             }
         });
     }
 
-    fn run_send(&mut self, id: Name) {
+    fn run_send(&mut self, id: u64) {
         self.barrier.wait();
-        println!(
-            "Node {} to {} send: {}",
-            self.name.get_name(),
-            id.get_name(),
-            self.name.get_name()
-        );
+        println!("Node {} to {} send: {}", self.id, id, self.id);
         self.socket
-            .send_to(self.name.get_name().as_bytes(), id.get_ip())
-            .expect(&("Failed to send data to:".to_owned() + &self.name.get_name()));
+            .send_to("Here".as_bytes(), format!("17.0.0.{}", id))
+            .expect(&("Failed to send data to:"));
         //3
     }
 
@@ -285,6 +285,11 @@ impl Node {
                 Packet::Keepalive => {}
                 Packet::Block(block) => {
                     if block.check() {
+                        {
+                            let mut chain = share.chain.lock().unwrap();
+                            chain.push(block.clone());
+
+                        }
                         rx.send(block).unwrap();
                         {
                             let mut val = share.should_stop.lock().unwrap();
@@ -300,7 +305,8 @@ impl Node {
                     (*val).push(trans);
                     //share the new transa ???
                 }
-                _ => {}
+                _ => {
+                }
             }
         }
     }
@@ -310,13 +316,13 @@ impl Node {
 
         let should_stop = Arc::new(Mutex::new(false));
 
-        let peer = Arc::new(Mutex::new(vec![
+        let peer: Arc<Mutex<Vec<SocketAddr>>> = Arc::new(Mutex::new(vec![
             SocketAddr::from(([127, 0, 0, 1], 6021)),
             SocketAddr::from(([127, 0, 0, 2], 6021)),
         ]));
 
         let (rx, tx) = mpsc::channel();
-        let share = Shared::new(peer, should_stop);
+        let share = Shared::new(peer, should_stop, vec![]);
         let share_copy = share.clone();
 
         let thread = thread::spawn(move || {
@@ -329,17 +335,10 @@ impl Node {
     }
 
     pub fn mine(&self, share: Shared, mut block: Block, tx: mpsc::Receiver<Block>) {
-        let my_id = match self.name {
-            Name::Isa => 1,
-            Name::Net => 2,
-            Name::Max => 3,
-            Name::Lex => 4,
-            _ => 0,
-        };
         loop {
             println!("The block is {:?} ", block);
 
-            match block.generate_block_stop(my_id, &share.should_stop) {
+            match block.generate_block_stop(self.id, &share.should_stop) {
                 Some(mut block) => {
                     println!("I found the block !!!");
                     {
@@ -375,7 +374,9 @@ impl Node {
     }
 
     pub fn get_ip(&self) -> SocketAddr {
-        self.name.get_ip()
+        self.socket
+            .local_addr()
+            .expect("Error the catch the ip from the socket")
     }
 
     pub fn send_transactions(&self, gate: SocketAddr, to: Name, count: u32) {
@@ -391,9 +392,9 @@ impl Node {
 
 pub fn p2p_simulate() {
     let mut nodes = vec![
-        Node::create(Name::Isa),
-        Node::create(Name::Lex),
-        Node::create(Name::Max),
+        Node::create(1, String::from("27.0.0.1")),
+        Node::create(2, String::from("27.0.0.2")),
+        Node::create(3, String::from("27.0.0.3")),
     ];
 
     for node in &mut nodes {
@@ -401,9 +402,9 @@ pub fn p2p_simulate() {
     }
 
     for (node) in nodes.iter_mut().enumerate() {
-        node.1.run_send(Name::Isa);
-        node.1.run_send(Name::Lex);
-        node.1.run_send(Name::Max);
+        node.1.run_send(1);
+        node.1.run_send(2);
+        node.1.run_send(3);
     }
 }
 
