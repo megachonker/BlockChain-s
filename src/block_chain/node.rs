@@ -288,7 +288,6 @@ impl Node {
                         {
                             let mut chain = share.chain.lock().unwrap();
                             chain.push(block.clone());
-
                         }
                         rx.send(block).unwrap();
                         {
@@ -299,14 +298,16 @@ impl Node {
                         (*val) = vec![]; //on remet a zero les transactions peut être a modiifier
                     }
                 }
-                Packet::Transaction(trans) => {
+                Packet::Transaction(trans) => {     
+                    let clone_share = share.clone();
                     println!("Recive a new transactions");
-                    let mut val = share.transaction.lock().unwrap();
-                    (*val).push(trans);
-                    //share the new transa ???
+                    thread::spawn(move || {             //Maybe put this in the setup_mine and pass channel for new transa
+                        verif_transa(clone_share, trans);
+                    });
+
+                    // //share the new transa ???
                 }
-                _ => {
-                }
+                _ => {}
             }
         }
     }
@@ -388,6 +389,13 @@ impl Node {
             .send_to(&transa, gate)
             .expect("Error send transaction ");
     }
+}
+
+fn verif_transa(share: Shared, transa: Transaction) {
+    //verification
+
+    let mut val = share.transaction.lock().unwrap();
+    (*val).push(transa);
 }
 
 pub fn p2p_simulate() {

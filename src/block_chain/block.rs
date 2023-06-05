@@ -6,7 +6,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::sync::{Arc, Mutex};
 
-const HASH_MAX: u64 = 10000000000000;
+const HASH_MAX: u64 = 1000000000000;
 
 #[derive(Debug, Serialize, Deserialize,Clone)]
 pub struct Block {
