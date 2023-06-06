@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 
 const HASH_MAX: u64 = 1000000000000;
 
-#[derive(Debug, Serialize, Deserialize,Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Block {
     block_id: u64,                  //the hash of whole block
     block_height: u64,              //the number of the current block
@@ -16,7 +16,7 @@ pub struct Block {
     miner_hash: u64,                //Who find the answer
     nonce: u64,                     //the answer of the defi
 }
-#[derive(Debug, Hash, Serialize, Deserialize,Clone)]
+#[derive(Debug, Hash, Serialize, Deserialize, Clone)]
 pub struct Transaction {
     src: u64,  //who send coin
     dst: u64,  //who recive
@@ -76,16 +76,12 @@ impl Block {
         new_block
     }
 
-    pub fn generate_block_stop(
-        &self,
-        finder: u64,
-        sould_stop: &Arc<Mutex<bool>>,
-    ) -> Option<Block> {
+    pub fn generate_block_stop(&self, finder: u64, sould_stop: &Arc<Mutex<bool>>) -> Option<Block> {
         let mut new_block = Block {
             block_height: self.block_height + 1,
             block_id: 0,
             parent_hash: self.block_id,
-            transactions: vec![],  //put after
+            transactions: vec![], //put after
             nonce: 0,
             miner_hash: finder,
         };
@@ -153,7 +149,7 @@ impl Block {
         })
     }
 
-    pub fn set_transactions(mut self,transactions: Vec<Transaction>) -> Self{
+    pub fn set_transactions(mut self, transactions: Vec<Transaction>) -> Self {
         self.transactions = transactions;
         self
     }
@@ -212,7 +208,7 @@ pub fn mine(block: &Block) -> u64 {
     }
 }
 
-pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
+pub fn mine_stop2(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
     let mut rng = rand::thread_rng(); //to pick random value
     loop {
         let nonce_to_test = rng.gen::<u64>();
@@ -242,14 +238,14 @@ pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
     }
 }
 
-pub fn mine_hasher_lessrng(block: &Block) -> u64 {
+pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
     let mut rng = rand::thread_rng(); //to pick random value
     let mut hasher = DefaultHasher::new();
 
     //playload of block to hash
     block.block_height.hash(&mut hasher);
     block.parent_hash.hash(&mut hasher);
-    block.transactions.hash(&mut hasher);
+    // block.transactions.hash(&mut hasher);
     block.miner_hash.hash(&mut hasher);
 
     let mut nonce_to_test = rng.gen::<u64>();
@@ -261,9 +257,19 @@ pub fn mine_hasher_lessrng(block: &Block) -> u64 {
         let answer = to_hash.finish();
 
         if answer < HASH_MAX {
-            return nonce_to_test;
+            return Some(nonce_to_test);
         }
         nonce_to_test = nonce_to_test.wrapping_add(1);
+        if nonce_to_test % 100000 == 0 {
+            //test not all time (mutex has big complexity)
+            {
+                let mut val = should_stop.lock().unwrap();
+                if *val {
+                    *val = false;
+                    return None;
+                }
+            }
+        }
     }
 }
 
