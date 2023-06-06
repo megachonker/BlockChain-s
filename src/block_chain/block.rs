@@ -1,4 +1,3 @@
-use bincode::{deserialize, serialize};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
@@ -120,7 +119,7 @@ impl Block {
         let block_id_bytes = &bytes[0..8];
         let block_height_bytes = &bytes[8..16];
         let parent_hash_bytes = &bytes[16..24];
-        let transactions_len_bytes = &bytes[24..28];
+        // let transactions_len_bytes = &bytes[24..28];
         let transactions_bytes = &bytes[28..];
         let miner_hash_bytes = &transactions_bytes[0..8];
         let nonce_bytes = &transactions_bytes[8..16];
@@ -128,7 +127,7 @@ impl Block {
         let block_id = u64::from_be_bytes(block_id_bytes.try_into().ok()?);
         let block_height = u64::from_be_bytes(block_height_bytes.try_into().ok()?);
         let parent_hash = u64::from_be_bytes(parent_hash_bytes.try_into().ok()?);
-        let transactions_len = u32::from_be_bytes(transactions_len_bytes.try_into().ok()?);
+        // let transactions_len = u32::from_be_bytes(transactions_len_bytes.try_into().ok()?);
 
         // Extract transactions from byte slice (assuming Transaction has its own serialization logic)
         // let transactions: Vec<Transaction> = (0..transactions_len)

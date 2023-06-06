@@ -1,7 +1,7 @@
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::{Arc, Barrier, Mutex};
-use std::time::{Duration, Instant};
-use std::{default, thread};
+use std::time::{Duration};
+use std::{thread};
 
 use crate::shared::Shared;
 use bincode::{deserialize, serialize};
@@ -11,7 +11,7 @@ use std::sync::mpsc;
 
 use clap::{arg, ArgAction, ArgMatches, Command, Parser};
 
-use super::{block, shared};
+// use super::{block, shared};
 
 //remplacer par un énume les noms
 
@@ -163,7 +163,7 @@ impl Node {
         if matches.get_one::<String>("mode")? == "send" {
             me.send_transactions(
                 matches.get_one::<String>("gate")?.parse().unwrap(),
-                Name::creat_str(matches.get_one::<String>("receive")?),
+                matches.get_one::<String>("receive")?.parse::<u64>().expect("Can't not convert the receivede to u64") ,
                 matches.get_one::<String>("count")?.parse::<u32>().unwrap(),
             )
         } else {
@@ -326,7 +326,7 @@ impl Node {
         let share = Shared::new(peer, should_stop, vec![]);
         let share_copy = share.clone();
 
-        let thread = thread::spawn(move || {
+        thread::spawn(move || {
             me_clone.listen(share_copy, rx);
         });
 
@@ -380,9 +380,9 @@ impl Node {
             .expect("Error the catch the ip from the socket")
     }
 
-    pub fn send_transactions(&self, gate: SocketAddr, to: Name, count: u32) {
+    pub fn send_transactions(&self, gate: SocketAddr, to: u64, count: u32) {
         // let him = Node::create(to);
-        let transa = Transaction::new(0, 1, count);
+        let transa = Transaction::new(0, to, count);
         let transa =
             serialize(&Packet::Transaction(transa)).expect("Error serialize transactions ");
         self.socket
@@ -409,7 +409,7 @@ pub fn p2p_simulate() {
         node.run_listen();
     }
 
-    for (node) in nodes.iter_mut().enumerate() {
+    for node in nodes.iter_mut().enumerate() {
         node.1.run_send(1);
         node.1.run_send(2);
         node.1.run_send(3);
