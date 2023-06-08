@@ -44,11 +44,11 @@ impl Node {
                 //on demande j'usqua un certain niveaux
                 while copy_peer_addr.lock().unwrap().len() < 250 {
                     // <=========== a changer
-                    println!(
-                        "SENDPeers from {}: {}",
-                        self.node_addr,
-                        copy_peer_addr.lock().unwrap().len()
-                    );
+                    // println!(
+                    //     "SENDPeers from {}: {}",
+                    //     self.node_addr,
+                    //     copy_peer_addr.lock().unwrap().len()
+                    // );
 
                     let serialized_packet =
                         serialize(&Packet::GetPeers).expect("Serialization error");
@@ -57,7 +57,7 @@ impl Node {
                             .send_to(&serialized_packet, &peer)
                             .expect("send to imposible");
                     }
-                    thread::sleep(time::Duration::from_millis(100)); //<= converge plus vite
+                    thread::sleep(time::Duration::from_millis(100)); //<= converge plus vite AFIXER INADMISIBLE
                 }
             });
 
@@ -88,7 +88,7 @@ impl Node {
                                     peers_addr.push(remote_peer);
                             }
                         }
-                        println!("RepPeers from {}: {}", remote, peers_addr.len());
+                        // println!("RepPeers from {}: {}", remote, peers_addr.len());
                     }
                 }
             }
@@ -160,7 +160,8 @@ impl Simulate {
 
     pub fn converge(&self) -> bool {
         for node in &self.nodes {
-            if node.peers_addr.lock().unwrap().clone().len() < self.nb_ip {
+            if node.peers_addr.lock().unwrap().clone().len() < self.nb_ip/2 {
+                println!("le node: {} taille réseaux:{:?}",node.node_addr,node.peers_addr.lock().unwrap().clone());
                 return false;
             }
         }
