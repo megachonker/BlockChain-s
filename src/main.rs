@@ -3,15 +3,17 @@ mod block_chain {
     pub mod block;
 }
 
-use block_chain::kademlia::kademlia_simulate;
+use block_chain::kademlia::Simulate;
 use lib_block::{hash, Block, Transaction};
 use rand::{seq::SliceRandom, thread_rng, Rng};
 
-fn main() {
-    // detect_interlock();
-    kademlia_simulate();
 
-    
+
+fn main() {
+    let simu:Simulate = Simulate::init(255, 5);
+    simu.start();
+    simu.whait();
+    assert!(simu.duplicate());
 }
 
 fn fakemine(){
