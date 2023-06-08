@@ -31,41 +31,67 @@ impl Node {
             let socket = Arc::new(UdpSocket::bind(node.node_addr).unwrap());
             start_barrier.wait();
 
-            let mut buffer = vec![0u8; mem::size_of::<SocketAddr>() * 100]; //on veux 100 addres
+            let mut buffer = vec![0u8; mem::size_of::<SocketAddr>() * 255]; //on veux 255 addres max 
 
             let socket_refresh_peer = socket.clone();
             let copy_peer_addr = node.peers_addr.clone();
+
+
+            //demande
             thread::spawn(move || {
-                for _ in 1..10 {
-                    
+                
+                //on demande j'usqua un certain niveaux
+                loop {                    
+                    // let progression = (255/response_packet.len())*100;
+                    // println!("RepPeers from {}: {}%", remote, progression);
+
+                    println!("SENDPeers from {}: {}",address, copy_peer_addr.len());
+
                     let serialized_packet = serialize(&Packet::GetPeers).expect("Serialization error");
                     for peer in copy_peer_addr.iter()  {     
                         socket_refresh_peer.send_to(&serialized_packet, &peer).expect("send to imposible");
                     }
-                    thread::sleep(time::Duration::from_millis(500));
+                    thread::sleep(time::Duration::from_millis(100));
                 }
             });
 
 
+            //écoute des message recus
             loop {
                 let (offset, remote) = socket.recv_from(&mut buffer).expect("err recv_from");
                 let message = deserialize(&buffer[..offset]).expect("errreur deserial");
                 match message {
+                    //renvoit une copy de tout les peer connue
                     Packet::GetPeers => {
-                        let test = node.peers_addr.clone().to_vec();
+                        let peers_addr_copy = node.peers_addr.clone().to_vec();
                         let serialized_packet =
-                            serialize(&Packet::RepPeers(test)).expect("Serialization error"); //CLONE
+                            serialize(&Packet::RepPeers(peers_addr_copy)).expect("Serialization error"); //CLONE
 
                         socket
                             .send_to(&serialized_packet, remote)
                             .expect("err sendto");
-                        println!("GetPeers from {}:", remote);
+                        // println!("GetPeers from {}:", remote);
                     }
-                    Packet::RepPeers(mut response_packet) => {
-                        println!("RepPeers from {}: {:?}", remote, &response_packet);
-                        let mut test = node.peers_addr.clone().to_vec();
-                        test.append(&mut response_packet);
-                        node.peers_addr = Arc::new(test);
+                    //ajoute les élément non conue a la list
+                    Packet::RepPeers(response_packet) => {
+                        //crée une copy temporaire
+                        let mut peers_addr_copy: Vec<SocketAddr> = node.peers_addr.clone().to_vec();
+                        let mut find:bool;
+                        for remote_peer in response_packet {                    
+                            find = false;
+                            for local_peer in &peers_addr_copy  {
+                                if &remote_peer == local_peer{
+                                    find = true;
+                                }
+                            }
+                            if !find {
+                                //on ajoute a cette copy les élément unique
+                                peers_addr_copy.push(remote_peer);
+                            }                    
+                        }
+                        //on met la copy dans la variable de base
+                        node.peers_addr = Arc::new(peers_addr_copy);
+                        println!("RepPeers from {}: {}", remote,node.peers_addr.len());
                     }
                 }
             }
@@ -100,33 +126,6 @@ pub fn kademlia_simulate() {
     }
     //Fake starting
     thread::sleep(time::Duration::from_millis(5000));
-
-    // let mut buffer = vec![0u8; mem::size_of::<SocketAddr>() * 100]; //on veux 100 addres
-
-    // let src = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 10, 1 as u8), 9026));
-    // let dst = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 1, 2 as u8), 9026));
-
-    // let test_socket = UdpSocket::bind(src).unwrap();
-    // let serialized_packet = serialize(&Packet::GetPeers).expect("Serialization error");
-
-    // test_socket
-    //     .send_to(&serialized_packet, dst)
-    //     .expect("err sendto");
-
-    // let (data, remote) = test_socket.recv_from(&mut buffer).expect("err receve to");
-    // print!("from {}: {:?}", remote, &buffer[..data]);
-
-    // match deserialize(&buffer[..data]).expect("errreur deserial") {
-    //     Packet::GetPeers => {
-    //         println!("GetPeers from: {}", remote);
-    //     }
-    //     Packet::RepPeers(response_packet) => {
-    //         println!("RepPeers from: {}", remote);
-    //         for rep in response_packet {
-    //             println!("{}", rep);
-    //         }
-    //     }
-    // }
 }
 
 // #[cfg(test)]
