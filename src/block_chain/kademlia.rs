@@ -1,6 +1,6 @@
 use std::mem;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket};
-use std::sync::{Arc, Barrier};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket};
+use std::sync::{Arc, Barrier,Mutex};
 use std::thread;
 use std::time;
 
@@ -17,14 +17,15 @@ enum Packet {
 
 struct Node {
     node_addr: SocketAddr,
-    peers_addr: Arc<Vec<SocketAddr>>,
+    peers_addr: Arc<Mutex<Vec<SocketAddr>>>,
 }
 
 impl Node {
-    fn create(address: SocketAddr, bootstraps: Arc<Vec<SocketAddr>>, start_barrier: Arc<Barrier>) {
-        let mut node = Node {
+    fn create(address: SocketAddr, bootstraps: Vec<SocketAddr>, start_barrier: Arc<Barrier>) {
+
+        let node = Node {
             node_addr: address,
-            peers_addr: bootstraps,
+            peers_addr: Arc::new(Mutex::new(bootstraps)) ,
         };
 
         thread::spawn(move || {
@@ -41,17 +42,18 @@ impl Node {
             thread::spawn(move || {
                 
                 //on demande j'usqua un certain niveaux
-                loop {                    
+                while copy_peer_addr.lock().unwrap().len() < 250 {
+                    
                     // let progression = (255/response_packet.len())*100;
                     // println!("RepPeers from {}: {}%", remote, progression);
 
-                    println!("SENDPeers from {}: {}",address, copy_peer_addr.len());
+                    println!("SENDPeers from {}: {}",address, copy_peer_addr.lock().unwrap().len());
 
                     let serialized_packet = serialize(&Packet::GetPeers).expect("Serialization error");
-                    for peer in copy_peer_addr.iter()  {     
+                    for peer in copy_peer_addr.lock().unwrap().iter()  {     
                         socket_refresh_peer.send_to(&serialized_packet, &peer).expect("send to imposible");
                     }
-                    thread::sleep(time::Duration::from_millis(100));
+                    thread::sleep(time::Duration::from_millis(100)); //<= converge plus vite
                 }
             });
 
@@ -63,7 +65,7 @@ impl Node {
                 match message {
                     //renvoit une copy de tout les peer connue
                     Packet::GetPeers => {
-                        let peers_addr_copy = node.peers_addr.clone().to_vec();
+                        let peers_addr_copy = node.peers_addr.lock().unwrap().to_vec();
                         let serialized_packet =
                             serialize(&Packet::RepPeers(peers_addr_copy)).expect("Serialization error"); //CLONE
 
@@ -74,25 +76,15 @@ impl Node {
                     }
                     //ajoute les élément non conue a la list
                     Packet::RepPeers(response_packet) => {
-                        //crée une copy temporaire
-                        let mut peers_addr_copy: Vec<SocketAddr> = node.peers_addr.clone().to_vec();
-                        let mut find:bool;
-                        for remote_peer in response_packet {                    
-                            find = false;
-                            for local_peer in &peers_addr_copy  {
-                                if &remote_peer == local_peer{
-                                    find = true;
-                                }
+                        let mut peers_addr = node.peers_addr.lock().unwrap();
+                        for remote_peer in response_packet {
+                            if !peers_addr.iter().any(|&local_peer| local_peer == remote_peer) {
+                                peers_addr.push(remote_peer);
                             }
-                            if !find {
-                                //on ajoute a cette copy les élément unique
-                                peers_addr_copy.push(remote_peer);
-                            }                    
                         }
-                        //on met la copy dans la variable de base
-                        node.peers_addr = Arc::new(peers_addr_copy);
-                        println!("RepPeers from {}: {}", remote,node.peers_addr.len());
+                        println!("RepPeers from {}: {}", remote, peers_addr.len());
                     }
+                    
                 }
             }
         });
@@ -120,7 +112,7 @@ pub fn kademlia_simulate() {
         }
         Node::create(
             SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 1, id as u8), 9026)),
-            bootstrap_socket.into(),
+            bootstrap_socket,
             start_barrier.clone(),
         );
     }
