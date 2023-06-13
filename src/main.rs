@@ -5,25 +5,62 @@ mod block_chain {
     pub mod shared;
 }
 
-use block_chain::node::detect_interlock;
-use block_chain::node::{self, Name, Node};
-// use core::num::flt2dec::strategy;
-use crate::shared::Shared;
+use block_chain::node::{ Node};
 use block_chain::shared;
-use std::env::{self, args};
 
 use block_chain::node::p2p_simulate;
 
 use block_chain::kademlia::Simulate;
 use lib_block::{hash, Block, Transaction};
 use rand::{seq::SliceRandom, thread_rng, Rng};
-use std::net::SocketAddr;
-use std::sync::mpsc::{self, Receiver};
-use std::sync::{Arc, Mutex};
-use std::thread;
+
+use clap::{arg, ArgAction, ArgMatches, Command};
+
+
+
+fn parse_args() -> ArgMatches {
+    Command::new("NIC")
+        .version("1.0")
+        .author("Thompson")
+        .about("A great Block Chain")
+        .arg(
+            arg!(-p --ip <IP> "Your IP:port for bind the socket")
+                .required(false)
+                .action(ArgAction::Set),
+        )
+        .arg(
+            arg!(-r --receive <num> "The id of the receiver ")
+                .required(false)
+                .action(ArgAction::Set),
+        )
+        .arg(
+            arg!(-s --sender  <num> "Your Id")
+                .required(true)
+                .action(ArgAction::Set),
+        )
+        .arg(
+            arg!(-m --mode  <MODE> "Wich mode (send, mine) ")
+                .required(false)
+                .action(ArgAction::Set)
+                .default_value("mine"),
+        )
+        .arg(
+            arg!(-g --gate <IP> "The IP:port of the entry point")
+                .required(true)
+                .action(ArgAction::Set),
+        )
+        .arg(
+            arg!(-c --count <count> "The value amount for the  transaction")
+                .required(false)
+                .action(ArgAction::Set)
+                .default_value("0"),
+        )
+        .get_matches()
+}
 
 fn main() {
-    Node::start();
+    let matches = parse_args();
+    Node::start(matches);
 }
 
 fn fakemine() {

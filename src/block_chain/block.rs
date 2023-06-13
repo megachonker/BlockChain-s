@@ -1,4 +1,3 @@
-use bincode::{deserialize, serialize};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
@@ -8,7 +7,7 @@ use std::sync::{Arc, Mutex};
 
 const HASH_MAX: u64 = 1000000000000;
 
-#[derive(Debug, Serialize, Deserialize,Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Block {
     block_id: u64,                  //the hash of whole block
     block_height: u64,              //the number of the current block
@@ -17,7 +16,7 @@ pub struct Block {
     miner_hash: u64,                //Who find the answer
     nonce: u64,                     //the answer of the defi
 }
-#[derive(Debug, Hash, Serialize, Deserialize,Clone)]
+#[derive(Debug, Hash, Serialize, Deserialize, Clone)]
 pub struct Transaction {
     src: u64,  //who send coin
     dst: u64,  //who recive
@@ -77,16 +76,12 @@ impl Block {
         new_block
     }
 
-    pub fn generate_block_stop(
-        &self,
-        finder: u64,
-        sould_stop: &Arc<Mutex<bool>>,
-    ) -> Option<Block> {
+    pub fn generate_block_stop(&self, finder: u64, sould_stop: &Arc<Mutex<bool>>) -> Option<Block> {
         let mut new_block = Block {
             block_height: self.block_height + 1,
             block_id: 0,
             parent_hash: self.block_id,
-            transactions: vec![],  //put after
+            transactions: vec![], //put after
             nonce: 0,
             miner_hash: finder,
         };
@@ -120,7 +115,7 @@ impl Block {
         let block_id_bytes = &bytes[0..8];
         let block_height_bytes = &bytes[8..16];
         let parent_hash_bytes = &bytes[16..24];
-        let transactions_len_bytes = &bytes[24..28];
+        // let transactions_len_bytes = &bytes[24..28];
         let transactions_bytes = &bytes[28..];
         let miner_hash_bytes = &transactions_bytes[0..8];
         let nonce_bytes = &transactions_bytes[8..16];
@@ -128,7 +123,7 @@ impl Block {
         let block_id = u64::from_be_bytes(block_id_bytes.try_into().ok()?);
         let block_height = u64::from_be_bytes(block_height_bytes.try_into().ok()?);
         let parent_hash = u64::from_be_bytes(parent_hash_bytes.try_into().ok()?);
-        let transactions_len = u32::from_be_bytes(transactions_len_bytes.try_into().ok()?);
+        // let transactions_len = u32::from_be_bytes(transactions_len_bytes.try_into().ok()?);
 
         // Extract transactions from byte slice (assuming Transaction has its own serialization logic)
         // let transactions: Vec<Transaction> = (0..transactions_len)
@@ -154,7 +149,7 @@ impl Block {
         })
     }
 
-    pub fn set_transactions(mut self,transactions: Vec<Transaction>) -> Self{
+    pub fn set_transactions(mut self, transactions: Vec<Transaction>) -> Self {
         self.transactions = transactions;
         self
     }
@@ -213,7 +208,7 @@ pub fn mine(block: &Block) -> u64 {
     }
 }
 
-pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
+pub fn mine_stop2(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
     let mut rng = rand::thread_rng(); //to pick random value
     loop {
         let nonce_to_test = rng.gen::<u64>();
@@ -243,14 +238,14 @@ pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
     }
 }
 
-pub fn mine_hasher_lessrng(block: &Block) -> u64 {
+pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
     let mut rng = rand::thread_rng(); //to pick random value
     let mut hasher = DefaultHasher::new();
 
     //playload of block to hash
     block.block_height.hash(&mut hasher);
     block.parent_hash.hash(&mut hasher);
-    block.transactions.hash(&mut hasher);
+    // block.transactions.hash(&mut hasher);
     block.miner_hash.hash(&mut hasher);
 
     let mut nonce_to_test = rng.gen::<u64>();
@@ -262,9 +257,19 @@ pub fn mine_hasher_lessrng(block: &Block) -> u64 {
         let answer = to_hash.finish();
 
         if answer < HASH_MAX {
-            return nonce_to_test;
+            return Some(nonce_to_test);
         }
         nonce_to_test = nonce_to_test.wrapping_add(1);
+        if nonce_to_test % 100000 == 0 {
+            //test not all time (mutex has big complexity)
+            {
+                let mut val = should_stop.lock().unwrap();
+                if *val {
+                    *val = false;
+                    return None;
+                }
+            }
+        }
     }
 }
 

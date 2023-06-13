@@ -1,7 +1,7 @@
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::{Arc, Barrier, Mutex};
-use std::time::{Duration, Instant};
-use std::{default, thread};
+use std::time::{Duration};
+use std::{thread};
 
 use crate::shared::Shared;
 use bincode::{deserialize, serialize};
@@ -11,7 +11,7 @@ use std::sync::mpsc;
 
 use clap::{arg, ArgAction, ArgMatches, Command, Parser};
 
-use super::{block, shared};
+// use super::{block, shared};
 
 //remplacer par un énume les noms
 
@@ -111,49 +111,11 @@ struct Args {
     count: u8,
 }
 
-fn parse_args() -> ArgMatches {
-    Command::new("NIC")
-        .version("1.0")
-        .author("Thompson")
-        .about("A great Block Chain")
-        .arg(
-            arg!(-p --ip <IP> "Your IP:port for bind the socket")
-                .required(false)
-                .action(ArgAction::Set),
-        )
-        .arg(
-            arg!(-r --receive <num> "The id of the receiver ")
-                .required(false)
-                .action(ArgAction::Set),
-        )
-        .arg(
-            arg!(-s --sender  <num> "Your Id")
-                .required(true)
-                .action(ArgAction::Set),
-        )
-        .arg(
-            arg!(-m --mode  <MODE> "Wich mode (send, mine) ")
-                .required(false)
-                .action(ArgAction::Set)
-                .default_value("mine"),
-        )
-        .arg(
-            arg!(-g --gate <IP> "The IP:port of the entry point")
-                .required(true)
-                .action(ArgAction::Set),
-        )
-        .arg(
-            arg!(-c --count <count> "The value amount for the  transaction")
-                .required(false)
-                .action(ArgAction::Set)
-                .default_value("0"),
-        )
-        .get_matches()
-}
+
 
 impl Node {
-    pub fn start() -> Option<()> {
-        let matches = parse_args();
+    pub fn start(matches : ArgMatches) -> Option<()> {
+        
         let me: Node = Node::create(
             matches
                 .get_one::<String>("sender")?
@@ -164,7 +126,7 @@ impl Node {
         if matches.get_one::<String>("mode")? == "send" {
             me.send_transactions(
                 matches.get_one::<String>("gate")?.parse().unwrap(),
-                Name::creat_str(matches.get_one::<String>("receive")?),
+                matches.get_one::<String>("receive")?.parse::<u64>().expect("Can't not convert the receivede to u64") ,
                 matches.get_one::<String>("count")?.parse::<u32>().unwrap(),
             )
         } else {
@@ -376,7 +338,7 @@ impl Node {
         let share = Shared::new(peer, should_stop, vec![]);
         let share_copy = share.clone();
 
-        let thread = thread::spawn(move || {
+        thread::spawn(move || {
             me_clone.listen(share_copy, rx);
         });
 
@@ -430,9 +392,9 @@ impl Node {
             .expect("Error the catch the ip from the socket")
     }
 
-    pub fn send_transactions(&self, gate: SocketAddr, to: Name, count: u32) {
+    pub fn send_transactions(&self, gate: SocketAddr, to: u64, count: u32) {
         // let him = Node::create(to);
-        let transa = Transaction::new(0, 1, count);
+        let transa = Transaction::new(0, to, count);
         let transa =
             serialize(&Packet::Transaction(transa)).expect("Error serialize transactions ");
         self.socket
@@ -486,7 +448,7 @@ pub fn p2p_simulate() {
         node.run_listen();
     }
 
-    for (node) in nodes.iter_mut().enumerate() {
+    for node in nodes.iter_mut().enumerate() {
         node.1.run_send(1);
         node.1.run_send(2);
         node.1.run_send(3);
