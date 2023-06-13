@@ -1,5 +1,6 @@
 mod block_chain {
     pub mod block;
+    pub mod kademlia;
     pub mod node;
     pub mod shared;
 }
@@ -12,6 +13,8 @@ use block_chain::shared;
 use std::env::{self, args};
 
 use block_chain::node::p2p_simulate;
+
+use block_chain::kademlia::Simulate;
 use lib_block::{hash, Block, Transaction};
 use rand::{seq::SliceRandom, thread_rng, Rng};
 use std::net::SocketAddr;
@@ -21,32 +24,6 @@ use std::thread;
 
 fn main() {
     Node::start();
-    // let name = Name::creat_str(&args[2]);
-    // let me: Node = Node::create(name);
-    // if args[1] == "send"{
-    //     me.send_transactions(SocketAddr::from(([127, 0, 0, 1], 6021)),Name::creat_str(&args[3]),args[4].parse::<u32>().expect("arg 3 must be integer")); //hardcode gate
-    //     return;
-    // } 
-    // let me_clone: Node = me.clone();
-    
-    // let should_stop = Arc::new(Mutex::new(false));
-
-    // let peer = Arc::new(Mutex::new(vec![
-    //     SocketAddr::from(([127, 0, 0, 1], 6021)),
-    //     SocketAddr::from(([127, 0, 0, 2], 6021)),
-    // ]));
-
-    // let (rx, tx) = mpsc::channel();
-    // let share = Shared::new(peer, should_stop);
-    // let share_copy = share.clone();
-
-    // let thread = thread::spawn(move || {
-    //     me.listen(share_copy,rx);
-    // });
-
-    // let starting_block = Block::new(vec![]);
-
-    // me_clone.mine(share, starting_block,tx);
 }
 
 fn fakemine() {
@@ -82,5 +59,18 @@ fn fakemine() {
         if !block.check() {
             println!("The block is false");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_kamelia() {
+        let simu: Simulate = Simulate::init(255, 5);
+        simu.start();
+        simu.whait();
+        assert!(simu.duplicate());
     }
 }

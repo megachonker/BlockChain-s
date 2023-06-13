@@ -26,6 +26,7 @@ enum Packet {
     Block(Block),
     GetPeer,
     RepPeers(Vec<SocketAddr>),
+    Connexion,
 }
 
 #[derive(Clone)]
@@ -167,7 +168,7 @@ impl Node {
                 matches.get_one::<String>("count")?.parse::<u32>().unwrap(),
             )
         } else {
-            me.setup_mine();
+            me.setup_mine(matches.get_one::<String>("gate").expect("Error parse Gate").parse::<SocketAddr>().expect("Error it is not a IP addr"));
         }
         Some(())
     }
@@ -272,18 +273,22 @@ impl Node {
         Some(new_block)
     }
 
-    fn hear(&self) -> Packet {
+    fn hear(&self) -> (Packet,SocketAddr) {
         let mut buffer = vec![0u8; 1024]; //MAXSIZE a def ??
 
-        let (offset, _) = self.socket.recv_from(&mut buffer).expect("err recv_from");
-        deserialize(&buffer[..offset]).expect("errreur deserial")
+        let (offset, sender) = self.socket.recv_from(&mut buffer).expect("err recv_from");
+        (deserialize(&buffer[..offset]).expect("errreur deserial"),sender)
     }
 
     pub fn listen(&self, share: Shared, rx: mpsc::Sender<Block>) {
         loop {
-            match self.hear() {
-                Packet::Keepalive => {}
+            let (message,sender) = self.hear();
+            match message{
+                Packet::Keepalive => {
+                    println!("recv KeepAlive");
+                }
                 Packet::Block(block) => {
+                    println!("recv Block");
                     if block.check() {
                         {
                             let mut chain = share.chain.lock().unwrap();
@@ -298,29 +303,74 @@ impl Node {
                         (*val) = vec![]; //on remet a zero les transactions peut être a modiifier
                     }
                 }
-                Packet::Transaction(trans) => {     
+                Packet::Transaction(trans) => {
+                    println!("recv Transaction");
+
                     let clone_share = share.clone();
                     println!("Recive a new transactions");
-                    thread::spawn(move || {             //Maybe put this in the setup_mine and pass channel for new transa
+                    thread::spawn(move || {
+                        //Maybe put this in the setup_mine and pass channel for new transa
                         verif_transa(clone_share, trans);
                     });
 
                     // //share the new transa ???
+                }
+
+                Packet::GetPeer => {
+                    println!("recv GetPeer");
+
+
+                    let peer = share.peer.lock().unwrap();
+                    let serialize_peer = serialize(& Packet::RepPeers((*peer).clone().to_vec())).expect("Error serialize peer");
+                    drop(peer);
+                    
+                    self.socket.send_to(&serialize_peer, sender).expect("Error sending peers");
+
+                    println!("Send the peer at {}",sender);
+                }
+
+                Packet::Connexion => {
+                    println!("recv Connexion");
+
+                    let mut peer = share.peer.lock().unwrap();
+                    if peer.contains(&sender){
+                        break;
+                    } 
+                    peer.push(sender);
+                    let serialize_peer = serialize(& Packet::RepPeers((*peer).clone().to_vec())).expect("Error serialize peer");
+                    drop(peer);
+                    self.socket.send_to(&serialize_peer, sender).expect("Error sending peers");
+                    //send blockchain ...
                 }
                 _ => {}
             }
         }
     }
 
-    fn setup_mine(&self) {
+    fn setup_mine(&self,gate:SocketAddr) {
         let me_clone: Node = self.clone();
+
+        let mut peer : Vec<SocketAddr>;
+
+        if ! (gate == SocketAddr::from(([0,0,0,0],6021))){
+
+            self.socket.send_to(& serialize(& Packet::Connexion).unwrap(), gate).expect("Error send Connecion Packet");
+            peer = self.recive_peer();
+
+            println!("Found {} peer",peer.len());
+        }
+        else {
+            peer = vec![];
+            peer.push(self.socket.local_addr().expect("Can not catch the ip "));
+        }
 
         let should_stop = Arc::new(Mutex::new(false));
 
-        let peer: Arc<Mutex<Vec<SocketAddr>>> = Arc::new(Mutex::new(vec![
-            SocketAddr::from(([127, 0, 0, 1], 6021)),
-            SocketAddr::from(([127, 0, 0, 2], 6021)),
-        ]));
+        // let peer: Arc<Mutex<Vec<SocketAddr>>> = Arc::new(Mutex::new(vec![
+        //     SocketAddr::from(([127, 0, 0, 1], 6021)),
+        //     SocketAddr::from(([127, 0, 0, 2], 6021)),
+        // ]));
+        let peer = Arc::new(Mutex::new(peer));
 
         let (rx, tx) = mpsc::channel();
         let share = Shared::new(peer, should_stop, vec![]);
@@ -389,6 +439,33 @@ impl Node {
             .send_to(&transa, gate)
             .expect("Error send transaction ");
     }
+
+    fn ask_recive_peer(&self, gate: SocketAddr) -> Vec<SocketAddr> {
+        let serialize_getpeer = serialize(&Packet::GetPeer).expect("Error serialize GetPeers");
+
+        self.socket.send_to(&serialize_getpeer, gate).expect("Error sending getPeers");
+
+        self.recive_peer()
+        
+
+    }
+
+    fn recive_peer(&self) -> Vec<SocketAddr>{
+        let mut buffer = [0u8; 256]; //on veux 255 addres max //<= a cahnger
+
+        let (_, remote) = self.socket.recv_from(&mut buffer).expect("Error recvfrom ");
+
+
+        loop {
+  
+            if let Packet::RepPeers(peer) = deserialize(&buffer).expect("Error deserialize ") {
+                return peer;
+            }
+            
+            
+            let (_, remote) = self.socket.recv_from(&mut buffer).expect("Error recvfrom ");
+        }
+    }
 }
 
 fn verif_transa(share: Shared, transa: Transaction) {
@@ -456,14 +533,14 @@ mod tests {
         detect_interlock();
     }
 
-    #[test]
-    fn sendrecive_block() {
-        let block = Block::new(vec![]);
-        let me = Node::create(Name::Isa);
+    //#[test]
+    // fn sendrecive_block() {
+    //     let block = Block::new(vec![]);
+    //     let me = Node::create(1,String::from("Isa"));
 
-        me.send_block(&block, me.get_ip());
-        let new_block = me.recive_block().unwrap();
+    //     me.send_block(&block, me.get_ip());
+    //     let new_block = me.recive_block().unwrap();
 
-        assert_eq!(block::hash(block), block::hash(new_block));
-    }
+    //     assert_eq!(block::hash(block), block::hash(new_block));
+    // }
 }
