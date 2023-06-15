@@ -1,7 +1,8 @@
 use std::net::{IpAddr, SocketAddr, UdpSocket};
+use std::process::ChildStdout;
 use std::sync::{Arc, Barrier, Mutex};
-use std::time::{Duration};
-use std::{thread};
+use std::thread;
+use std::time::Duration;
 
 use crate::shared::Shared;
 use bincode::{deserialize, serialize};
@@ -25,6 +26,7 @@ enum Packet {
     Transaction(Transaction),
     Block(Block),
     GetPeer,
+    GetBlock(i64),
     RepPeers(Vec<SocketAddr>),
     Connexion,
 }
@@ -111,11 +113,8 @@ struct Args {
     count: u8,
 }
 
-
-
 impl Node {
-    pub fn start(matches : ArgMatches) -> Option<()> {
-        
+    pub fn start(matches: ArgMatches) -> Option<()> {
         let me: Node = Node::create(
             matches
                 .get_one::<String>("sender")?
@@ -126,11 +125,20 @@ impl Node {
         if matches.get_one::<String>("mode")? == "send" {
             me.send_transactions(
                 matches.get_one::<String>("gate")?.parse().unwrap(),
-                matches.get_one::<String>("receive")?.parse::<u64>().expect("Can't not convert the receivede to u64") ,
+                matches
+                    .get_one::<String>("receive")?
+                    .parse::<u64>()
+                    .expect("Can't not convert the receivede to u64"),
                 matches.get_one::<String>("count")?.parse::<u32>().unwrap(),
             )
         } else {
-            me.setup_mine(matches.get_one::<String>("gate").expect("Error parse Gate").parse::<SocketAddr>().expect("Error it is not a IP addr"));
+            me.setup_mine(
+                matches
+                    .get_one::<String>("gate")
+                    .expect("Error parse Gate")
+                    .parse::<SocketAddr>()
+                    .expect("Error it is not a IP addr"),
+            );
         }
         Some(())
     }
@@ -235,17 +243,20 @@ impl Node {
         Some(new_block)
     }
 
-    fn hear(&self) -> (Packet,SocketAddr) {
+    fn hear(&self) -> (Packet, SocketAddr) {
         let mut buffer = vec![0u8; 1024]; //MAXSIZE a def ??
 
         let (offset, sender) = self.socket.recv_from(&mut buffer).expect("err recv_from");
-        (deserialize(&buffer[..offset]).expect("errreur deserial"),sender)
+        (
+            deserialize(&buffer[..offset]).expect("errreur deserial"),
+            sender,
+        )
     }
 
     pub fn listen(&self, share: Shared, rx: mpsc::Sender<Block>) {
         loop {
-            let (message,sender) = self.hear();
-            match message{
+            let (message, sender) = self.hear();
+            match message {
                 Packet::Keepalive => {
                     println!("recv KeepAlive");
                 }
@@ -281,27 +292,52 @@ impl Node {
                 Packet::GetPeer => {
                     println!("recv GetPeer");
 
-
                     let peer = share.peer.lock().unwrap();
-                    let serialize_peer = serialize(& Packet::RepPeers((*peer).clone().to_vec())).expect("Error serialize peer");
+                    let serialize_peer = serialize(&Packet::RepPeers((*peer).clone().to_vec()))
+                        .expect("Error serialize peer");
                     drop(peer);
-                    
-                    self.socket.send_to(&serialize_peer, sender).expect("Error sending peers");
 
-                    println!("Send the peer at {}",sender);
+                    self.socket
+                        .send_to(&serialize_peer, sender)
+                        .expect("Error sending peers");
+
+                    println!("Send the peer at {}", sender);
+                }
+
+                Packet::GetBlock(i) => {
+                    println!("Recv getBlock {}",i);
+                    let chain: std::sync::MutexGuard<'_, Vec<Block>> = share.chain.lock().expect("Can not lock chain");
+                    let mut serialize_block;
+                    if i == -1 {
+                        //ask the last one
+                        serialize_block = serialize(&Packet::Block(chain.last().unwrap().clone()));
+                        drop(chain);
+                    } else if chain.len() < 0 {
+                        drop(chain);
+                        serialize_block = serialize(&Packet::Block(Block::new_wrong(1)));
+                    //No enought block
+                    } else {
+                        serialize_block = serialize(&Packet::Block(chain[i as usize].clone()));     //peut etre mettre des & dans Block
+                        drop(chain);
+                    }
+                    let serialize_block = serialize_block.expect("Can not serialize the block");
+                    self.socket.send_to(&serialize_block, sender);
                 }
 
                 Packet::Connexion => {
                     println!("recv Connexion");
 
                     let mut peer = share.peer.lock().unwrap();
-                    if peer.contains(&sender){
+                    if peer.contains(&sender) {
                         break;
-                    } 
+                    }
                     peer.push(sender);
-                    let serialize_peer = serialize(& Packet::RepPeers((*peer).clone().to_vec())).expect("Error serialize peer");
+                    let serialize_peer = serialize(&Packet::RepPeers((*peer).clone().to_vec()))
+                        .expect("Error serialize peer");
                     drop(peer);
-                    self.socket.send_to(&serialize_peer, sender).expect("Error sending peers");
+                    self.socket
+                        .send_to(&serialize_peer, sender)
+                        .expect("Error sending peers");
                     //send blockchain ...
                 }
                 _ => {}
@@ -309,21 +345,69 @@ impl Node {
         }
     }
 
-    fn setup_mine(&self,gate:SocketAddr) {
+    fn get_block(&self, index: i64, gate: SocketAddr) -> Block {
+        self.socket
+            .send_to(
+                &serialize(&Packet::GetBlock(index)).expect("Can not serialize GetBlock(-1)"),
+                gate,
+            )
+            .expect("Can no send GetBlock to the gate");
+
+        let mut buf = [0u8;256];
+        loop {
+            let (_, sender) = self.socket.recv_from(& mut buf).expect("Error recv block");
+            while sender != gate {
+                continue;
+            }
+            if let Packet::Block(b) = deserialize(& mut buf).expect("Can not deserilize block") {
+                return b;
+            }
+        }
+    }
+
+    fn get_chain(&self, gate: SocketAddr) -> Option<Vec<Block>> {
+        let last_block = self.get_block(-1, gate);
+        let mut chain = vec![];
+        let (height,nonce) =last_block.get_height_nonce();
+        if height == 0 && nonce != 0{
+            return None;
+        }
+        for i in 0..height-1{
+            let block = self.get_block(i as i64, gate);
+            let (h,n) = block.get_height_nonce();
+            if (h!=i) || (h==0 && n != 0){
+                println!("{} {} {}",i,h,n);
+                return None;
+            }
+            chain.push(block);
+        }
+        chain.push(last_block);
+
+
+        Some(chain)
+    }
+
+    fn setup_mine(&self, gate: SocketAddr) {
         let me_clone: Node = self.clone();
 
-        let mut peer : Vec<SocketAddr>;
+        let mut peer: Vec<SocketAddr>;
+        let mut chain : Vec<Block> = vec![];
 
-        if ! (gate == SocketAddr::from(([0,0,0,0],6021))){
-
-            self.socket.send_to(& serialize(& Packet::Connexion).unwrap(), gate).expect("Error send Connecion Packet");
+        if !(gate == SocketAddr::from(([0, 0, 0, 0], 6021))) {
+            self.socket
+                .send_to(&serialize(&Packet::Connexion).unwrap(), gate)
+                .expect("Error send Connecion Packet");
             peer = self.recive_peer();
 
-            println!("Found {} peer",peer.len());
-        }
-        else {
+            chain = self.get_chain(gate).expect("Can not grap the chain");
+
+            println!("Catch a chain of {} lenght",chain.len());
+
+            println!("Found {} peer", peer.len());
+        } else {
             peer = vec![];
             peer.push(self.socket.local_addr().expect("Can not catch the ip "));
+            chain.push(Block::new());
         }
 
         let should_stop = Arc::new(Mutex::new(false));
@@ -332,17 +416,17 @@ impl Node {
         //     SocketAddr::from(([127, 0, 0, 1], 6021)),
         //     SocketAddr::from(([127, 0, 0, 2], 6021)),
         // ]));
+        let starting_block = chain.last().unwrap().clone();
         let peer = Arc::new(Mutex::new(peer));
 
         let (rx, tx) = mpsc::channel();
-        let share = Shared::new(peer, should_stop, vec![]);
+        let share = Shared::new(peer, should_stop,chain);
         let share_copy = share.clone();
 
         thread::spawn(move || {
             me_clone.listen(share_copy, rx);
         });
 
-        let starting_block = Block::new(vec![]);
 
         self.mine(share, starting_block, tx);
     }
@@ -405,26 +489,23 @@ impl Node {
     fn ask_recive_peer(&self, gate: SocketAddr) -> Vec<SocketAddr> {
         let serialize_getpeer = serialize(&Packet::GetPeer).expect("Error serialize GetPeers");
 
-        self.socket.send_to(&serialize_getpeer, gate).expect("Error sending getPeers");
+        self.socket
+            .send_to(&serialize_getpeer, gate)
+            .expect("Error sending getPeers");
 
         self.recive_peer()
-        
-
     }
 
-    fn recive_peer(&self) -> Vec<SocketAddr>{
+    fn recive_peer(&self) -> Vec<SocketAddr> {
         let mut buffer = [0u8; 256]; //on veux 255 addres max //<= a cahnger
 
         let (_, remote) = self.socket.recv_from(&mut buffer).expect("Error recvfrom ");
 
-
         loop {
-  
             if let Packet::RepPeers(peer) = deserialize(&buffer).expect("Error deserialize ") {
                 return peer;
             }
-            
-            
+
             let (_, remote) = self.socket.recv_from(&mut buffer).expect("Error recvfrom ");
         }
     }

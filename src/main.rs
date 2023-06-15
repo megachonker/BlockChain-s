@@ -79,7 +79,7 @@ fn fakemine() {
         rng.gen::<u32>(),
     );
 
-    let origin_block = Block::new(vec![transaction]);
+    let origin_block = Block::new();
     if !origin_block.check() {
         println!("The block is false");
     }

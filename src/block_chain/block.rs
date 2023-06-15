@@ -31,21 +31,36 @@ pub fn hash<T: Hash>(value: T) -> u64 {
 }
 
 impl Block {
-    /// crée le bloque génésis
-    pub fn new(transactions: Vec<Transaction>) -> Block {
-        //create a new block (just use for create the first one)
+    /// create the first block full empty 
+    pub fn new() -> Block {
         let mut block = Block {
             block_height: 0,
             block_id: 0,
             parent_hash: 0,
-            transactions,
+            transactions : vec![],
             nonce: 0,
             miner_hash: 0,
         };
-        // block.nonce = mine(&block);      //for the first
         block.nonce = 0;
-        block.block_id = hash(&block);
+        block.block_id = hash(&block);         //the                 
         block
+    }
+
+    pub fn new_wrong(value : u64) -> Block{
+        let mut block = Block {
+            block_height: 0,
+            block_id: 0,
+            parent_hash: 0,
+            transactions : vec![],
+            nonce: value,    //for the block zero the nonce indique the status of the block (use to response to GetBlock(i))
+            miner_hash: 0,
+        };
+        block.block_id = hash(&block);         //the                 
+        block
+    }
+
+    pub fn get_height_nonce(&self) -> (u64,u64) {
+        (self.block_height,self.nonce)
     }
 
     pub fn check(&self) -> bool {
