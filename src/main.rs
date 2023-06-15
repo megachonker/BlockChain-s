@@ -5,6 +5,8 @@ mod block_chain {
     pub mod shared;
 }
 
+use std::default;
+
 use block_chain::node::{ Node};
 use block_chain::shared;
 
@@ -46,8 +48,9 @@ fn parse_args() -> ArgMatches {
         )
         .arg(
             arg!(-g --gate <IP> "The IP:port of the entry point")
-                .required(true)
-                .action(ArgAction::Set),
+                .required(false)
+                .action(ArgAction::Set)
+                .default_value("0.0.0.0:6021"),         //First node 
         )
         .arg(
             arg!(-c --count <count> "The value amount for the  transaction")
