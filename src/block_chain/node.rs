@@ -305,8 +305,9 @@ impl Node {
                 }
 
                 Packet::GetBlock(i) => {
-                    println!("Recv getBlock {}",i);
-                    let chain: std::sync::MutexGuard<'_, Vec<Block>> = share.chain.lock().expect("Can not lock chain");
+                    println!("Recv getBlock {}", i);
+                    let chain: std::sync::MutexGuard<'_, Vec<Block>> =
+                        share.chain.lock().expect("Can not lock chain");
                     let mut serialize_block;
                     if i == -1 {
                         //ask the last one
@@ -317,7 +318,7 @@ impl Node {
                         serialize_block = serialize(&Packet::Block(Block::new_wrong(1)));
                     //No enought block
                     } else {
-                        serialize_block = serialize(&Packet::Block(chain[i as usize].clone()));     //peut etre mettre des & dans Block
+                        serialize_block = serialize(&Packet::Block(chain[i as usize].clone())); //peut etre mettre des & dans Block
                         drop(chain);
                     }
                     let serialize_block = serialize_block.expect("Can not serialize the block");
@@ -328,18 +329,18 @@ impl Node {
                     println!("recv Connexion");
 
                     let mut peer = share.peer.lock().unwrap();
-                    if peer.contains(&sender) {
-                        break;
+                    if !peer.contains(&sender) {
+                        peer.push(sender);
+                        let serialize_peer = serialize(&Packet::RepPeers((*peer).clone().to_vec()))
+                            .expect("Error serialize peer");
+                        drop(peer);
+                        self.socket
+                            .send_to(&serialize_peer, sender)
+                            .expect("Error sending peers");
+                        //send blockchain ...
                     }
-                    peer.push(sender);
-                    let serialize_peer = serialize(&Packet::RepPeers((*peer).clone().to_vec()))
-                        .expect("Error serialize peer");
-                    drop(peer);
-                    self.socket
-                        .send_to(&serialize_peer, sender)
-                        .expect("Error sending peers");
-                    //send blockchain ...
                 }
+
                 _ => {}
             }
         }
@@ -353,13 +354,13 @@ impl Node {
             )
             .expect("Can no send GetBlock to the gate");
 
-        let mut buf = [0u8;256];
+        let mut buf = [0u8; 256];
         loop {
-            let (_, sender) = self.socket.recv_from(& mut buf).expect("Error recv block");
+            let (_, sender) = self.socket.recv_from(&mut buf).expect("Error recv block");
             while sender != gate {
                 continue;
             }
-            if let Packet::Block(b) = deserialize(& mut buf).expect("Can not deserilize block") {
+            if let Packet::Block(b) = deserialize(&mut buf).expect("Can not deserilize block") {
                 return b;
             }
         }
@@ -368,21 +369,20 @@ impl Node {
     fn get_chain(&self, gate: SocketAddr) -> Option<Vec<Block>> {
         let last_block = self.get_block(-1, gate);
         let mut chain = vec![];
-        let (height,nonce) =last_block.get_height_nonce();
-        if height == 0 && nonce != 0{
+        let (height, nonce) = last_block.get_height_nonce();
+        if height == 0 && nonce != 0 {
             return None;
         }
-        for i in 0..height-1{
+        for i in 0..height - 1 {
             let block = self.get_block(i as i64, gate);
-            let (h,n) = block.get_height_nonce();
-            if (h!=i) || (h==0 && n != 0){
-                println!("{} {} {}",i,h,n);
+            let (h, n) = block.get_height_nonce();
+            if (h != i) || (h == 0 && n != 0) {
+                println!("{} {} {}", i, h, n);
                 return None;
             }
             chain.push(block);
         }
         chain.push(last_block);
-
 
         Some(chain)
     }
@@ -391,7 +391,7 @@ impl Node {
         let me_clone: Node = self.clone();
 
         let mut peer: Vec<SocketAddr>;
-        let mut chain : Vec<Block> = vec![];
+        let mut chain: Vec<Block> = vec![];
 
         if !(gate == SocketAddr::from(([0, 0, 0, 0], 6021))) {
             self.socket
@@ -401,7 +401,7 @@ impl Node {
 
             chain = self.get_chain(gate).expect("Can not grap the chain");
 
-            println!("Catch a chain of {} lenght",chain.len());
+            println!("Catch a chain of {} lenght", chain.len());
 
             println!("Found {} peer", peer.len());
         } else {
@@ -420,13 +420,12 @@ impl Node {
         let peer = Arc::new(Mutex::new(peer));
 
         let (rx, tx) = mpsc::channel();
-        let share = Shared::new(peer, should_stop,chain);
+        let share = Shared::new(peer, should_stop, chain);
         let share_copy = share.clone();
 
         thread::spawn(move || {
             me_clone.listen(share_copy, rx);
         });
-
 
         self.mine(share, starting_block, tx);
     }
