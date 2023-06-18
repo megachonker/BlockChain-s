@@ -1,6 +1,9 @@
+use core::time;
+use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::process::ChildStdout;
-use std::sync::{Arc, Barrier, Mutex};
+// use std::str::pattern::StrSearcher;
+use std::sync::{Arc, Barrier, Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
 
@@ -11,6 +14,7 @@ use rand::SeedableRng;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 use std::sync::mpsc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{arg, ArgAction, ArgMatches, Command, Parser};
 
@@ -25,6 +29,7 @@ use clap::{arg, ArgAction, ArgMatches, Command, Parser};
 #[derive(Serialize, Deserialize, Debug)]
 enum Packet {
     Keepalive,
+    AnswerKA,
     Transaction(Transaction),
     Block(Block),
     GetPeer,
@@ -257,11 +262,33 @@ impl Node {
     }
 
     pub fn listen(&self, share: Shared, rx: mpsc::Sender<Block>) {
+        let mut peerdict: HashMap<SocketAddr, Duration> = HashMap::new();
+
+        let mut last_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Can not take time");
+        let peer = share.peer.lock().expect("Can not get the peer");
+
+        for &p in &*peer {
+            peerdict.insert(p, last_time);
+        }
+
+        drop(peer);
+
         loop {
             let (message, sender) = self.hear();
+            let time_packet = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Impossible to get time");
+            println!("{:?}", time_packet);
             match message {
                 Packet::Keepalive => {
                     println!("recv KeepAlive");
+                    let sera_answer =
+                        serialize(&Packet::AnswerKA).expect("Can not serialize AswerKA");
+                    self.socket
+                        .send_to(&sera_answer, sender)
+                        .expect("Can not send AnswerKA");
                 }
                 Packet::Block(block) => {
                     println!("recv Block");
@@ -284,9 +311,9 @@ impl Node {
                             let seria_block =
                                 serialize(&Packet::Block(block)).expect("Can not serialize block");
 
-                            let peer = share.peer.lock().expect("Can not lock peer");
+                            // let peer = peerdict.keys().cloned()
 
-                            for &p in &*peer {
+                            for p in peerdict.keys().cloned() {
                                 self.socket
                                     .send_to(&seria_block, p)
                                     .expect("Error send block");
@@ -310,10 +337,9 @@ impl Node {
                 Packet::GetPeer => {
                     println!("recv GetPeer");
 
-                    let peer = share.peer.lock().unwrap();
-                    let serialize_peer = serialize(&Packet::RepPeers((*peer).clone().to_vec()))
-                        .expect("Error serialize peer");
-                    drop(peer);
+                    let serialize_peer =
+                        serialize(&Packet::RepPeers(peerdict.keys().cloned().collect()))
+                            .expect("Error serialize peer");
 
                     self.socket
                         .send_to(&serialize_peer, sender)
@@ -348,10 +374,10 @@ impl Node {
                 Packet::Connexion => {
                     println!("recv Connexion");
 
-                    let mut peer = share.peer.lock().unwrap();
+                    let mut peer: Vec<SocketAddr> = peerdict.keys().cloned().collect();
                     if !peer.contains(&sender) {
-                        peer.push(sender);
-                        let serialize_peer = serialize(&Packet::RepPeers((*peer).clone().to_vec()))
+                        peerdict.insert(sender, time_packet);
+                        let serialize_peer = serialize(&Packet::RepPeers(peer.clone()))
                             .expect("Error serialize peer");
                         self.socket
                             .send_to(&serialize_peer, sender)
@@ -359,23 +385,23 @@ impl Node {
 
                         let serialize_new =
                             serialize(&Packet::NewNode(sender)).expect("Can not serialize NewNode");
-                        for p in &*peer {
+                        for p in peerdict.keys().cloned() {
                             //send at all
-                            if *p != sender {
+                            if p != sender {
                                 self.socket
                                     .send_to(&serialize_new, p)
                                     .expect("Can not send NewNode");
                             }
                         }
                     }
+                    update_peer_share(&mut share.peer.lock().unwrap(), peer);
                 }
 
                 Packet::NewNode(new) => {
                     println!("recv newnode ");
-                    let mut peer = share.peer.lock().unwrap();
+                    let peer: Vec<SocketAddr> = peerdict.keys().cloned().collect();
                     if !peer.contains(&new) {
-                        peer.push(new);
-
+                        peerdict.insert(sender, time_packet);
                         let serialize_new =
                             serialize(&Packet::NewNode(sender)).expect("Can not serialize NewNode");
                         for p in &*peer {
@@ -387,9 +413,20 @@ impl Node {
                             }
                         }
                     }
+                    update_peer_share(&mut share.peer.lock().unwrap(), peer);
                 }
 
                 _ => {}
+            }
+            peerdict.entry(sender).and_modify(|entry| {
+                *entry = time_packet;
+            });
+
+            if time_packet - last_time > Duration::from_secs(60) {
+                println!("Check node already here ? ");
+                self.check_keep_alive(& mut peerdict, time_packet);
+                update_peer_share(&mut share.peer.lock().unwrap(), peerdict.keys().cloned().collect());
+                last_time = time_packet;
             }
         }
     }
@@ -501,9 +538,11 @@ impl Node {
                     drop(chain);
                     {
                         let peer = share.peer.lock().unwrap();
-                        let block_sera: Vec<u8> =
-                            serialize(&Packet::Block(new_block.clone())).expect("Error serialize new_block");
-                        for addr in peer.iter().filter(move |p|  **p != self.socket.local_addr().expect("Can not take local addr")) {
+                        let block_sera: Vec<u8> = serialize(&Packet::Block(new_block.clone()))
+                            .expect("Error serialize new_block");
+                        for addr in peer.iter().filter(move |p| {
+                            **p != self.socket.local_addr().expect("Can not take local addr")
+                        }) {
                             self.send_block(&block_sera, *addr);
                         }
                     }
@@ -562,6 +601,22 @@ impl Node {
             let (_, remote) = self.socket.recv_from(&mut buffer).expect("Error recvfrom ");
         }
     }
+
+    fn check_keep_alive(&self, peer:& mut HashMap<SocketAddr, Duration>, time: Duration) {
+        let clone = peer.clone();
+        for (p, t) in clone {
+            if time - t > Duration::from_secs(120) {
+                peer.remove(&p);
+                println!("Remove the peer {}", p);
+            } else if time -t > Duration::from_secs(60) {
+                println!("Send a keep alive to {}", p);
+                let seria_keep = serialize(&Packet::Keepalive).unwrap();
+                self.socket
+                    .send_to(&seria_keep, p)
+                    .expect("Can not send keep alive");
+            }
+        }
+    }
 }
 
 fn verif_transa(share: Shared, transa: Transaction) {
@@ -609,6 +664,10 @@ pub fn detect_interlock() {
             assert!(false, "Timeout exceeded!");
         }
     }
+}
+
+fn update_peer_share(shared: &mut MutexGuard<Vec<SocketAddr>>, peer: Vec<SocketAddr>) {
+    **shared = peer;
 }
 
 #[cfg(test)]
