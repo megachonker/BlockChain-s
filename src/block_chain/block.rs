@@ -5,9 +5,9 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::sync::{Arc, Mutex};
 
-const HASH_MAX: u64 = 1000000000000;
+const HASH_MAX: u64 = 100000000000;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize , Clone)]
 pub struct Block {
     block_id: u64,                  //the hash of whole block
     block_height: u64,              //the number of the current block
@@ -31,36 +31,36 @@ pub fn hash<T: Hash>(value: T) -> u64 {
 }
 
 impl Block {
-    /// create the first block full empty 
+    /// create the first block full empty
     pub fn new() -> Block {
         let mut block = Block {
             block_height: 0,
             block_id: 0,
             parent_hash: 0,
-            transactions : vec![],
+            transactions: vec![],
             nonce: 0,
             miner_hash: 0,
         };
         block.nonce = 0;
-        block.block_id = hash(&block);         //the                 
+        block.block_id = hash(&block); //the
         block
     }
 
-    pub fn new_wrong(value : u64) -> Block{
+    pub fn new_wrong(value: u64) -> Block {
         let mut block = Block {
             block_height: 0,
             block_id: 0,
             parent_hash: 0,
-            transactions : vec![],
-            nonce: value,    //for the block zero the nonce indique the status of the block (use to response to GetBlock(i))
+            transactions: vec![],
+            nonce: value, //for the block zero the nonce indique the status of the block (use to response to GetBlock(i))
             miner_hash: 0,
         };
-        block.block_id = hash(&block);         //the                 
+        block.block_id = hash(&block); //the
         block
     }
 
-    pub fn get_height_nonce(&self) -> (u64,u64) {
-        (self.block_height,self.nonce)
+    pub fn get_height_nonce(&self) -> (u64, u64) {
+        (self.block_height, self.nonce)
     }
 
     pub fn check(&self) -> bool {
@@ -180,6 +180,13 @@ impl Hash for Block {
         self.nonce.hash(state);
     }
 }
+impl PartialEq for Block {
+    fn eq(&self, o: &Block) -> bool {
+        self.block_id == o.block_id
+    }
+}
+
+
 pub fn mine_hasher_clone(block: &Block) -> u64 {
     let mut rng = rand::thread_rng(); //to pick random value
     let mut hasher = DefaultHasher::new();

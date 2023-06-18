@@ -7,6 +7,8 @@ use std::time::Duration;
 use crate::shared::Shared;
 use bincode::{deserialize, serialize};
 use lib_block::{Block, Transaction};
+use rand::SeedableRng;
+use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 use std::sync::mpsc;
 
@@ -29,6 +31,7 @@ enum Packet {
     GetBlock(i64),
     RepPeers(Vec<SocketAddr>),
     Connexion,
+    NewNode(SocketAddr),
 }
 
 #[derive(Clone)]
@@ -262,18 +265,33 @@ impl Node {
                 }
                 Packet::Block(block) => {
                     println!("recv Block");
-                    if block.check() {
-                        {
-                            let mut chain = share.chain.lock().unwrap();
-                            chain.push(block.clone());
+                    let mut chain = share.chain.lock().unwrap();
+                    if !chain.contains(&block) {
+                        if block.check() {
+                            {
+                                chain.push(block.clone());
+                            }
+                            rx.send(block.clone()).unwrap();
+                            {
+                                let mut val = share.should_stop.lock().unwrap();
+                                *val = true;
+                            }
+                            let mut val = share.transaction.lock().unwrap();
+                            (*val) = vec![]; //on remet a zero les transactions peut être a modiifier
+
+                            drop(chain);
+
+                            let seria_block =
+                                serialize(&Packet::Block(block)).expect("Can not serialize block");
+
+                            let peer = share.peer.lock().expect("Can not lock peer");
+
+                            for &p in &*peer {
+                                self.socket
+                                    .send_to(&seria_block, p)
+                                    .expect("Error send block");
+                            }
                         }
-                        rx.send(block).unwrap();
-                        {
-                            let mut val = share.should_stop.lock().unwrap();
-                            *val = true;
-                        }
-                        let mut val = share.transaction.lock().unwrap();
-                        (*val) = vec![]; //on remet a zero les transactions peut être a modiifier
                     }
                 }
                 Packet::Transaction(trans) => {
@@ -313,7 +331,7 @@ impl Node {
                         //ask the last one
                         serialize_block = serialize(&Packet::Block(chain.last().unwrap().clone()));
                         drop(chain);
-                    } else if chain.len() < 0 {
+                    } else if chain.len() < i as usize {
                         drop(chain);
                         serialize_block = serialize(&Packet::Block(Block::new_wrong(1)));
                     //No enought block
@@ -322,7 +340,9 @@ impl Node {
                         drop(chain);
                     }
                     let serialize_block = serialize_block.expect("Can not serialize the block");
-                    self.socket.send_to(&serialize_block, sender);
+                    self.socket
+                        .send_to(&serialize_block, sender)
+                        .expect("Error send serialize block");
                 }
 
                 Packet::Connexion => {
@@ -333,11 +353,39 @@ impl Node {
                         peer.push(sender);
                         let serialize_peer = serialize(&Packet::RepPeers((*peer).clone().to_vec()))
                             .expect("Error serialize peer");
-                        drop(peer);
                         self.socket
                             .send_to(&serialize_peer, sender)
                             .expect("Error sending peers");
-                        //send blockchain ...
+
+                        let serialize_new =
+                            serialize(&Packet::NewNode(sender)).expect("Can not serialize NewNode");
+                        for p in &*peer {
+                            //send at all
+                            if *p != sender {
+                                self.socket
+                                    .send_to(&serialize_new, p)
+                                    .expect("Can not send NewNode");
+                            }
+                        }
+                    }
+                }
+
+                Packet::NewNode(new) => {
+                    println!("recv newnode ");
+                    let mut peer = share.peer.lock().unwrap();
+                    if !peer.contains(&new) {
+                        peer.push(new);
+
+                        let serialize_new =
+                            serialize(&Packet::NewNode(sender)).expect("Can not serialize NewNode");
+                        for p in &*peer {
+                            //send at all
+                            if *p != sender {
+                                self.socket
+                                    .send_to(&serialize_new, p)
+                                    .expect("Can not send NewNode");
+                            }
+                        }
                     }
                 }
 
@@ -357,7 +405,7 @@ impl Node {
         let mut buf = [0u8; 256];
         loop {
             let (_, sender) = self.socket.recv_from(&mut buf).expect("Error recv block");
-            while sender != gate {
+            if sender != gate {
                 continue;
             }
             if let Packet::Block(b) = deserialize(&mut buf).expect("Can not deserilize block") {
@@ -370,17 +418,20 @@ impl Node {
         let last_block = self.get_block(-1, gate);
         let mut chain = vec![];
         let (height, nonce) = last_block.get_height_nonce();
+        println!("Height {}", height);
         if height == 0 && nonce != 0 {
             return None;
         }
-        for i in 0..height - 1 {
-            let block = self.get_block(i as i64, gate);
-            let (h, n) = block.get_height_nonce();
-            if (h != i) || (h == 0 && n != 0) {
-                println!("{} {} {}", i, h, n);
-                return None;
+        if height > 0 {
+            for i in 0..height - 1 {
+                let block = self.get_block(i as i64, gate);
+                let (h, n) = block.get_height_nonce();
+                if (h != i) || (h == 0 && n != 0) {
+                    println!("{} {} {}", i, h, n);
+                    return None;
+                }
+                chain.push(block);
             }
-            chain.push(block);
         }
         chain.push(last_block);
 
@@ -435,36 +486,39 @@ impl Node {
             println!("The block is {:?} ", block);
 
             match block.generate_block_stop(self.id, &share.should_stop) {
-                Some(mut block) => {
-                    println!("I found the block !!!");
+                Some(mut new_block) => {
+                    println!("I found the new_block !!!");
                     {
                         //add the transactions see during the mining
                         let val = share
                             .transaction
                             .lock()
                             .expect("Error during lock of transaction");
-                        block = block.set_transactions((*val).clone());
+                        new_block = new_block.set_transactions((*val).clone());
                     }
+                    let mut chain = share.chain.lock().expect("Can not lock chain");
+                    chain.push(new_block.clone());
+                    drop(chain);
                     {
                         let peer = share.peer.lock().unwrap();
                         let block_sera: Vec<u8> =
-                            serialize(&Packet::Block(block)).expect("Error serialize block");
-                        for addr in &*peer {
+                            serialize(&Packet::Block(new_block.clone())).expect("Error serialize new_block");
+                        for addr in peer.iter().filter(move |p|  **p != self.socket.local_addr().expect("Can not take local addr")) {
                             self.send_block(&block_sera, *addr);
                         }
                     }
+                    block = new_block;
                 }
                 None => {
-                    println!("An other found the block")
+                    println!("An other found the block");
+                    block = tx
+                        .recv()
+                        .expect("Error block can't be read from the channel");
+                    {
+                        let mut val = share.should_stop.lock().unwrap();
+                        *val = false;
+                    }
                 }
-            }
-
-            block = tx
-                .recv()
-                .expect("Error block can't be read from the channel");
-            {
-                let mut val = share.should_stop.lock().unwrap();
-                *val = false;
             }
         }
     }
