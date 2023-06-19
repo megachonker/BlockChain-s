@@ -15,6 +15,7 @@ pub struct Block {
     transactions: Vec<Transaction>, //the vector of all transaction validated with this block
     miner_hash: u64,                //Who find the answer
     nonce: u64,                     //the answer of the defi
+    quote : String,
 }
 #[derive(Debug, Hash, Serialize, Deserialize, Clone)]
 pub struct Transaction {
@@ -40,6 +41,7 @@ impl Block {
             transactions: vec![],
             nonce: 0,
             miner_hash: 0,
+            quote : String::from(""),
         };
         block.nonce = 0;
         block.block_id = hash(&block); //the
@@ -54,6 +56,8 @@ impl Block {
             transactions: vec![],
             nonce: value, //for the block zero the nonce indique the status of the block (use to response to GetBlock(i))
             miner_hash: 0,
+            quote : String::from(""),
+
         };
         block.block_id = hash(&block); //the
         block
@@ -74,10 +78,10 @@ impl Block {
         self.nonce.hash(&mut hasher);
 
         let answer = hasher.finish();
-        answer < HASH_MAX && hash(self) == self.block_id
+        answer < HASH_MAX && hash(self) == self.block_id && self.quote.len() < 100
     }
 
-    pub fn generate_block(&self, new_transa: Vec<Transaction>, finder: u64) -> Block {
+    pub fn generate_block(&self, new_transa: Vec<Transaction>, finder: u64, quote : &str) -> Block {
         let mut new_block = Block {
             block_height: self.block_height + 1,
             block_id: 0,
@@ -85,13 +89,17 @@ impl Block {
             transactions: new_transa,
             nonce: 0,
             miner_hash: finder,
+            quote : String::from(quote),
         };
         new_block.nonce = mine(&new_block);
         new_block.block_id = hash(&new_block); //set the correct id
         new_block
     }
 
-    pub fn generate_block_stop(&self, finder: u64, sould_stop: &Arc<Mutex<bool>>) -> Option<Block> {
+    pub fn generate_block_stop(&self, finder: u64, sould_stop: &Arc<Mutex<bool>>,mut quote : &str) -> Option<Block> {
+        if quote.len() >100{
+            quote = "";
+        }
         let mut new_block = Block {
             block_height: self.block_height + 1,
             block_id: 0,
@@ -99,70 +107,18 @@ impl Block {
             transactions: vec![], //put after
             nonce: 0,
             miner_hash: finder,
+            quote : String::from(quote),
         };
         new_block.nonce = mine_stop(&new_block, sould_stop)?;
         new_block.block_id = hash(&new_block); //set the correct id
         Some(new_block)
     }
     pub fn new_block(&self, new_transa: Vec<Transaction>, finder: u64) -> Block {
-        self.generate_block(new_transa, finder)
+        self.generate_block(new_transa, finder, "")
     }
 
-    pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = vec![];
-        bytes.extend_from_slice(&self.block_id.to_be_bytes());
-        bytes.extend_from_slice(&self.block_height.to_be_bytes());
-        bytes.extend_from_slice(&self.parent_hash.to_be_bytes());
-        bytes.extend_from_slice(&(self.transactions.len() as u32).to_be_bytes());
-        //put the transaction here
-        bytes.extend_from_slice(&self.miner_hash.to_be_bytes());
-        bytes.extend_from_slice(&self.nonce.to_be_bytes());
 
-        bytes
-    }
 
-    pub fn from_bytes(bytes: &[u8]) -> Option<Block> {
-        if bytes.len() < 48 {
-            // Ensure the byte slice has enough length to deserialize a Block
-            return None;
-        }
-
-        let block_id_bytes = &bytes[0..8];
-        let block_height_bytes = &bytes[8..16];
-        let parent_hash_bytes = &bytes[16..24];
-        // let transactions_len_bytes = &bytes[24..28];
-        let transactions_bytes = &bytes[28..];
-        let miner_hash_bytes = &transactions_bytes[0..8];
-        let nonce_bytes = &transactions_bytes[8..16];
-
-        let block_id = u64::from_be_bytes(block_id_bytes.try_into().ok()?);
-        let block_height = u64::from_be_bytes(block_height_bytes.try_into().ok()?);
-        let parent_hash = u64::from_be_bytes(parent_hash_bytes.try_into().ok()?);
-        // let transactions_len = u32::from_be_bytes(transactions_len_bytes.try_into().ok()?);
-
-        // Extract transactions from byte slice (assuming Transaction has its own serialization logic)
-        // let transactions: Vec<Transaction> = (0..transactions_len)
-        //     .into_iter()
-        //     .flat_map(|i| {
-        //         let start = 16 * i as usize;
-        //         let end = start + 16;
-        //         Transaction::from_bytes(&transactions_bytes[start..end])
-        //     })
-        //     .collect::<Option<Vec<Transaction>>>()?;
-        let transactions = vec![];
-
-        let miner_hash = u64::from_be_bytes(miner_hash_bytes.try_into().ok()?);
-        let nonce = u64::from_be_bytes(nonce_bytes.try_into().ok()?);
-
-        Some(Block {
-            block_id,
-            block_height,
-            parent_hash,
-            transactions,
-            miner_hash,
-            nonce,
-        })
-    }
 
     pub fn set_transactions(mut self, transactions: Vec<Transaction>) -> Self {
         self.transactions = transactions;

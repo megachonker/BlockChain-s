@@ -238,19 +238,6 @@ impl Node {
 
     fn quit(&mut self) {}
 
-    fn send_block(&self, block: &Vec<u8>, addr: SocketAddr) {
-        self.socket
-            .send_to(&block, addr)
-            .expect("Error to send the block");
-    }
-
-    fn recive_block(&self) -> Option<Block> {
-        let mut buf: [u8; 100] = [0; 100];
-        self.socket.recv_from(&mut buf).unwrap();
-        let new_block = Block::from_bytes(&mut buf)?;
-        Some(new_block)
-    }
-
     fn hear(&self) -> (Packet, SocketAddr) {
         let mut buffer = vec![0u8; 1024]; //MAXSIZE a def ??
 
@@ -424,8 +411,11 @@ impl Node {
 
             if time_packet - last_time > Duration::from_secs(60) {
                 println!("Check node already here ? ");
-                self.check_keep_alive(& mut peerdict, time_packet);
-                update_peer_share(&mut share.peer.lock().unwrap(), peerdict.keys().cloned().collect());
+                self.check_keep_alive(&mut peerdict, time_packet);
+                update_peer_share(
+                    &mut share.peer.lock().unwrap(),
+                    peerdict.keys().cloned().collect(),
+                );
                 last_time = time_packet;
             }
         }
@@ -522,7 +512,7 @@ impl Node {
         loop {
             println!("The block is {:?} ", block);
 
-            match block.generate_block_stop(self.id, &share.should_stop) {
+            match block.generate_block_stop(self.id, &share.should_stop, "It is a quote") {
                 Some(mut new_block) => {
                     println!("I found the new_block !!!");
                     {
@@ -560,6 +550,12 @@ impl Node {
                 }
             }
         }
+    }
+
+    fn send_block(&self, block: &Vec<u8>, addr: SocketAddr) {
+        self.socket
+            .send_to(&block, addr)
+            .expect("Error to send the block");
     }
 
     pub fn get_ip(&self) -> SocketAddr {
@@ -602,13 +598,13 @@ impl Node {
         }
     }
 
-    fn check_keep_alive(&self, peer:& mut HashMap<SocketAddr, Duration>, time: Duration) {
+    fn check_keep_alive(&self, peer: &mut HashMap<SocketAddr, Duration>, time: Duration) {
         let clone = peer.clone();
         for (p, t) in clone {
             if time - t > Duration::from_secs(120) {
                 peer.remove(&p);
                 println!("Remove the peer {}", p);
-            } else if time -t > Duration::from_secs(60) {
+            } else if time - t > Duration::from_secs(60) {
                 println!("Send a keep alive to {}", p);
                 let seria_keep = serialize(&Packet::Keepalive).unwrap();
                 self.socket
