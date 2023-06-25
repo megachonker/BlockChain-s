@@ -66,41 +66,7 @@ fn main() {
     Node::start(matches);
 }
 
-fn fakemine() {
-    let mut rng = thread_rng();
 
-    //guy's
-    let cottelle = hash("uss");
-    let neeto = hash("neeto");
-    let chonker = hash("chonker"); //pb if two people have the same hash
-
-    let guys = [cottelle, neeto, chonker];
-
-    let transaction = Transaction::new(
-        *guys.choose(&mut rng).unwrap(),
-        *guys.choose(&mut rng).unwrap(),
-        rng.gen::<u32>(),
-    );
-
-    let origin_block = Block::new();
-    if !origin_block.check() {
-        println!("The block is false");
-    }
-    let mut block = origin_block;
-
-    loop {
-        println!("Current  {:?} ", block);
-        let transaction = Transaction::new(
-            *guys.choose(&mut rng).unwrap(),
-            *guys.choose(&mut rng).unwrap(),
-            rng.gen::<u32>() % 100,
-        );
-        block = block.new_block(vec![transaction], *guys.choose(&mut rng).unwrap());
-        if !block.check() {
-            println!("The block is false");
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

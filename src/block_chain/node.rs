@@ -1,8 +1,9 @@
 use core::time;
 use std::collections::HashMap;
+use std::f32::consts::E;
+use std::fmt::Display;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::process::ChildStdout;
-// use std::str::pattern::StrSearcher;
 use std::sync::{Arc, Barrier, Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
@@ -267,7 +268,6 @@ impl Node {
             let time_packet = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("Impossible to get time");
-            println!("{:?}", time_packet);
             match message {
                 Packet::Keepalive => {
                     println!("recv KeepAlive");
@@ -278,32 +278,100 @@ impl Node {
                         .expect("Can not send AnswerKA");
                 }
                 Packet::Block(block) => {
+
+                    //Pb quand on recuepre la list des bloc il y a un desenquencenment des num des blocs ... a fix (Pb diff heigh)
                     println!("recv Block");
-                    let mut chain = share.chain.lock().unwrap();
+
+                    let mut chain: MutexGuard<'_, Vec<Block>> = share.chain.lock().unwrap(); //pas fou
                     if !chain.contains(&block) {
                         if block.check() {
-                            {
-                                chain.push(block.clone());
-                            }
-                            rx.send(block.clone()).unwrap();
-                            {
-                                let mut val = share.should_stop.lock().unwrap();
-                                *val = true;
-                            }
-                            let mut val = share.transaction.lock().unwrap();
-                            (*val) = vec![]; //on remet a zero les transactions peut être a modiifier
+                            let cur_height = chain.last().unwrap().get_height_nonce().0;
+                            let new_height = block.get_height_nonce().0;
+                            if cur_height + 1 == new_height {
+                                {
+                                    chain.push(block.clone());
+                                }
+                                rx.send(block.clone()).unwrap();
+                                {
+                                    let mut val = share.should_stop.lock().unwrap();
+                                    *val = true;
+                                }
+                                let mut val = share.transaction.lock().unwrap();
+                                (*val) = vec![]; //on remet a zero les transactions peut être a modiifier
 
-                            drop(chain);
+                                drop(chain);
 
-                            let seria_block =
-                                serialize(&Packet::Block(block)).expect("Can not serialize block");
+                                let seria_block = serialize(&Packet::Block(block))
+                                    .expect("Can not serialize block");
 
-                            // let peer = peerdict.keys().cloned()
+                                // let peer = peerdict.keys().cloned()
 
-                            for p in peerdict.keys().cloned() {
-                                self.socket
-                                    .send_to(&seria_block, p)
-                                    .expect("Error send block");
+                                for p in peerdict.keys().cloned() {
+                                    self.socket
+                                        .send_to(&seria_block, p)
+                                        .expect("Error send block");
+                                }
+                            } else if cur_height + 1 < new_height {
+                                //we are retarded"
+                                println!("We are to late");
+                                let mut buf = [0u8; 256];
+                                let mut dist_block = vec![];
+                                dist_block.push(block.clone());
+                                let mut last_block_common: i64 = -1;
+                                for i in (0..new_height).rev() {
+                                    let seri_getblock: Vec<u8> =
+                                        serialize(&Packet::GetBlock(i as i64)).unwrap();
+                                    self.socket
+                                        .send_to(&seri_getblock, sender)
+                                        .expect("Can not send getblock");
+                                    loop {
+                                        if self.socket.recv_from(&mut buf).expect("Can not recv").1
+                                            != sender
+                                        {
+                                            continue;
+                                        }
+
+                                        if let Packet::Block(b) = deserialize(&buf).unwrap() {
+                                            if (b.get_height_nonce().0 != i){
+                                                println!("Pb diff heigh demand {} recv {}",i,b.get_height_nonce().0)
+                                            }
+                                            if b.get_height_nonce().0 > cur_height {
+                                                dist_block.push(b.clone());
+                                            } else {
+                                                println!(
+                                                    "&& The block is {:?} \n {:?}",
+                                                    b, chain[i as usize]
+                                                );
+                                                if b == chain[i as usize] {
+                                                    println!("{} is same", i);
+                                                    last_block_common = i as i64;
+                                                } else {
+                                                    dist_block.push(b.clone());
+                                                }
+                                            }
+                                            break;
+                                        }
+                                    }
+                                    if last_block_common != -1 {
+                                        break;
+                                    }
+                                }
+                                if last_block_common != -1 {
+                                    println!("Ici");
+                                    dist_block.reverse();
+                                    for (i, b) in dist_block.iter().enumerate() {
+                                        if i + last_block_common as usize <= cur_height as usize {
+                                            chain[i + last_block_common as usize] = b.clone();
+                                        } else {
+                                            chain.push(b.clone());
+                                        }
+                                    }
+                                    rx.send(block).unwrap();
+
+                                    let mut val = share.should_stop.lock().unwrap();
+                                    *val = true;
+                                    drop(val);
+                                }
                             }
                         }
                     }
@@ -349,6 +417,9 @@ impl Node {
                         serialize_block = serialize(&Packet::Block(Block::new_wrong(1)));
                     //No enought block
                     } else {
+                        if chain[i as usize].get_height_nonce().0 != i as u64 {
+                            println!("Pb diff heigh");
+                        }
                         serialize_block = serialize(&Packet::Block(chain[i as usize].clone())); //peut etre mettre des & dans Block
                         drop(chain);
                     }
@@ -450,7 +521,7 @@ impl Node {
             return None;
         }
         if height > 0 {
-            for i in 0..height - 1 {
+            for i in 0..height  {
                 let block = self.get_block(i as i64, gate);
                 let (h, n) = block.get_height_nonce();
                 if (h != i) || (h == 0 && n != 0) {
@@ -461,6 +532,7 @@ impl Node {
             }
         }
         chain.push(last_block);
+        println!("get the chain : {:?}", chain);
 
         Some(chain)
     }

@@ -5,7 +5,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::sync::{Arc, Mutex};
 
-const HASH_MAX: u64 = 100000000000;
+const HASH_MAX: u64 = 1000000000000;
 
 #[derive(Debug, Serialize, Deserialize , Clone)]
 pub struct Block {
@@ -71,30 +71,18 @@ impl Block {
         let mut hasher = DefaultHasher::new(); //why don't use hash fun ? hash(self) ?? like in last commit
 
         //playload of block to hash
-        self.block_height.hash(&mut hasher);
+        // self.block_height.hash(&mut hasher);
         self.parent_hash.hash(&mut hasher);
         // self.transactions.hash(&mut hasher);     //tres variable donc osef
-        self.miner_hash.hash(&mut hasher);
+        // self.miner_hash.hash(&mut hasher);
+        // self.quote.hash(&mut hasher);
         self.nonce.hash(&mut hasher);
 
         let answer = hasher.finish();
         answer < HASH_MAX && hash(self) == self.block_id && self.quote.len() < 100
     }
 
-    pub fn generate_block(&self, new_transa: Vec<Transaction>, finder: u64, quote : &str) -> Block {
-        let mut new_block = Block {
-            block_height: self.block_height + 1,
-            block_id: 0,
-            parent_hash: self.block_id,
-            transactions: new_transa,
-            nonce: 0,
-            miner_hash: finder,
-            quote : String::from(quote),
-        };
-        new_block.nonce = mine(&new_block);
-        new_block.block_id = hash(&new_block); //set the correct id
-        new_block
-    }
+    
 
     pub fn generate_block_stop(&self, finder: u64, sould_stop: &Arc<Mutex<bool>>,mut quote : &str) -> Option<Block> {
         if quote.len() >100{
@@ -113,9 +101,6 @@ impl Block {
         new_block.block_id = hash(&new_block); //set the correct id
         Some(new_block)
     }
-    pub fn new_block(&self, new_transa: Vec<Transaction>, finder: u64) -> Block {
-        self.generate_block(new_transa, finder, "")
-    }
 
 
 
@@ -131,8 +116,9 @@ impl Hash for Block {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.block_height.hash(state);
         self.parent_hash.hash(state);
-        // self.transactions.hash(state);
+        self.transactions.hash(state);
         self.miner_hash.hash(state);
+        self.quote.hash(state);
         self.nonce.hash(state);
     }
 }
@@ -143,88 +129,17 @@ impl PartialEq for Block {
 }
 
 
-pub fn mine_hasher_clone(block: &Block) -> u64 {
-    let mut rng = rand::thread_rng(); //to pick random value
-    let mut hasher = DefaultHasher::new();
-
-    //playload of block to hash
-    block.block_height.hash(&mut hasher);
-    block.parent_hash.hash(&mut hasher);
-    block.transactions.hash(&mut hasher);
-    block.miner_hash.hash(&mut hasher);
-
-    loop {
-        let mut to_hash = hasher.clone(); //save l'état du hasher
-        let nonce_to_test = rng.gen::<u64>();
-
-        nonce_to_test.hash(&mut to_hash);
-        let answer = to_hash.finish();
-
-        if answer < HASH_MAX {
-            return nonce_to_test;
-        }
-    }
-}
-
-pub fn mine(block: &Block) -> u64 {
-    let mut rng = rand::thread_rng(); //to pick random value
-    loop {
-        let nonce_to_test = rng.gen::<u64>();
-        let mut hasher = DefaultHasher::new();
-
-        //playload of block to hash
-        block.block_height.hash(&mut hasher);
-        block.parent_hash.hash(&mut hasher);
-        // block.transactions.hash(&mut hasher);
-        block.miner_hash.hash(&mut hasher);
-        nonce_to_test.hash(&mut hasher);
-        let answer: u64 = hasher.finish();
-
-        if answer < HASH_MAX {
-            return nonce_to_test;
-        }
-    }
-}
-
-pub fn mine_stop2(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
-    let mut rng = rand::thread_rng(); //to pick random value
-    loop {
-        let nonce_to_test = rng.gen::<u64>();
-        let mut hasher = DefaultHasher::new();
-
-        //playload of block to hash
-        block.block_height.hash(&mut hasher);
-        block.parent_hash.hash(&mut hasher);
-        // block.transactions.hash(&mut hasher);
-        block.miner_hash.hash(&mut hasher);
-        nonce_to_test.hash(&mut hasher);
-        let answer: u64 = hasher.finish();
-
-        if answer < HASH_MAX {
-            return Some(nonce_to_test);
-        }
-        if nonce_to_test % 100000 == 0 {
-            //test not all time (mutex has big complexity)
-            {
-                let mut val = should_stop.lock().unwrap();
-                if *val {
-                    *val = false;
-                    return None;
-                }
-            }
-        }
-    }
-}
 
 pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
     let mut rng = rand::thread_rng(); //to pick random value
     let mut hasher = DefaultHasher::new();
 
     //playload of block to hash
-    block.block_height.hash(&mut hasher);
+    // block.block_height.hash(&mut hasher);
     block.parent_hash.hash(&mut hasher);
     // block.transactions.hash(&mut hasher);
-    block.miner_hash.hash(&mut hasher);
+    // block.miner_hash.hash(&mut hasher);
+    // block.quote.hash(& mut hasher);
 
     let mut nonce_to_test = rng.gen::<u64>();
 
