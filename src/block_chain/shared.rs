@@ -4,6 +4,8 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use super::block::{*,Block};
 
+////////////////////ça veux dire quoi ça sert a quoi ?
+///////// faire une structure intermédiaire un éta chared ça peut être bien mais jsp a quoi ça serrt iuci
 #[derive(Debug)]
 pub struct Shared {
     pub peer: Arc<Mutex<Vec<SocketAddr>>>,

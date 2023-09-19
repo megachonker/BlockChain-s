@@ -14,7 +14,7 @@ use block_chain::shared;
 use clap::{arg, ArgAction, ArgMatches, Command};
 
 
-
+//il existe un autre parsing qui utilise une structure au lieux de .arg .arg qui est moin lisible
 fn parse_args() -> ArgMatches {
     Command::new("NIC")
         .version("1.0")
@@ -62,7 +62,7 @@ fn main() {
 }
 
 
-
+//des scénario de test avec 2 node par ex
 #[cfg(test)]
 mod tests {
 

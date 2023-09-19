@@ -7,15 +7,50 @@ use std::io::Read;
 
 
 
+//enum Node::Client 
+//stuct client{
+// User
+// Network
+//}
+
+/*
+node en mode Client peut
+- send de l'argent
+- inspecter la blockaine
+- voir le compte du client
+*/
+
+
+// donc client va utiliser User comme truc de base 
+//user doit pouvoir implementer masse function comme compaerer UserA et UserB pour les balance
+
+
+// est possédée par la structure client 
 struct User{
+    //struct Kriptography <== pour avoir une abstraction 
     public_key : ,
     private_key : ,
 }
 
-fn generate_and_save_key_pair() -> Result<(), Box<dyn std::error::Error>> {
+//Kriptography::load <= file ou clef
+//Kriptography::gen
+//Kriptography::signe ?
+//Kriptography::check <= avec le trai
+
+//Transaction::check(transaction) <== doit vérifier kripto si ces bon
+
+//User::balance <== balance utilisera blockaine
+//User::send <== quand on send on fera des op de crypto derrierre
+//User::Contract <== faire des contract need structure
+
+//dans les transa contra on fait référance a des user ? 
+
+//ces le truc que j'avait trouver, j'ai gélérée comme une chienne pour trouver une lib qui tien la route gg
+//pour moi faut faire une abstra cripto
+fn generate_and_save_key_pair() -> Result<(), Box<dyn std::error::Error>> {//obliger de box ? //pourquoi présice pas erro?
     // Generate a new key pair
     let rng = ring::rand::SystemRandom::new();
-    let pkcs8_bytes = signature::Ed25519KeyPair::generate_pkcs8(&rng)?;
+    let pkcs8_bytes = signature::Ed25519KeyPair::generate_pkcs8(&rng)?; /////need to update kargooooooo
 
     // Save the private key to a file
     std::fs::write("private_key.pem", &pkcs8_bytes)?;
@@ -27,7 +62,7 @@ fn generate_and_save_key_pair() -> Result<(), Box<dyn std::error::Error>> {
     // Save the public key to a file
     std::fs::write("public_key.pem", public_key_bytes)?;
 
-    Ok(())
+    Ok(())//je fait pas ça mais ces pas si con
 }
 
 

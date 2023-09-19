@@ -15,7 +15,31 @@ use clap::{arg, ArgMatches, Parser};
 use super::block::{*,Block};
 
 
+/////////important/////////////
+// on peut faire l'abre des dépendance au niveaux du systeme de fichier aussi
+/*
+idée de changement de structure
 
+enum Node{
+    struct emule
+        node::server
+        node::client
+    struct Server
+        miner
+        Network
+            kamelia
+        blockaine
+            block
+    struct client
+        User
+            Kripto 
+        transaction
+}
+*/
+
+
+
+//serait dans utiliser pas kamelia
 #[derive(Serialize, Deserialize, Debug)]
 enum Packet {
     Keepalive,
@@ -97,6 +121,7 @@ pub struct Node {
     id: u64,
     socket: UdpSocket,
     barrier: Arc<Barrier>,
+    //voir changement préscrit
 }
 
 #[derive(Parser, Debug)]
@@ -110,9 +135,12 @@ struct Args {
     #[arg(short, long, default_value_t = 1)]
     count: u8,
 }
-
+//soit on start un client soit on start un server
+//un server ces un miner 
+//un client ces pour faire une transa ponctuel
 impl Node {
     pub fn start(matches: ArgMatches) -> Option<()> {
+        //j'aime pas que le parsing aille en dehor du main 
         let me: Node = Node::create(
             matches
                 .get_one::<String>("sender")?
@@ -120,8 +148,10 @@ impl Node {
                 .expect("Pas un entier"),
             String::from(matches.get_one::<String>("ip")?),
         );
+
+
         if matches.get_one::<String>("mode")? == "send" {
-            me.send_transactions(
+            me.send_transactions(//start client donc une struct client avec un impl
                 matches.get_one::<String>("gate")?.parse().unwrap(),
                 matches
                     .get_one::<String>("receive")?
@@ -130,17 +160,21 @@ impl Node {
                 matches.get_one::<String>("count")?.parse::<u32>().unwrap(),
             )
         } else {
-            me.setup_mine(
+            //un setup ces un new au final
+            me.setup_mine(//start un miner avec impl ect
                 matches
                     .get_one::<String>("gate")
                     .expect("Error parse Gate")
                     .parse::<SocketAddr>()
                     .expect("Error it is not a IP addr"),
             );
+            //et apres on fait un ::start
         }
         Some(())
     }
 
+
+    //new
     pub fn create(id: u64, ip: String) -> Node {
         let socket = UdpSocket::bind(ip).expect("{id} couldn't bind to address:"); //1
         let barrier = Arc::new(Barrier::new(2));
@@ -151,6 +185,7 @@ impl Node {
         }
     }
 
+    //comment ça ? j'ai jamais fait des impl de clone 
     pub fn clone(&self) -> Node {
         let barrier = Arc::new(Barrier::new(2));
 
@@ -161,6 +196,8 @@ impl Node {
         }
     }
 
+
+    //dans ému
     pub fn run_listen(&self) {
         let socket = self.socket.try_clone().expect("fail to clone socket");
         let id = self.id;
@@ -217,6 +254,7 @@ impl Node {
         });
     }
 
+    //ému
     fn run_send(&mut self, id: u64) {
         self.barrier.wait();
         println!("Node {} to {} send: {}", self.id, id, self.id);
@@ -226,8 +264,10 @@ impl Node {
         //3
     }
 
+    // ?
     fn quit(&mut self) {}
 
+    //ça fait quoi ?
     fn hear(&self) -> (Packet, SocketAddr) {
         let mut buffer = vec![0u8; 1024]; //MAXSIZE a def ??
 
@@ -237,7 +277,7 @@ impl Node {
             sender,
         )
     }
-
+    //network
     pub fn listen(&self, share: Shared, rx: mpsc::Sender<Block>) {
         let mut peerdict: HashMap<SocketAddr, Duration> = HashMap::new();
 
@@ -252,6 +292,9 @@ impl Node {
 
         drop(peer);
 
+        //dans mon llama j'appelle ça un router
+        //le router map les les fonction a appler en fonction du enum recu
+        //ça serait beaucoup plus court d'apeler que une ligne par type reucs
         loop {
             let (message, sender) = self.hear();
             let time_packet = SystemTime::now()
@@ -259,6 +302,7 @@ impl Node {
                 .expect("Impossible to get time");
             match message {
                 Packet::Keepalive => {
+                    //call la fc aproprier
                     println!("recv KeepAlive");
                     let sera_answer =
                         serialize(&Packet::AnswerKA).expect("Can not serialize AswerKA");
@@ -267,6 +311,7 @@ impl Node {
                         .expect("Can not send AnswerKA");
                 }
                 Packet::Block(block) => {
+                    //self.blockaine.append(block) ??
 
                     //Pb quand on recuepre la list des bloc il y a un desenquencenment des num des blocs ... a fix (Pb diff heigh)
                     println!("recv Block");
@@ -280,7 +325,7 @@ impl Node {
                                 {
                                     chain.push(block.clone());
                                 }
-                                rx.send(block.clone()).unwrap();
+                                rx.send(block.clone()).unwrap();//on send un doublon du block a qui ?
                                 {
                                     let mut val = share.should_stop.lock().unwrap();
                                     *val = true;
@@ -290,6 +335,8 @@ impl Node {
 
                                 drop(chain);
 
+                                //on send a tt le monde le block fait ?
+                                //donc network.publish(block)? qui appelle kamelia.peers 
                                 let seria_block = serialize(&Packet::Block(block))
                                     .expect("Can not serialize block");
 
@@ -366,19 +413,21 @@ impl Node {
                     }
                 }
                 Packet::Transaction(trans) => {
+                    //use transactiont itself ?
                     println!("recv Transaction");
 
                     let clone_share = share.clone();
                     println!("Recive a new transactions");
                     thread::spawn(move || {
                         //Maybe put this in the setup_mine and pass channel for new transa
-                        verif_transa(clone_share, trans);
+                        verif_transa(clone_share, trans); 
                     });
 
                     // //share the new transa ???
                 }
 
                 Packet::GetPeer => {
+                    //call network..... kamelia.peers
                     println!("recv GetPeer");
 
                     let serialize_peer =
@@ -393,6 +442,7 @@ impl Node {
                 }
 
                 Packet::GetBlock(i) => {
+                    //call blockchain directly
                     println!("Recv getBlock {}", i);
                     let chain: std::sync::MutexGuard<'_, Vec<Block>> =
                         share.chain.lock().expect("Can not lock chain");
@@ -419,6 +469,7 @@ impl Node {
                 }
 
                 Packet::Connexion => {
+                    //call ntwork
                     println!("recv Connexion");
 
                     let peer: Vec<SocketAddr> = peerdict.keys().cloned().collect();
@@ -445,6 +496,7 @@ impl Node {
                 }
 
                 Packet::NewNode(new) => {
+                    //kamelia ?.
                     println!("recv newnode ");
                     let peer: Vec<SocketAddr> = peerdict.keys().cloned().collect();
                     if !peer.contains(&new) {
@@ -469,7 +521,7 @@ impl Node {
                 *entry = time_packet;
             });
 
-            if time_packet - last_time > Duration::from_secs(60) {
+            if time_packet - last_time > Duration::from_secs(60) {//lul
                 println!("Check node already here ? ");
                 self.check_keep_alive(&mut peerdict, time_packet);
                 update_peer_share(
@@ -481,6 +533,7 @@ impl Node {
         }
     }
 
+    //inside network get blcok
     fn get_block(&self, index: i64, gate: SocketAddr) -> Block {
         self.socket
             .send_to(
@@ -501,6 +554,7 @@ impl Node {
         }
     }
 
+    //network:: get block
     fn get_chain(&self, gate: SocketAddr) -> Option<Vec<Block>> {
         let last_block = self.get_block(-1, gate);
         let mut chain = vec![];
@@ -526,26 +580,38 @@ impl Node {
         Some(chain)
     }
 
+    //struc miner avec Blockaine && Kamelia dedant qui sera initialiser
+    //donc serait une structure miner 
+    //en Miner::new 
     fn setup_mine(&self, gate: SocketAddr) {
         let me_clone: Node = self.clone();
 
-        let mut peer: Vec<SocketAddr>;
-        let mut chain: Vec<Block> = vec![];
+        let mut peers: Vec<SocketAddr>;
+        let mut chain: Vec<Block> = vec![];//devrais etre une struc blockaine ?
 
-        if !(gate == SocketAddr::from(([0, 0, 0, 0], 6021))) {
+        //si j'ai une gateway je send connection sur elle ?
+        if !(gate == SocketAddr::from(([0, 0, 0, 0], 6021))) {//6021 devrais estre un static const (en gros un DEFINE pour plus de lisibilitée)
             self.socket
                 .send_to(&serialize(&Packet::Connexion).unwrap(), gate)
                 .expect("Error send Connecion Packet");
-            peer = self.recive_peer();
+            //ces du network
+            //Kamelia::new()
+            //azer.last_peers() => on poura metre ça en backgroud apres 
+            peers = self.recive_peers();
 
+            //on retreive la "blockhaine"
+            //Blockchaine::new(gate) que l'on met dans cette structure miner
             chain = self.get_chain(gate).expect("Can not grap the chain");
 
+            //return Miner avec son network de peers et ça blockaine
             println!("Catch a chain of {} lenght", chain.len());
 
-            println!("Found {} peer", peer.len());
+            println!("Found {} peer", peers.len());
+
         } else {
-            peer = vec![];
-            peer.push(self.socket.local_addr().expect("Can not catch the ip "));
+            //devrais être une fonction Miner::new(Default:default)
+            peers = vec![];
+            peers.push(self.socket.local_addr().expect("Can not catch the ip "));
             chain.push(Block::new());
         }
 
@@ -555,8 +621,10 @@ impl Node {
         //     SocketAddr::from(([127, 0, 0, 1], 6021)),
         //     SocketAddr::from(([127, 0, 0, 2], 6021)),
         // ]));
+        
+        //complexitée dans Blockhaine
         let starting_block = chain.last().unwrap().clone();
-        let peer = Arc::new(Mutex::new(peer));
+        let peer = Arc::new(Mutex::new(peers));
 
         let (rx, tx) = mpsc::channel();
         let share = Shared::new(peer, should_stop, chain);
@@ -566,9 +634,11 @@ impl Node {
             me_clone.listen(share_copy, rx);
         });
 
+        //serait Miner::start
         self.mine(share, starting_block, tx);
     }
 
+    //Miner::start(&self) //plus simple ?
     pub fn mine(&self, share: Shared, mut block: Block, tx: mpsc::Receiver<Block>) {
         loop {
             println!("The block is {:?} ", block);
@@ -586,7 +656,7 @@ impl Node {
                     }
                     let mut chain = share.chain.lock().expect("Can not lock chain");
                     chain.push(new_block.clone());
-                    drop(chain);
+                    drop(chain);// { } peut être utiliser
                     {
                         let peer = share.peer.lock().unwrap();
                         let block_sera: Vec<u8> = serialize(&Packet::Block(new_block.clone()))
@@ -612,7 +682,7 @@ impl Node {
             }
         }
     }
-
+    //serait miner::send(&self) qui ferait un Kamelia::publish(Blockaine::lastblock())
     fn send_block(&self, block: &Vec<u8>, addr: SocketAddr) {
         self.socket
             .send_to(&block, addr)
@@ -625,6 +695,7 @@ impl Node {
             .expect("Error the catch the ip from the socket")
     }
 
+    //important d'avoir une structure pour les transa avec plein de check into algo qui store la structure
     pub fn send_transactions(&self, gate: SocketAddr, to: u64, count: u32) {
         // let him = Node::create(to);
         let transa = Transaction::new(0, to, count);
@@ -635,6 +706,7 @@ impl Node {
             .expect("Error send transaction ");
     }
 
+    //kamelia things
     fn ask_recive_peer(&self, gate: SocketAddr) -> Vec<SocketAddr> {
         let serialize_getpeer = serialize(&Packet::GetPeer).expect("Error serialize GetPeers");
 
@@ -642,10 +714,11 @@ impl Node {
             .send_to(&serialize_getpeer, gate)
             .expect("Error sending getPeers");
 
-        self.recive_peer()
+        self.recive_peers()
     }
 
-    fn recive_peer(&self) -> Vec<SocketAddr> {
+    //devrais être dans un struct network
+    fn recive_peers(&self) -> Vec<SocketAddr> {
         let mut buffer = [0u8; 256]; //on veux 255 addres max //<= a cahnger
 
         let (_, _remote) = self.socket.recv_from(&mut buffer).expect("Error recvfrom ");
@@ -659,6 +732,7 @@ impl Node {
         }
     }
 
+    //dans network
     fn check_keep_alive(&self, peer: &mut HashMap<SocketAddr, Duration>, time: Duration) {
         let clone = peer.clone();
         for (p, t) in clone {
@@ -676,6 +750,7 @@ impl Node {
     }
 }
 
+//dans transaction
 fn verif_transa(share: Shared, transa: Transaction) {
     //verification
 
@@ -683,6 +758,7 @@ fn verif_transa(share: Shared, transa: Transaction) {
     (*val).push(transa);
 }
 
+//serait dans emul
 pub fn p2p_simulate() {
     let mut nodes = vec![
         Node::create(1, String::from("27.0.0.1")),
@@ -700,7 +776,7 @@ pub fn p2p_simulate() {
         node.1.run_send(3);
     }
 }
-
+//comment ça ?
 pub fn detect_interlock() {
     for _ in [..10] {
         // Specify the timeout duration in milliseconds

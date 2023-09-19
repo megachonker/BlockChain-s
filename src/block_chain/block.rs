@@ -18,7 +18,7 @@ pub struct Block {
     quote : String,
 }
 #[derive(Debug, Hash, Serialize, Deserialize, Clone)]
-pub struct Transaction {
+pub struct Transaction {////////////////////on peut implémenter des **TRAI** de transaction ici
     src: u64,  //who send coin
     dst: u64,  //who recive
     qqty: u32, //the acount
@@ -67,6 +67,9 @@ impl Block {
         (self.block_height, self.nonce)
     }
 
+    //la structure transaction peut faire un check sur le block donc pourait être un trait requi d'une transaction
+    //une transaction peut utiliser le trait check pour check si le node est correct (last version blockaine)
+    //la transaction peut check check si le compte est bon si on fait une structure compte on peut metre le trait check
     pub fn check(&self) -> bool {
         let mut hasher = DefaultHasher::new(); //why don't use hash fun ? hash(self) ?? like in last commit
 
@@ -122,6 +125,8 @@ impl Hash for Block {
         self.nonce.hash(state);
     }
 }
+
+//exelent!
 impl PartialEq for Block {
     fn eq(&self, o: &Block) -> bool {
         self.block_id == o.block_id
@@ -129,7 +134,7 @@ impl PartialEq for Block {
 }
 
 
-
+//comment ça ?
 pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
     let mut rng = rand::thread_rng(); //to pick random value
     let mut hasher = DefaultHasher::new();
@@ -166,6 +171,9 @@ pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
     }
 }
 
+//pourait être dans un autre fichier car les transaction travaille sur la BLOCKCHAINE qui elle meme a des transa
+//en gros une transaction peut être un TRAI a blockchaine est a block
+// ce trait poura avoir un for et spécifier ce qu'on veux faire transiter
 impl Transaction {
     pub fn new(src: u64, dst: u64, qqt: u32) -> Transaction {
         Transaction {
