@@ -41,6 +41,7 @@ cargo run -- -s 0 -r 1 -c 1 -m send -p 127.0.0.2:6060 -g 127.0.0.1:6060
 
 
 - Fix Transaction : when a new block is found all of the transactions learn by node need to be clear (beacause they risk to add transaction in more than one block )  
+- Make rust test
 - Impl security (number of Node=public key, verify the signature when someone send transaction) 
 - Impl the variation of the dificulty of the proof of work when block is found to fast/slow.
 
