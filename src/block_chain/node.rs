@@ -1,31 +1,20 @@
-use core::time;
 use std::collections::HashMap;
-use std::f32::consts::E;
-use std::fmt::Display;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
-use std::process::ChildStdout;
 use std::sync::{Arc, Barrier, Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
 
 use crate::shared::Shared;
 use bincode::{deserialize, serialize};
-use lib_block::{Block, Transaction};
-use rand::SeedableRng;
-use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 use std::sync::mpsc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use clap::{arg, ArgAction, ArgMatches, Command, Parser};
+use clap::{arg, ArgMatches, Parser};
 
-// use super::{block, shared};
+use super::block::{*,Block};
 
-//remplacer par un énume les noms
 
-// mod block_chain {
-//     pub use super::block_chain::Block;
-// }
 
 #[derive(Serialize, Deserialize, Debug)]
 enum Packet {
@@ -332,7 +321,7 @@ impl Node {
                                         }
 
                                         if let Packet::Block(b) = deserialize(&buf).unwrap() {
-                                            if (b.get_height_nonce().0 != i){
+                                            if b.get_height_nonce().0 != i{
                                                 println!("Pb diff heigh demand {} recv {}",i,b.get_height_nonce().0)
                                             }
                                             if b.get_height_nonce().0 > cur_height {
@@ -407,7 +396,7 @@ impl Node {
                     println!("Recv getBlock {}", i);
                     let chain: std::sync::MutexGuard<'_, Vec<Block>> =
                         share.chain.lock().expect("Can not lock chain");
-                    let mut serialize_block;
+                    let serialize_block;
                     if i == -1 {
                         //ask the last one
                         serialize_block = serialize(&Packet::Block(chain.last().unwrap().clone()));
@@ -432,7 +421,7 @@ impl Node {
                 Packet::Connexion => {
                     println!("recv Connexion");
 
-                    let mut peer: Vec<SocketAddr> = peerdict.keys().cloned().collect();
+                    let peer: Vec<SocketAddr> = peerdict.keys().cloned().collect();
                     if !peer.contains(&sender) {
                         peerdict.insert(sender, time_packet);
                         let serialize_peer = serialize(&Packet::RepPeers(peer.clone()))
@@ -659,14 +648,14 @@ impl Node {
     fn recive_peer(&self) -> Vec<SocketAddr> {
         let mut buffer = [0u8; 256]; //on veux 255 addres max //<= a cahnger
 
-        let (_, remote) = self.socket.recv_from(&mut buffer).expect("Error recvfrom ");
+        let (_, _remote) = self.socket.recv_from(&mut buffer).expect("Error recvfrom ");
 
         loop {
             if let Packet::RepPeers(peer) = deserialize(&buffer).expect("Error deserialize ") {
                 return peer;
             }
 
-            let (_, remote) = self.socket.recv_from(&mut buffer).expect("Error recvfrom ");
+            let (_, _remote) = self.socket.recv_from(&mut buffer).expect("Error recvfrom ");
         }
     }
 

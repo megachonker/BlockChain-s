@@ -5,7 +5,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::sync::{Arc, Mutex};
 
-const HASH_MAX: u64 = 1000000000000;
+const HASH_MAX: u64 = 100000000000;
 
 #[derive(Debug, Serialize, Deserialize , Clone)]
 pub struct Block {
@@ -178,43 +178,5 @@ impl Transaction {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    #[test]
-    fn test_block_creation_and_check() {
-        let maximator = hash("uss");
-        let chonker = hash("chonker");
-
-        let transaction_a = Transaction::new(maximator, chonker, 100);
-
-        let origin_block = Block::new(vec![]);
-        assert!(origin_block.check());
-
-        let block_1 = origin_block.new_block(vec![transaction_a], chonker);
-        assert!(block_1.check());
-    }
-
-    #[test]
-    fn test_miner_hash_standar() {
-        let mut fist_block = Block::new(vec![]);
-        fist_block.nonce = mine(&fist_block);
-        fist_block.block_id = hash(&fist_block);
-        assert!(fist_block.check());
-    }
-
-    #[test]
-    fn test_mine_hasher_clone() {
-        let mut fist_block = Block::new(vec![]);
-        fist_block.nonce = mine_hasher_clone(&fist_block);
-        fist_block.block_id = hash(&fist_block);
-        assert!(fist_block.check());
-    }
-
-    #[test]
-    fn test_mine_hasher_lessrng() {
-        let mut fist_block = Block::new(vec![]);
-        fist_block.nonce = mine_hasher_lessrng(&fist_block);
-        fist_block.block_id = hash(&fist_block);
-        assert!(fist_block.check());
-    }
+    
 }

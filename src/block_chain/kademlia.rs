@@ -16,7 +16,7 @@ enum Packet {
     RepPeers(Vec<SocketAddr>),
 }
 #[derive(Clone)]
-pub struct Node {
+pub struct  Node {
     node_addr: SocketAddr,
     peers_addr: Arc<Mutex<Vec<SocketAddr>>>,
 }

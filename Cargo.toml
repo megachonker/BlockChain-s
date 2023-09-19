@@ -16,6 +16,3 @@ criterion = "0.4"
 name = "mining_comparaison"
 harness = false
 
-[lib]
-name = "lib_block"
-path = "src/block_chain/block.rs"
