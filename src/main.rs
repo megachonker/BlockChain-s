@@ -39,54 +39,18 @@ struct Cli {
 use clap::{arg, ArgAction, ArgMatches, Command, Parser};
 
 
-//il existe un autre parsing qui utilise une structure au lieux de .arg .arg qui est moin lisible  -> sur la même lib ou une autre ?
-fn parse_args() -> ArgMatches {
-    Command::new("NIC")
-        .version("1.0")
-        .author("Thompson")
-        .about("A great Block Chain")
-        .arg(
-            arg!(-p --ip <IP> "Your IP:port for bind the socket")
-                .required(false)
-                .action(ArgAction::Set),
-        )
-        .arg(
-            arg!(-r --receive <num> "The id of the receiver ")
-                .required(false)
-                .action(ArgAction::Set),
-        )
-        .arg(
-            arg!(-s --sender  <num> "Your Id")
-                .required(true)
-                .action(ArgAction::Set),
-        )
-        .arg(
-            arg!(-m --mode  <MODE> "Wich mode (send, mine) ")
-                .required(false)
-                .action(ArgAction::Set)
-                .default_value("mine"),
-        )
-        .arg(
-            arg!(-g --gate <IP> "The IP:port of the entry point")
-                .required(false)
-                .action(ArgAction::Set)
-                .default_value("0.0.0.0:6021"),         //First node 
-        )
-        .arg(
-            arg!(-c --count <count> "The value amount for the  transaction")
-                .required(false)
-                .action(ArgAction::Set)
-                .default_value("0"),
-        )
-        .get_matches()
-}
-
 fn main() {
-    let matches = parse_args();
-    Node::start(matches);
+    let arg = Cli::parse();
+    let node = parse_args();
+    // node.start();
 }
 
 
+// s'ocupe de faire une logique des argument
+fn parse_args() -> Node{
+
+    Node::new()
+}
 //des scénario de test avec 2 node par ex --> oui mais il pouvoir les arreter et le temps de clalcul d'un bloc est alea
 //possible de lancer les calcule de block avec une seed par exemple est de simplifier le nombre d'itération
 #[cfg(test)]
