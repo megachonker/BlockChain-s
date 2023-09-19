@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use super::block::{*,Block};
 
-////////////////////ça veux dire quoi ça sert a quoi ?
+////////////////////ça veux dire quoi ça sert a quoi ?              --> il y a des pas mal de chose qui on besoin d'être clone ici c'ets ce qui est partager entre les thread du node
 ///////// faire une structure intermédiaire un éta chared ça peut être bien mais jsp a quoi ça serrt iuci
 #[derive(Debug)]
 pub struct Shared {

@@ -1,4 +1,4 @@
-//ces quoi un peer ces du network ?
+//ces quoi un peer ces du network ?  --> inutiliser
 
 
 pub struct Peer{

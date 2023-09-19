@@ -14,7 +14,7 @@ use block_chain::shared;
 use clap::{arg, ArgAction, ArgMatches, Command};
 
 
-//il existe un autre parsing qui utilise une structure au lieux de .arg .arg qui est moin lisible
+//il existe un autre parsing qui utilise une structure au lieux de .arg .arg qui est moin lisible  -> sur la même lib ou une autre ?
 fn parse_args() -> ArgMatches {
     Command::new("NIC")
         .version("1.0")
@@ -62,7 +62,7 @@ fn main() {
 }
 
 
-//des scénario de test avec 2 node par ex
+//des scénario de test avec 2 node par ex --> oui mais il pouvoir les arreter et le temps de clalcul d'un bloc est alea
 #[cfg(test)]
 mod tests {
 

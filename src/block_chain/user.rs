@@ -21,7 +21,7 @@ node en mode Client peut
 */
 
 
-// donc client va utiliser User comme truc de base 
+// donc client va utiliser User comme truc de base              --> c'est pas utliser pour l'insant mais c'est pour la securité 
 //user doit pouvoir implementer masse function comme compaerer UserA et UserB pour les balance
 
 

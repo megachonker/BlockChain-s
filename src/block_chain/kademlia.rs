@@ -1,7 +1,7 @@
-//usless actuelemnt ??
+//usless actuelemnt ??  --> oui mais en gros le code a été implementer dans node
 
 use std::collections::HashSet;
-use std::mem;
+use std::mem; 
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket};
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;

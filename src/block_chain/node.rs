@@ -20,7 +20,7 @@ use super::block::{*,Block};
 /*
 idée de changement de structure
 
-enum Node{
+enum Node{          --> ca peut être une très bonne idée de separer client server a voire si ca ce fait bien
     struct emule
         node::server
         node::client
@@ -32,7 +32,7 @@ enum Node{
             block
     struct client
         User
-            Kripto 
+            Kripto --> Y'en a besoin pour tout le monde je pense
         transaction
 }
 */
@@ -121,7 +121,7 @@ pub struct Node {
     id: u64,
     socket: UdpSocket,
     barrier: Arc<Barrier>,
-    //voir changement préscrit
+    //voir changement préscrit   --> ? 
 }
 
 #[derive(Parser, Debug)]
@@ -135,12 +135,12 @@ struct Args {
     #[arg(short, long, default_value_t = 1)]
     count: u8,
 }
-//soit on start un client soit on start un server
+//soit on start un client soit on start un server   --> Oui
 //un server ces un miner 
 //un client ces pour faire une transa ponctuel
 impl Node {
     pub fn start(matches: ArgMatches) -> Option<()> {
-        //j'aime pas que le parsing aille en dehor du main 
+        //j'aime pas que le parsing aille en dehor du main   --> oui bonne idée de le faire dans le main (surtout si on separe cli/serv )mais le seul pb c'est quand y'a des arguments trop variable (comme ici)
         let me: Node = Node::create(
             matches
                 .get_one::<String>("sender")?
@@ -185,7 +185,7 @@ impl Node {
         }
     }
 
-    //comment ça ? j'ai jamais fait des impl de clone 
+    //comment ça ? j'ai jamais fait des impl de clone --> on peut faire le trait Clone plus clean en effet 
     pub fn clone(&self) -> Node {
         let barrier = Arc::new(Barrier::new(2));
 
@@ -205,7 +205,7 @@ impl Node {
 
         let mut buf = [0; 3];
         thread::spawn(move || {
-            //CASSER La qsdmlfjhnqsdfiogu avec timeout
+            //CASSER La qsdmlfjhnqsdfiogu avec timeout   --> pas compris 
 
             socket
                 .set_read_timeout(Some(Duration::new(0, 1000000)))
@@ -294,7 +294,7 @@ impl Node {
 
         //dans mon llama j'appelle ça un router
         //le router map les les fonction a appler en fonction du enum recu
-        //ça serait beaucoup plus court d'apeler que une ligne par type reucs
+        //ça serait beaucoup plus court d'apeler que une ligne par type reucs       --> oui surrement plus lisible s'il y a pas trop d'arg a passer
         loop {
             let (message, sender) = self.hear();
             let time_packet = SystemTime::now()
@@ -313,7 +313,6 @@ impl Node {
                 Packet::Block(block) => {
                     //self.blockaine.append(block) ??
 
-                    //Pb quand on recuepre la list des bloc il y a un desenquencenment des num des blocs ... a fix (Pb diff heigh)
                     println!("recv Block");
 
                     let mut chain: MutexGuard<'_, Vec<Block>> = share.chain.lock().unwrap(); //pas fou
@@ -335,7 +334,7 @@ impl Node {
 
                                 drop(chain);
 
-                                //on send a tt le monde le block fait ?
+                                //on send a tt le monde le block fait ?  --> oui et si on a deja recut le block et ignore, j'aivais reflechie et c'est assez commpliqué mais si ca marche avec kaùelia c'est cool
                                 //donc network.publish(block)? qui appelle kamelia.peers 
                                 let seria_block = serialize(&Packet::Block(block))
                                     .expect("Can not serialize block");
@@ -413,7 +412,7 @@ impl Node {
                     }
                 }
                 Packet::Transaction(trans) => {
-                    //use transactiont itself ?
+                    //use transactiont itself ?     --> ??
                     println!("recv Transaction");
 
                     let clone_share = share.clone();
@@ -423,11 +422,11 @@ impl Node {
                         verif_transa(clone_share, trans); 
                     });
 
-                    // //share the new transa ???
+                    // //share the new transa ???           --> maybe a missing , pas damatique. 
                 }
 
                 Packet::GetPeer => {
-                    //call network..... kamelia.peers
+                    //call network..... kamelia.peers       --> pour l'instant juste tout les nodes mais a paufinner
                     println!("recv GetPeer");
 
                     let serialize_peer =
@@ -442,7 +441,7 @@ impl Node {
                 }
 
                 Packet::GetBlock(i) => {
-                    //call blockchain directly
+                    //call blockchain directly      --> un autre node demande des block 
                     println!("Recv getBlock {}", i);
                     let chain: std::sync::MutexGuard<'_, Vec<Block>> =
                         share.chain.lock().expect("Can not lock chain");
@@ -554,7 +553,7 @@ impl Node {
         }
     }
 
-    //network:: get block
+    //network:: get block       --> ??
     fn get_chain(&self, gate: SocketAddr) -> Option<Vec<Block>> {
         let last_block = self.get_block(-1, gate);
         let mut chain = vec![];
@@ -656,7 +655,7 @@ impl Node {
                     }
                     let mut chain = share.chain.lock().expect("Can not lock chain");
                     chain.push(new_block.clone());
-                    drop(chain);// { } peut être utiliser
+                    drop(chain);// { } peut être utiliser  --> oui mais moche 
                     {
                         let peer = share.peer.lock().unwrap();
                         let block_sera: Vec<u8> = serialize(&Packet::Block(new_block.clone()))
@@ -695,7 +694,7 @@ impl Node {
             .expect("Error the catch the ip from the socket")
     }
 
-    //important d'avoir une structure pour les transa avec plein de check into algo qui store la structure
+    //important d'avoir une structure pour les transa avec plein de check into algo qui store la structure  --> pour moi pas besoin de check si on envoit c'est les miner qui check
     pub fn send_transactions(&self, gate: SocketAddr, to: u64, count: u32) {
         // let him = Node::create(to);
         let transa = Transaction::new(0, to, count);
@@ -758,7 +757,7 @@ fn verif_transa(share: Shared, transa: Transaction) {
     (*val).push(transa);
 }
 
-//serait dans emul
+//serait dans emul      --> c'est quoi emul ?
 pub fn p2p_simulate() {
     let mut nodes = vec![
         Node::create(1, String::from("27.0.0.1")),
@@ -776,7 +775,7 @@ pub fn p2p_simulate() {
         node.1.run_send(3);
     }
 }
-//comment ça ?
+//comment ça ?      --> ca ca sert a rien 
 pub fn detect_interlock() {
     for _ in [..10] {
         // Specify the timeout duration in milliseconds

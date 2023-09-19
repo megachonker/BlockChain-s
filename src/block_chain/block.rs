@@ -18,7 +18,7 @@ pub struct Block {
     quote : String,
 }
 #[derive(Debug, Hash, Serialize, Deserialize, Clone)]
-pub struct Transaction {////////////////////on peut implémenter des **TRAI** de transaction ici
+pub struct Transaction {////////////////////on peut implémenter des **TRAI** de transaction ici   
     src: u64,  //who send coin
     dst: u64,  //who recive
     qqty: u32, //the acount
@@ -67,11 +67,11 @@ impl Block {
         (self.block_height, self.nonce)
     }
 
-    //la structure transaction peut faire un check sur le block donc pourait être un trait requi d'une transaction
-    //une transaction peut utiliser le trait check pour check si le node est correct (last version blockaine)
-    //la transaction peut check check si le compte est bon si on fait une structure compte on peut metre le trait check
+    //la structure transaction peut faire un check sur le block donc pourait être un trait requi d'une transaction  --> une transaction est verifier surtout par les mineurs, pas vraiment duarnt la creation mais plutot dans l'interegration dans un bloc 
+    //une transaction peut utiliser le trait check pour check si le node est correct (last version blockaine)       --> comment ca un node correct, pas un block plutot ? 
+    //la transaction peut check check si le compte est bon si on fait une structure compte on peut metre le trait check  --> Une struct compte peut être une bonne idée mais elle serait pour quoi ? Parce que si on tien a jour tout les compte ca peut faire beaucoup (en gros en soit a chaque transa un regarde si c'est valid ou alors on tiens les comptes a jours) 
     pub fn check(&self) -> bool {
-        let mut hasher = DefaultHasher::new(); //why don't use hash fun ? hash(self) ?? like in last commit
+        let mut hasher = DefaultHasher::new(); //why don't use hash fun ? hash(self) ?? like in last commit  -> je pense faut refaire un peu les hash (nottament il faut que le hash prennent en compte plus de chose comme l'id du hasheur pour la securité)
 
         //playload of block to hash
         // self.block_height.hash(&mut hasher);
@@ -171,8 +171,8 @@ pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
     }
 }
 
-//pourait être dans un autre fichier car les transaction travaille sur la BLOCKCHAINE qui elle meme a des transa
-//en gros une transaction peut être un TRAI a blockchaine est a block
+//pourait être dans un autre fichier car les transaction travaille sur la BLOCKCHAINE qui elle meme a des transa  --> les transa on peut les faire autre part
+//en gros une transaction peut être un TRAI a blockchaine est a block  -> je comprend pas bien la phrase, et je vois pas comment une transa peut être un trait ? 
 // ce trait poura avoir un for et spécifier ce qu'on veux faire transiter
 impl Transaction {
     pub fn new(src: u64, dst: u64, qqt: u32) -> Transaction {
