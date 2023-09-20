@@ -1,3 +1,6 @@
+use crate::friendly_name::get_friendly_name;
+
+
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::{Arc, Barrier, Mutex, MutexGuard};
@@ -21,9 +24,9 @@ use super::block::{*,Block};
 idée de changement de structure
 
 enum Node{          --> ca peut être une très bonne idée de separer client server a voire si ca ce fait bien
-    struct emule
-        node::server
-        node::client
+    // struct emule
+    //     node::server
+    //     node::client
     struct Server
         miner
         Network
@@ -38,37 +41,116 @@ enum Node{          --> ca peut être une très bonne idée de separer client se
 */
 
 
-
+////////////////////: USFUL DE FOU
 //serait dans utiliser pas kamelia
-#[derive(Serialize, Deserialize, Debug)]
-enum Packet {
-    Keepalive,
-    AnswerKA,
-    Transaction(Transaction),
-    Block(Block),
-    GetPeer,
-    GetBlock(i64),
-    RepPeers(Vec<SocketAddr>),
-    Connexion,
-    NewNode(SocketAddr),
+// #[derive(Serialize, Deserialize, Debug)]
+// enum Packet {
+//     Keepalive,
+//     AnswerKA,
+//     Transaction(Transaction),
+//     Block(Block),
+//     GetPeer,
+//     GetBlock(i64),
+//     RepPeers(Vec<SocketAddr>),
+//     Connexion,
+//     NewNode(SocketAddr),
+// }
+
+// on est sur que quand on manipule une node on a que un des 3 mode
+pub enum Node {
+    Srv(Server),
+    Cli(Client),
+}
+
+// un trait serait mieux ?
+// permet de start un node sans connaitre son type au préalable
+impl Node {
+    pub fn start(self){
+        match self {
+            Self::Cli(cli) => cli.start(),
+            Self::Srv(srv) => srv.start()
+        }
+    }
+}
+
+//permet de stoquer ce qui est lier au network
+pub struct Network{
+    bootstrap:SocketAddr,
+    binding:SocketAddr,
+    //maybe kamelia
+}
+
+// whole network function inside it
+// send packet with action do scan block ect get peers
+impl Network {
+    pub fn new(bootstrap:IpAddr,binding:IpAddr) -> Self{
+        let binding = SocketAddr::new(binding,9026);
+        let bootstrap = SocketAddr::new(bootstrap,9026);
+        Self { bootstrap, binding}
+    }
+}
+
+pub struct Server{
+    name:String,
+    networking:Network
+    // blockchaine
+    //miner
+}
+impl Server {
+    pub fn new(networking:Network) -> Self{
+        let name = get_friendly_name(networking.binding).expect("generation name from ip imposble");
+        Self { name,networking }
+    }
+    fn start(self){
+        println!("{}",self.name)
+    }
+}
+
+struct Transaction{
+    destination: u64,
+    secret: String,
+    ammount:f64,
+}
+
+/*
+to do transa need to have block i think and network
+*/
+
+pub struct Client{
+    name:String,
+    networking:Network,
+    //un client va faire une action
+    //// le client pourait etre un worker qui effectue les action dicter par un front end
+    /*enum action{ // <= peut etre un flux comme un mscp  
+        balance //calcule argent compte
+        transaction(destination)
+    }*/
+    transaction:Transaction
+
+}
+
+impl Client {
+    pub fn new(networking:Network,destination:u64, secret:String, ammount:f64) -> Self{
+        let name = get_friendly_name(networking.binding).expect("generation name from ip imposble");
+        let transaction = Transaction { destination, secret, ammount };//can make check here
+        Self { name,networking,transaction }
+    }
+    pub fn start(self){
+        println!("{}",self.name)
+    }
 }
 
 
-pub struct Node {
+// pub struct Node {
+
     // id: String,
     // socket: UdpSocket,
     // barrier: Arc<Barrier>,
     //voir changement préscrit   --> ? 
-}
-
-// impl Node {
-//     pub fn new() -> Self {
+// }
 
 
-
-//         // Self { id: "()", socket: (), barrier: () }
-//     }
-//     pub fn start(matches: ArgMatches) -> Option<()> {
+    //     pub fn start(matches: ArgMatches) -> Option<()> {
 //         //j'aime pas que le parsing aille en dehor du main   --> oui bonne idée de le faire dans le main (surtout si on separe cli/serv )mais le seul pb c'est quand y'a des arguments trop variable (comme ici)
     
 //     }
@@ -649,13 +731,13 @@ pub struct Node {
 //     }
 // }
 
-//dans transaction
-fn verif_transa(share: Shared, transa: Transaction) {
-    //verification
+// //dans transaction
+// fn verif_transa(share: Shared, transa: Transaction) {
+//     //verification
 
-    let mut val = share.transaction.lock().unwrap();
-    (*val).push(transa);
-}
+//     let mut val = share.transaction.lock().unwrap();
+//     (*val).push(transa);
+// }
 
 //serait dans emul      --> c'est quoi emul ?
 // pub fn p2p_simulate() {

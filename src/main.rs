@@ -7,9 +7,9 @@ mod block_chain {
     pub mod shared;
 }
 
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 
-use block_chain::node::Node;
+use block_chain::node::{Client, Node, Server, Network};
 use block_chain::shared;
 
 #[derive(Parser)]
@@ -38,9 +38,11 @@ use clap::Parser;
 fn main() {
     //get argument
     let arg = Cli::parse();
+    
     //check error of logique
     let node = parse_args(arg);
-    // node.start();
+
+    node.start(); // don't care what we start just starting it
 }
 
 // s'ocupe de faire une logique des argument
@@ -50,18 +52,33 @@ fn parse_args(cli: Cli) -> Node {
         panic!("no valide bootstrap ip given")
     }
 
+    // create bind address if needed
+    let binding;
+    if cli.bind.is_none() {
+        binding = Some(IpAddr::V4(Ipv4Addr::new(0, 0, 0,0)));
+    }else {
+        binding = cli.bind
+    }
+
+    //create Networking worker
+    let networking = Network::new(cli.bootstrap.unwrap(), cli.bind.unwrap());
+
     // si doit send
     if cli.ammount.is_normal() || !cli.secret.is_empty() || cli.destination != 0 {
         // si manque un arg pour send
-        if !(cli.ammount.is_normal() && !cli.secret.is_empty() && cli.destination == 0) {
+        if !(cli.ammount.is_normal() && !cli.secret.is_empty() && cli.destination != 0) {
             panic!("missing amount, secret or destination")
         }
+        //create client worker
+                                                //pourait être une action ici si lancer en interpréteur
+                                                //ça serait pas un new mais client::newaction(action)
+        return Node::Cli(Client::new(networking,cli.destination, cli.secret, cli.ammount));
+    } else {
+        //create server worker
+        return Node::Srv(Server::new(networking));
     }
-    println!("{:?}", cli.bootstrap);
-    println!("{} {} {}", cli.ammount, cli.destination, cli.secret);
-
-    Node::new()
 }
+
 //des scénario de test avec 2 node par ex --> oui mais il pouvoir les arreter et le temps de clalcul d'un bloc est alea
 //possible de lancer les calcule de block avec une seed par exemple est de simplifier le nombre d'itération
 #[cfg(test)]
