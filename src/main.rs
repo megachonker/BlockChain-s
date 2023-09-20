@@ -48,7 +48,12 @@ fn main() {
 // s'ocupe de faire une logique des argument
 fn parse_args(cli: Cli) -> NewNode {
     // check un bootstrap spésifier
-    cli.bootstrap.expect("address ip invalide");
+    let bootstrap;
+    if cli.bind.is_none() {
+        bootstrap = Some(IpAddr::V4(Ipv4Addr::new(0, 0, 0,0)));
+    }else {
+        bootstrap = cli.bootstrap
+    }
     
     // create bind address if needed
     let binding;
@@ -59,7 +64,7 @@ fn parse_args(cli: Cli) -> NewNode {
     }
 
     //create Networking worker
-    let networking = Network::new(cli.bootstrap.unwrap(), binding.unwrap());
+    let networking = Network::new(bootstrap.unwrap(), binding.unwrap());
 
     // si doit send
     if cli.ammount.is_normal() || !cli.secret.is_empty() || cli.destination != 0 {

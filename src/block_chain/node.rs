@@ -71,6 +71,7 @@ impl NewNode {
 }
 
 //permet de stoquer ce qui est lier au network
+#[derive(Debug)]
 pub struct Network {
     bootstrap: SocketAddr,
     binding: SocketAddr,
@@ -98,7 +99,7 @@ impl Server {
         Self { name, networking }
     }
     fn start(self) {
-        println!("Server started {} facke id {}", &self.name, get_fake_address(&self.name));
+        println!("Server started {} facke id {} -> {:?}", &self.name, get_fake_address(&self.name),self.networking);
         let ip = self.networking.binding;
         let id = get_fake_address(&self.name);
 
