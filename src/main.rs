@@ -9,7 +9,7 @@ mod block_chain {
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 
-use block_chain::node::{Client, Node, Server, Network};
+use block_chain::node::{Client, NewNode, Server, Network};
 use block_chain::shared;
 
 #[derive(Parser)]
@@ -46,7 +46,7 @@ fn main() {
 }
 
 // s'ocupe de faire une logique des argument
-fn parse_args(cli: Cli) -> Node {
+fn parse_args(cli: Cli) -> NewNode {
     // check un bootstrap spésifier
     if cli.bootstrap.expect("address ip invalide").is_unspecified() {
         panic!("no valide bootstrap ip given")
@@ -72,10 +72,10 @@ fn parse_args(cli: Cli) -> Node {
         //create client worker
                                                 //pourait être une action ici si lancer en interpréteur
                                                 //ça serait pas un new mais client::newaction(action)
-        return Node::Cli(Client::new(networking,cli.destination, cli.secret, cli.ammount));
+        return NewNode::Cli(Client::new(networking,cli.destination, cli.secret, cli.ammount));
     } else {
         //create server worker
-        return Node::Srv(Server::new(networking));
+        return NewNode::Srv(Server::new(networking));
     }
 }
 

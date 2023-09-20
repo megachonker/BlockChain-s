@@ -27,6 +27,12 @@ pub fn get_friendly_name(addr: SocketAddr) -> io::Result<String> {
     Ok(lines[line_index].clone())
 }
 
+//temporary 
+pub fn get_fake_address(friendly_name:String) -> u64{
+    let mut hasher = DefaultHasher::new();
+    friendly_name.hash(&mut hasher);
+    hasher.finish()
+}
 
 
 //des scénario de test avec 2 node par ex --> oui mais il pouvoir les arreter et le temps de clalcul d'un bloc est alea
