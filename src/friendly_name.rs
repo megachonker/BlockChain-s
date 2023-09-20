@@ -28,7 +28,7 @@ pub fn get_friendly_name(addr: SocketAddr) -> io::Result<String> {
 }
 
 //temporary 
-pub fn get_fake_address(friendly_name:String) -> u64{
+pub fn get_fake_address(friendly_name:&String) -> u64{
     let mut hasher = DefaultHasher::new();
     friendly_name.hash(&mut hasher);
     hasher.finish()

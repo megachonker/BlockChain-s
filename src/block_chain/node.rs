@@ -98,9 +98,9 @@ impl Server {
         Self { name, networking }
     }
     fn start(self) {
-        println!("{}", self.name);
+        println!("Server started {} facke id {}", &self.name, get_fake_address(&self.name));
         let ip = self.networking.binding;
-        let id = get_fake_address(self.name);
+        let id = get_fake_address(&self.name);
 
         let me: Node = Node::create(id,ip.to_string());
         me.setup_mine(self.networking.bootstrap);    
@@ -145,11 +145,11 @@ impl Client {
     }
     pub fn start(self) {
         let ip = self.networking.binding;
-        let id = get_fake_address(self.name.clone());
+        let id = get_fake_address(&self.name);
 
         let me: Node = Node::create(id,ip.to_string());
         me.send_transactions(self.networking.bootstrap,self.transaction.destination,self.transaction.ammount as u32);
-        println!("{}", self.name)
+        println!("Client started name is {} fack id{}", self.name,get_fake_address(&self.name))
     }
 }
 
