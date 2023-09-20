@@ -61,7 +61,7 @@ fn parse_args(cli: Cli) -> NewNode {
     }
 
     //create Networking worker
-    let networking = Network::new(cli.bootstrap.unwrap(), cli.bind.unwrap());
+    let networking = Network::new(cli.bootstrap.unwrap(), binding.unwrap());
 
     // si doit send
     if cli.ammount.is_normal() || !cli.secret.is_empty() || cli.destination != 0 {
