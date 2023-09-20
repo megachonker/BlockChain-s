@@ -48,10 +48,8 @@ fn main() {
 // s'ocupe de faire une logique des argument
 fn parse_args(cli: Cli) -> NewNode {
     // check un bootstrap spésifier
-    if cli.bootstrap.expect("address ip invalide").is_unspecified() {
-        panic!("no valide bootstrap ip given")
-    }
-
+    cli.bootstrap.expect("address ip invalide");
+    
     // create bind address if needed
     let binding;
     if cli.bind.is_none() {

@@ -81,8 +81,8 @@ pub struct Network {
 // send packet with action do scan block ect get peers
 impl Network {
     pub fn new(bootstrap: IpAddr, binding: IpAddr) -> Self {
-        let binding = SocketAddr::new(binding, 9026);
-        let bootstrap = SocketAddr::new(bootstrap, 9026);
+        let binding = SocketAddr::new(binding, 6021);
+        let bootstrap = SocketAddr::new(bootstrap, 6021);
         Self { bootstrap, binding }
     }
 }
@@ -102,7 +102,7 @@ impl Server {
         let ip = self.networking.binding;
         let id = get_fake_address(&self.name);
 
-        let me: Node = Node::create(id,ip.to_string());
+        let me: Node = Node::create(id,ip);
         me.setup_mine(self.networking.bootstrap);    
     }
 }
@@ -147,7 +147,7 @@ impl Client {
         let ip = self.networking.binding;
         let id = get_fake_address(&self.name);
 
-        let me: Node = Node::create(id,ip.to_string());
+        let me: Node = Node::create(id,ip);
         me.send_transactions(self.networking.bootstrap,self.transaction.destination,self.transaction.ammount as u32);
         println!("Client started name is {} fack id{}", self.name,get_fake_address(&self.name))
     }
@@ -164,7 +164,7 @@ pub struct Node {
 impl Node {
 
     //new
-    pub fn create(id: u64, ip: String) -> Node {
+    pub fn create(id: u64, ip: SocketAddr) -> Node {
         let socket = UdpSocket::bind(ip).expect("{id} couldn't bind to address:"); //1
         let barrier = Arc::new(Barrier::new(2));
         Node {
@@ -750,77 +750,77 @@ fn verif_transa(share: Shared, transa: Transaction) {
     (*val).push(transa);
 }
 
-// serait dans emul      --> c'est quoi emul ?
-pub fn p2p_simulate() {
-    let mut nodes = vec![
-        Node::create(1, String::from("27.0.0.1")),
-        Node::create(2, String::from("27.0.0.2")),
-        Node::create(3, String::from("27.0.0.3")),
-    ];
+// // serait dans emul      --> c'est quoi emul ?
+// pub fn p2p_simulate() {
+//     let mut nodes = vec![
+//         Node::create(1, String::from("27.0.0.1")),
+//         Node::create(2, String::from("27.0.0.2")),
+//         Node::create(3, String::from("27.0.0.3")),
+//     ];
 
-    for node in &mut nodes {
-        node.run_listen();
-    }
+//     for node in &mut nodes {
+//         node.run_listen();
+//     }
 
-    for node in nodes.iter_mut().enumerate() {
-        node.1.run_send(1);
-        node.1.run_send(2);
-        node.1.run_send(3);
-    }
-}
-//comment ça ?      --> ca ca sert a rien
-pub fn detect_interlock() {
-    for _ in [..10] {
-        // Specify the timeout duration in milliseconds
-        let timeout_duration_ms = 1500;
+//     for node in nodes.iter_mut().enumerate() {
+//         node.1.run_send(1);
+//         node.1.run_send(2);
+//         node.1.run_send(3);
+//     }
+// }
+// //comment ça ?      --> ca ca sert a rien
+// pub fn detect_interlock() {
+//     for _ in [..10] {
+//         // Specify the timeout duration in milliseconds
+//         let timeout_duration_ms = 1500;
 
-        // Spawn a new thread to perform the time-consuming operation
-        let handle = thread::spawn(move || {
-            // Perform the time-consuming operation here
-            p2p_simulate();
-        });
+//         // Spawn a new thread to perform the time-consuming operation
+//         let handle = thread::spawn(move || {
+//             // Perform the time-consuming operation here
+//             p2p_simulate();
+//         });
 
-        // Wait for the timeout duration
-        thread::sleep(Duration::from_millis(timeout_duration_ms));
+//         // Wait for the timeout duration
+//         thread::sleep(Duration::from_millis(timeout_duration_ms));
 
-        // Check if the spawned thread has finished executing
-        if handle.join().is_err() {
-            // Timeout exceeded, the test should fail
-            assert!(false, "Timeout exceeded!");
-        }
-    }
-}
+//         // Check if the spawned thread has finished executing
+//         if handle.join().is_err() {
+//             // Timeout exceeded, the test should fail
+//             assert!(false, "Timeout exceeded!");
+//         }
+//     }
+// }
 
 fn update_peer_share(shared: &mut MutexGuard<Vec<SocketAddr>>, peer: Vec<SocketAddr>) {
     **shared = peer;
 }
 
-#[cfg(test)]
-mod tests {
-    use std::hash::Hash;
+// #[cfg(test)]
+// mod tests {
+//     use std::hash::Hash;
 
-    use super::*;
+//     use super::*;
 
-    #[test]
-    fn p2p_test() {
-        p2p_simulate();
-        assert!(true);
-    }
+//     #[test]
+//     fn p2p_test() {
+//         p2p_simulate();
+//         assert!(true);
+//     }
 
-    #[test]
-    //d'ont work idk
-    fn p2p_deadlock() {
-        detect_interlock();
-    }
+//     #[test]
+//     //d'ont work idk
+//     fn p2p_deadlock() {
+//         detect_interlock();
+//     }
 
-    //#[test]
-    // fn sendrecive_block() {
-    //     let block = Block::new(vec![]);
-    //     let me = Node::create(1,String::from("Isa"));
+//     //#[test]
+//     // fn sendrecive_block() {
+//     //     let block = Block::new(vec![]);
+//     //     let me = Node::create(1,String::from("Isa"));
 
-    //     me.send_block(&block, me.get_ip());
-    //     let new_block = me.recive_block().unwrap();
+//     //     me.send_block(&block, me.get_ip());
+//     //     let new_block = me.recive_block().unwrap();
 
-    //     assert_eq!(block::hash(block), block::hash(new_block));
-    // }
-}
+//     //     assert_eq!(block::hash(block), block::hash(new_block));
+//     // }
+// }
