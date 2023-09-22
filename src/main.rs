@@ -7,9 +7,9 @@ mod block_chain {
     pub mod shared;
 }
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{IpAddr, Ipv4Addr};
 
-use block_chain::node::{Client, NewNode, Server, Network};
+use block_chain::node::{NewNode, network::Network,client::Client,miner::Miner};
 use block_chain::shared;
 
 #[derive(Parser)]
@@ -78,7 +78,7 @@ fn parse_args(cli: Cli) -> NewNode {
         return NewNode::Cli(Client::new(networking,cli.destination, cli.secret, cli.ammount));
     } else {
         //create server worker
-        return NewNode::Srv(Server::new(networking));
+        return NewNode::Srv(Miner::new(networking));
     }
 }
 

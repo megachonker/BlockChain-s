@@ -1,4 +1,4 @@
-use crate::friendly_name::{get_friendly_name, get_fake_address};
+use crate::friendly_name::{get_fake_id, get_friendly_name};
 
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
@@ -15,6 +15,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use clap::{arg, ArgMatches, Parser};
 
 use super::block::{Block, Transaction};
+
+pub mod client;
+pub mod miner;
+pub mod network;
+
+use client::Client;
+use miner::Miner;
 
 /////////important/////////////
 // on peut faire l'abre des dépendance au niveaux du systeme de fichier aussi
@@ -55,7 +62,7 @@ enum Packet {
 
 // on est sur que quand on manipule une node on a que un des 3 mode
 pub enum NewNode {
-    Srv(Server),
+    Srv(Miner),
     Cli(Client),
 }
 
@@ -72,41 +79,7 @@ impl NewNode {
 
 //permet de stoquer ce qui est lier au network
 #[derive(Debug)]
-pub struct Network {
-    bootstrap: SocketAddr,
-    binding: SocketAddr,
-    //maybe kamelia
-}
 
-// whole network function inside it
-// send packet with action do scan block ect get peers
-impl Network {
-    pub fn new(bootstrap: IpAddr, binding: IpAddr) -> Self {
-        let binding = SocketAddr::new(binding, 6021);
-        let bootstrap = SocketAddr::new(bootstrap, 6021);
-        Self { bootstrap, binding }
-    }
-}
-
-pub struct Server {
-    name: String,
-    networking: Network, // blockchaine
-                         //miner
-}
-impl Server {
-    pub fn new(networking: Network) -> Self {
-        let name = get_friendly_name(networking.binding).expect("generation name from ip imposble");
-        Self { name, networking }
-    }
-    fn start(self) {
-        println!("Server started {} facke id {} -> {:?}", &self.name, get_fake_address(&self.name),self.networking);
-        let ip = self.networking.binding;
-        let id = get_fake_address(&self.name);
-
-        let me: Node = Node::create(id,ip);
-        me.setup_mine(self.networking.bootstrap);    
-    }
-}
 
 struct NewTransaction {
     destination: u64,
@@ -118,42 +91,6 @@ struct NewTransaction {
 to do transa need to have block i think and network
 */
 
-pub struct Client {
-    name: String,
-    networking: Network,
-    //un client va faire une action
-    //// le client pourait etre un worker qui effectue les action dicter par un front end
-    /*enum action{ // <= peut etre un flux comme un mscp
-        balance //calcule argent compte
-        transaction(destination)
-    }*/
-    transaction: NewTransaction,
-}
-
-impl Client {
-    pub fn new(networking: Network, destination: u64, secret: String, ammount: f64) -> Self {
-        let name = get_friendly_name(networking.binding).expect("generation name from ip imposble");
-        let transaction = NewTransaction {
-            destination,
-            secret,
-            ammount,
-        }; //can make check here
-        Self {
-            name,
-            networking,
-            transaction,
-        }
-    }
-    pub fn start(self) {
-        let ip = self.networking.binding;
-        let id = get_fake_address(&self.name);
-
-        let me: Node = Node::create(id,ip);
-        me.send_transactions(self.networking.bootstrap,self.transaction.destination,self.transaction.ammount as u32);
-        println!("Client started name is {} fack id{}", self.name,get_fake_address(&self.name))
-    }
-}
-
 pub struct Node {
     // uname: String,
     id: u64,
@@ -163,10 +100,9 @@ pub struct Node {
 }
 
 impl Node {
-
     //new
     pub fn create(id: u64, ip: SocketAddr) -> Node {
-        let socket = UdpSocket::bind(ip).expect("{id} couldn't bind to address:"); //1
+        let socket = UdpSocket::bind(ip).expect(&format!("{} couldn't bind to address:", id)); //1
         let barrier = Arc::new(Barrier::new(2));
         Node {
             id,
@@ -244,14 +180,14 @@ impl Node {
     }
 
     //ému
-    fn run_send(&mut self, id: u64) {
+   /*  fn run_send(&mut self, id: u64) {
         self.barrier.wait();
         println!("Node {} to {} send: {}", self.id, id, self.id);
         self.socket
             .send_to("Here".as_bytes(), format!("17.0.0.{}", id))
             .expect(&("Failed to send data to:"));
         //3
-    }
+    } */
 
     // ?
     fn quit(&mut self) {}
@@ -729,7 +665,7 @@ impl Node {
     fn check_keep_alive(&self, peer: &mut HashMap<SocketAddr, Duration>, time: Duration) {
         let clone = peer.clone();
         for (p, t) in clone {
-            if time - t > Duration::from_secs(120) {
+            if time - t > Duration::from_secs(240) {
                 peer.remove(&p);
                 println!("Remove the peer {}", p);
             } else if time - t > Duration::from_secs(60) {

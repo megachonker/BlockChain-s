@@ -5,7 +5,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::sync::{Arc, Mutex};
 
-const HASH_MAX: u64 = 100000000000;
+const HASH_MAX: u64 = 1000000000000;
 
 #[derive(Debug, Serialize, Deserialize , Clone)]
 pub struct Block {
@@ -14,6 +14,7 @@ pub struct Block {
     parent_hash: u64,               //the id of last block (block are chain with that)
     transactions: Vec<Transaction>, //the vector of all transaction validated with this block
     miner_hash: u64,                //Who find the answer
+    
     nonce: u64,                     //the answer of the defi
     quote : String,
 }
