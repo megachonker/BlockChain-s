@@ -104,7 +104,7 @@ impl Miner {
                     self.network.send_packet(Packet::AnswerKA, sender);
                 }
                 Packet::Block(block) => {
-                    println!("recv Block");
+                    // println!("recv Block");
 
                     let mut chain: MutexGuard<'_, Vec<Block>> = share.chain.lock().unwrap();
                     if !chain.contains(&block) {
@@ -315,7 +315,7 @@ impl Miner {
         loop {
             match block.generate_block_stop(self.id, &share.should_stop, "It is a quote") {
                 Some(mut new_block) => {
-                    print!("FOUND ");
+                    print!("FOUND\t");
                     {
                         //add the transactions see during the mining
                         let val = share
@@ -341,7 +341,7 @@ impl Miner {
                     block = new_block;
                 }
                 None => {
-                    println!("External ");
+                    print!("External\t");
                     block = tx
                         .recv()
                         .expect("Error block can't be read from the channel");
