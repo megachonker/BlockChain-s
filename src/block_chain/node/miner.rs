@@ -74,8 +74,8 @@ impl Miner {
         self.mine(share, starting_block, tx);
     }
 
-    pub fn listen(&self, share: Shared, rx: mpsc::Sender<Block>) {
-        let mut peerdict: HashMap<SocketAddr, Duration> = HashMap::new();
+    pub fn listen(&self, share: Shared, rx: mpsc::Sender<Block>) { //<= pour moi ces une task réseaux ça doit pas être la ?
+        let mut peerdict: HashMap<SocketAddr, Duration> = HashMap::new();//ces quoi l'idée ?
 
         let mut last_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)

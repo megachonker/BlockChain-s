@@ -49,7 +49,7 @@ impl Network {
 
     pub fn send_packet_multi(&self, packet: Packet, dests: Vec<SocketAddr>) -> Vec<usize> {
         let mut res = vec![];
-        let sera_answer = serialize(&Packet::AnswerKA).expect("Can not serialize AswerKA");
+        let sera_answer = serialize(&packet).expect("Can not serialize AswerKA");
         for d in dests {
             res.push(
                 self.binding

@@ -501,120 +501,120 @@ impl Node {
         Some(chain)
     }
 
-    //struc miner avec Blockaine && Kamelia dedant qui sera initialiser
-    //donc serait une structure miner
-    //en Miner::new
-    fn setup_mine(&self, gate: SocketAddr) {
-        let me_clone: Node = self.clone();
+    // //struc miner avec Blockaine && Kamelia dedant qui sera initialiser
+    // //donc serait une structure miner
+    // //en Miner::new
+    // fn setup_mine(&self, gate: SocketAddr) {
+    //     let me_clone: Node = self.clone();
 
-        let mut peers: Vec<SocketAddr>;
-        let mut chain: Vec<Block> = vec![]; //devrais etre une struc blockaine ?
+    //     let mut peers: Vec<SocketAddr>;
+    //     let mut chain: Vec<Block> = vec![]; //devrais etre une struc blockaine ?
 
-        //si j'ai une gateway je send connection sur elle ?
-        if !(gate == SocketAddr::from(([0, 0, 0, 0], 6021))) {
-            //6021 devrais estre un static const (en gros un DEFINE pour plus de lisibilitée)
-            self.socket
-                .send_to(&serialize(&Packet::Connexion).unwrap(), gate)
-                .expect("Error send Connecion Packet");
-            //ces du network
-            //Kamelia::new()
-            //azer.last_peers() => on poura metre ça en backgroud apres
-            peers = self.recive_peers();
+    //     //si j'ai une gateway je send connection sur elle ?
+    //     if !(gate == SocketAddr::from(([0, 0, 0, 0], 6021))) {
+    //         //6021 devrais estre un static const (en gros un DEFINE pour plus de lisibilitée)
+    //         self.socket
+    //             .send_to(&serialize(&Packet::Connexion).unwrap(), gate)
+    //             .expect("Error send Connecion Packet");
+    //         //ces du network
+    //         //Kamelia::new()
+    //         //azer.last_peers() => on poura metre ça en backgroud apres
+    //         peers = self.recive_peers();
 
-            //on retreive la "blockhaine"
-            //Blockchaine::new(gate) que l'on met dans cette structure miner
-            chain = self.get_chain(gate).expect("Can not grap the chain");
+    //         //on retreive la "blockhaine"
+    //         //Blockchaine::new(gate) que l'on met dans cette structure miner
+    //         chain = self.get_chain(gate).expect("Can not grap the chain");
 
-            //return Miner avec son network de peers et ça blockaine
-            println!("Catch a chain of {} lenght", chain.len());
+    //         //return Miner avec son network de peers et ça blockaine
+    //         println!("Catch a chain of {} lenght", chain.len());
 
-            println!("Found {} peer", peers.len());
-        } else {
-            //devrais être une fonction Miner::new(Default:default)
-            peers = vec![];
-            peers.push(self.socket.local_addr().expect("Can not catch the ip "));
-            chain.push(Block::new());
-        }
+    //         println!("Found {} peer", peers.len());
+    //     } else {
+    //         //devrais être une fonction Miner::new(Default:default)
+    //         peers = vec![];
+    //         peers.push(self.socket.local_addr().expect("Can not catch the ip "));
+    //         chain.push(Block::new());
+    //     }
 
-        let should_stop = Arc::new(Mutex::new(false));
+    //     let should_stop = Arc::new(Mutex::new(false));
 
-        // let peer: Arc<Mutex<Vec<SocketAddr>>> = Arc::new(Mutex::new(vec![
-        //     SocketAddr::from(([127, 0, 0, 1], 6021)),
-        //     SocketAddr::from(([127, 0, 0, 2], 6021)),
-        // ]));
+    //     // let peer: Arc<Mutex<Vec<SocketAddr>>> = Arc::new(Mutex::new(vec![
+    //     //     SocketAddr::from(([127, 0, 0, 1], 6021)),
+    //     //     SocketAddr::from(([127, 0, 0, 2], 6021)),
+    //     // ]));
 
-        //complexitée dans Blockhaine
-        let starting_block = chain.last().unwrap().clone();
-        let peer = Arc::new(Mutex::new(peers));
+    //     //complexitée dans Blockhaine
+    //     let starting_block = chain.last().unwrap().clone();
+    //     let peer = Arc::new(Mutex::new(peers));
 
-        let (rx, tx) = mpsc::channel();
-        let share = Shared::new(peer, should_stop, chain);
-        let share_copy = share.clone();
+    //     let (rx, tx) = mpsc::channel();
+    //     let share = Shared::new(peer, should_stop, chain);
+    //     let share_copy = share.clone();
 
-        thread::spawn(move || {
-            me_clone.listen(share_copy, rx);
-        });
+    //     thread::spawn(move || {
+    //         me_clone.listen(share_copy, rx);
+    //     });
 
-        //serait Miner::start
-        self.mine(share, starting_block, tx);
-    }
+    //     //serait Miner::start
+    //     self.mine(share, starting_block, tx);
+    // }
 
-    //Miner::start(&self) //plus simple ?
-    pub fn mine(&self, share: Shared, mut block: Block, tx: mpsc::Receiver<Block>) {
-        loop {
-            println!("The block is {:?} ", block);
+    // //Miner::start(&self) //plus simple ?
+    // pub fn mine(&self, share: Shared, mut block: Block, tx: mpsc::Receiver<Block>) {
+    //     loop {
+    //         println!("The block is {:?} ", block);
 
-            match block.generate_block_stop(self.id, &share.should_stop, "It is a quote") {
-                Some(mut new_block) => {
-                    println!("I found the new_block !!!");
-                    {
-                        //add the transactions see during the mining
-                        let val = share
-                            .transaction
-                            .lock()
-                            .expect("Error during lock of transaction");
-                        new_block = new_block.set_transactions((*val).clone());
-                    }
-                    let mut chain = share.chain.lock().expect("Can not lock chain");
-                    chain.push(new_block.clone());
-                    drop(chain); // { } peut être utiliser  --> oui mais moche
-                    {
-                        let peer = share.peer.lock().unwrap();
-                        let block_sera: Vec<u8> = serialize(&Packet::Block(new_block.clone()))
-                            .expect("Error serialize new_block");
-                        for addr in peer.iter().filter(move |p| {
-                            **p != self.socket.local_addr().expect("Can not take local addr")
-                        }) {
-                            self.send_block(&block_sera, *addr);
-                        }
-                    }
-                    block = new_block;
-                }
-                None => {
-                    println!("An other found the block");
-                    block = tx
-                        .recv()
-                        .expect("Error block can't be read from the channel");
-                    {
-                        let mut val = share.should_stop.lock().unwrap();
-                        *val = false;
-                    }
-                }
-            }
-        }
-    }
-    //serait miner::send(&self) qui ferait un Kamelia::publish(Blockaine::lastblock())
-    fn send_block(&self, block: &Vec<u8>, addr: SocketAddr) {
-        self.socket
-            .send_to(&block, addr)
-            .expect("Error to send the block");
-    }
+    //         match block.generate_block_stop(self.id, &share.should_stop, "It is a quote") {
+    //             Some(mut new_block) => {
+    //                 println!("I found the new_block !!!");
+    //                 {
+    //                     //add the transactions see during the mining
+    //                     let val = share
+    //                         .transaction
+    //                         .lock()
+    //                         .expect("Error during lock of transaction");
+    //                     new_block = new_block.set_transactions((*val).clone());
+    //                 }
+    //                 let mut chain = share.chain.lock().expect("Can not lock chain");
+    //                 chain.push(new_block.clone());
+    //                 drop(chain); // { } peut être utiliser  --> oui mais moche
+    //                 {
+    //                     let peer = share.peer.lock().unwrap();
+    //                     let block_sera: Vec<u8> = serialize(&Packet::Block(new_block.clone()))
+    //                         .expect("Error serialize new_block");
+    //                     for addr in peer.iter().filter(move |p| {
+    //                         **p != self.socket.local_addr().expect("Can not take local addr")
+    //                     }) {
+    //                         self.send_block(&block_sera, *addr);
+    //                     }
+    //                 }
+    //                 block = new_block;
+    //             }
+    //             None => {
+    //                 println!("An other found the block");
+    //                 block = tx
+    //                     .recv()
+    //                     .expect("Error block can't be read from the channel");
+    //                 {
+    //                     let mut val = share.should_stop.lock().unwrap();
+    //                     *val = false;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+    // //serait miner::send(&self) qui ferait un Kamelia::publish(Blockaine::lastblock())
+    // fn send_block(&self, block: &Vec<u8>, addr: SocketAddr) {
+    //     self.socket
+    //         .send_to(&block, addr)
+    //         .expect("Error to send the block");
+    // }
 
-    pub fn get_ip(&self) -> SocketAddr {
-        self.socket
-            .local_addr()
-            .expect("Error the catch the ip from the socket")
-    }
+    // pub fn get_ip(&self) -> SocketAddr {
+    //     self.socket
+    //         .local_addr()
+    //         .expect("Error the catch the ip from the socket")
+    // }
 
     //important d'avoir une structure pour les transa avec plein de check into algo qui store la structure  --> pour moi pas besoin de check si on envoit c'est les miner qui check
     pub fn send_transactions(&self, gate: SocketAddr, to: u64, count: u32) {
