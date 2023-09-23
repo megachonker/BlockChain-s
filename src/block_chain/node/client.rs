@@ -1,7 +1,7 @@
-use crate::block_chain::node::{network::Network, Node,NewTransaction};
-use crate::friendly_name::*;
+// use crate::block_chain::node::{network::Network,NewTransaction};
+use crate::{friendly_name::*, block_chain::node::Node};
 
-
+use super::{network::Network, NewTransaction};
 
 pub struct Client {
     name: String,
@@ -33,7 +33,7 @@ impl Client {
         let ip = self.networking.get_socket();
         let id = get_fake_id(&self.name);
 
-        let me: Node = Node::create(id,ip);
+        let me: Node = Node::create(id,ip); // <=== éclater au sol
         me.send_transactions(self.networking.bootstrap,self.transaction.destination,self.transaction.ammount as u32);
         println!("Client started name is {} fack id{}", self.name,get_fake_id(&self.name))
     }

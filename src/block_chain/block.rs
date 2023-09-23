@@ -1,8 +1,7 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
-use std::hash::Hash;
-use std::hash::Hasher;
+use std::hash::{Hash,Hasher};
 use std::sync::{Arc, Mutex};
 
 const HASH_MAX: u64 = 1000000000000;

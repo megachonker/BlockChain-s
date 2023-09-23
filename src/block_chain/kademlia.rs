@@ -1,11 +1,12 @@
 //usless actuelemnt ??  --> oui mais en gros le code a été implementer dans node
 
-use std::collections::HashSet;
-use std::mem; 
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket};
-use std::sync::{Arc, Barrier, Mutex};
-use std::thread;
-use std::time;
+use std::{
+    collections::HashSet,
+    mem,
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket},
+    sync::{Arc, Barrier, Mutex},
+    thread, time,
+};
 
 use bincode::{deserialize, serialize};
 use serde::{Deserialize, Serialize};
@@ -18,7 +19,7 @@ enum Packet {
     RepPeers(Vec<SocketAddr>),
 }
 #[derive(Clone)]
-pub struct  Node {
+pub struct Node {
     node_addr: SocketAddr,
     peers_addr: Arc<Mutex<Vec<SocketAddr>>>,
 }
@@ -87,14 +88,14 @@ impl Node {
                                 .iter()
                                 .any(|&local_peer| local_peer == remote_peer)
                             {
-                                    peers_addr.push(remote_peer);
+                                peers_addr.push(remote_peer);
                             }
                         }
                         // println!("RepPeers from {}: {}", remote, peers_addr.len());
                     }
                 }
             }
-        }); 
+        });
     }
 }
 
@@ -110,7 +111,7 @@ impl Simulate {
 
         let mut rng = rand::thread_rng();
 
-        let reseauxrandom =  rng.gen::<u8>();
+        let reseauxrandom = rng.gen::<u8>();
 
         for id in 1..=nb_ip {
             let mut bootstrap_socket: Vec<SocketAddr> = Vec::with_capacity(nb_bootstrap);
@@ -125,7 +126,10 @@ impl Simulate {
             }
 
             vector.push(Node::create(
-                SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, reseauxrandom, id as u8), 9026)),
+                SocketAddr::V4(SocketAddrV4::new(
+                    Ipv4Addr::new(127, 0, reseauxrandom, id as u8),
+                    9026,
+                )),
                 bootstrap_socket,
             ));
         }
@@ -162,8 +166,12 @@ impl Simulate {
 
     pub fn converge(&self) -> bool {
         for node in &self.nodes {
-            if node.peers_addr.lock().unwrap().clone().len() < self.nb_ip/2 {
-                println!("le node: {} taille réseaux:{:?}",node.node_addr,node.peers_addr.lock().unwrap().clone());
+            if node.peers_addr.lock().unwrap().clone().len() < self.nb_ip / 2 {
+                println!(
+                    "le node: {} taille réseaux:{:?}",
+                    node.node_addr,
+                    node.peers_addr.lock().unwrap().clone()
+                );
                 return false;
             }
         }
@@ -177,7 +185,7 @@ mod tests {
 
     #[test]
     fn uniciter() {
-        let simu:Simulate = Simulate::init(255, 5);
+        let simu: Simulate = Simulate::init(255, 5);
         simu.start();
         simu.whait();
         assert!(simu.duplicate());
@@ -185,7 +193,7 @@ mod tests {
 
     #[test]
     fn convegence() {
-        let simu:Simulate = Simulate::init(255, 5);
+        let simu: Simulate = Simulate::init(255, 5);
         simu.start();
         simu.whait();
         assert!(simu.converge());

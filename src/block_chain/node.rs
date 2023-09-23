@@ -1,3 +1,4 @@
+use crate::block_chain::block::Block;
 use crate::friendly_name::{get_fake_id, get_friendly_name};
 
 use std::collections::HashMap;
@@ -6,22 +7,22 @@ use std::sync::{Arc, Barrier, Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
 
-use crate::shared::Shared;
+// use crate::
 use bincode::{deserialize, serialize};
-use serde::{Deserialize, Serialize};
 use std::sync::mpsc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use clap::{arg, ArgMatches, Parser};
+use client::Client;
+use miner::Miner;
 
-use super::block::{Block, Transaction};
+use self::network::Packet;
+
+use super::block::Transaction;
+use super::shared::Shared;
 
 pub mod client;
 pub mod miner;
 pub mod network;
-
-use client::Client;
-use miner::Miner;
 
 /////////important/////////////
 // on peut faire l'abre des dépendance au niveaux du systeme de fichier aussi
@@ -45,20 +46,11 @@ enum Node{          --> ca peut être une très bonne idée de separer client se
 }
 */
 
-////////////////////: USFUL DE FOU
-//serait dans utiliser pas kamelia
-#[derive(Serialize, Deserialize, Debug)]
-enum Packet {
-    Keepalive,
-    AnswerKA,
-    Transaction(Transaction),
-    Block(Block),
-    GetPeer,
-    GetBlock(i64),
-    RepPeers(Vec<SocketAddr>),
-    Connexion,
-    NewNode(SocketAddr),
-}
+
+/// A vector of peer
+// struct Vec<SocketAddr>(Vec<SocketAddr>);
+
+
 
 // on est sur que quand on manipule une node on a que un des 3 mode
 pub enum NewNode {
@@ -81,7 +73,7 @@ impl NewNode {
 #[derive(Debug)]
 
 
-struct NewTransaction {
+pub struct NewTransaction {
     destination: u64,
     secret: String,
     ammount: f64,

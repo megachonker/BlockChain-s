@@ -5,12 +5,24 @@ use serde::{Deserialize, Serialize};
 
 use crate::block_chain::block::{Block, Transaction};
 
-use crate::block_chain::node::Packet;
 
 #[derive(Debug)]
 pub struct Network {
     pub bootstrap: SocketAddr,
     binding: UdpSocket,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Packet {
+    Keepalive,
+    AnswerKA,//<== sert a quoi ???
+    Transaction(Transaction),
+    Block(Block),
+    GetPeer,
+    GetBlock(i64),
+    RepPeers(Vec<SocketAddr>),
+    Connexion,
+    NewNode(SocketAddr), //<=== dans quelle cas ?
 }
 
 // whole network function inside it
@@ -48,17 +60,19 @@ impl Network {
         res
     }
 
+
     pub fn recv_packet(&self) -> (Packet, SocketAddr) {
-        let mut buf = [0u8; 256];
+        let mut buf = [0u8; 256]; //
         let (_, sender) = self.binding.recv_from(&mut buf).expect("Error recv block");
         let des = deserialize(&mut buf).expect("Can not deserilize block");
         (des, sender)
     }
 
+    /// Retreive a node list prome a peer
     pub fn bootstrap(&self) -> Vec<SocketAddr> {
         self.send_packet(Packet::Connexion, self.bootstrap);
-
-        self.recive_peers()
+        /////// LE PACKET PEUT ETRE PERDU ENTRE LES 2
+        self.recive_peers()//<== doit être starter dans un thread ou tache asyncrone avant send_packet
     }
 
     pub fn recive_peers(&self) -> Vec<SocketAddr> {
@@ -114,13 +128,21 @@ impl Network {
             }
         }
     }
+
+
+    // fn route(pck:Packet){
+    //     match pck {
+    //         Packet::AnswerKA
+    //     }
+    // }
+
 }
 
 impl Clone for Network {
     fn clone(&self) -> Self {
         Self {
             bootstrap: self.bootstrap.clone(),
-            binding: self.binding.try_clone().unwrap(),
+            binding: self.binding.try_clone().unwrap(),//<=== on veux cloner un FD ça ne marchera pas ?
         }
     }
 

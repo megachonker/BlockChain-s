@@ -1,16 +1,13 @@
 mod friendly_name;
 
-mod block_chain {
-    pub mod block;
-    pub mod kademlia;
-    pub mod node;
+mod block_chain{
     pub mod shared;
+    pub mod block;
+    pub mod node; 
 }
 
+use block_chain::node::{ client::Client,miner::Miner,network::Network,NewNode};
 use std::net::{IpAddr, Ipv4Addr};
-
-use block_chain::node::{NewNode, network::Network,client::Client,miner::Miner};
-use block_chain::shared;
 
 #[derive(Parser)]
 struct Cli {
@@ -38,7 +35,7 @@ use clap::Parser;
 fn main() {
     //get argument
     let arg = Cli::parse();
-    
+
     //check error of logique
     let node = parse_args(arg);
 
@@ -50,16 +47,16 @@ fn parse_args(cli: Cli) -> NewNode {
     // check un bootstrap spésifier
     let bootstrap;
     if cli.bind.is_none() {
-        bootstrap = Some(IpAddr::V4(Ipv4Addr::new(0, 0, 0,0)));
-    }else {
+        bootstrap = Some(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)));
+    } else {
         bootstrap = cli.bootstrap
     }
-    
+
     // create bind address if needed
     let binding;
     if cli.bind.is_none() {
-        binding = Some(IpAddr::V4(Ipv4Addr::new(0, 0, 0,0)));
-    }else {
+        binding = Some(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)));
+    } else {
         binding = cli.bind
     }
 
@@ -73,9 +70,14 @@ fn parse_args(cli: Cli) -> NewNode {
             panic!("missing amount, secret or destination")
         }
         //create client worker
-                                                //pourait être une action ici si lancer en interpréteur
-                                                //ça serait pas un new mais client::newaction(action)
-        return NewNode::Cli(Client::new(networking,cli.destination, cli.secret, cli.ammount));
+        //pourait être une action ici si lancer en interpréteur
+        //ça serait pas un new mais client::newaction(action)
+        return NewNode::Cli(Client::new(
+            networking,
+            cli.destination,
+            cli.secret,
+            cli.ammount,
+        ));
     } else {
         //create server worker
         return NewNode::Srv(Miner::new(networking));

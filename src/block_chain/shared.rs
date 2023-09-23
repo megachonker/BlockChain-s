@@ -1,6 +1,4 @@
-// use std::io::Chain;
 use std::net::SocketAddr;
-// use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use super::block::{*,Block};
 

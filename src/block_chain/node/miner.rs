@@ -1,34 +1,29 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{ Arc, Mutex, mpsc, MutexGuard};
+use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::block_chain::block::{Block, Transaction};
-use crate::block_chain::node::network::Network;
-use crate::block_chain::shared::Shared;
+use crate::block_chain::{shared::Shared,block::{Block, Transaction},node::network::{Network,Packet}};
 use crate::friendly_name::*;
-
-use crate::block_chain::node::Packet;
-
-
 
 pub struct Miner {
     name: String,
     network: Network, // blockchaine
-                         //miner
-    id : u64,
-    
+    //miner
+    id: u64,
 }
-
-
-
 
 impl Miner {
     pub fn new(network: Network) -> Self {
-        let name = get_friendly_name(network.get_socket()).expect("generation name from ip imposble");
+        let name =
+            get_friendly_name(network.get_socket()).expect("generation name from ip imposble");
         let id = get_fake_id(&name);
-        Self { name, network, id : id }
+        Self {
+            name,
+            network,
+            id: id,
+        }
     }
     pub fn start(self) {
         println!(
@@ -39,39 +34,34 @@ impl Miner {
         );
         let id = get_fake_id(&self.name);
 
-
-        
-
-        // let me_clone: Node = {}
-
         let mut peers: Vec<SocketAddr>;
-        let mut chain: Vec<Block> = vec![]; 
+        let mut block_chaine: Vec<Block> = vec![];
 
-        
-        if !(self.network.bootstrap == SocketAddr::from(([0, 0, 0, 0], 6021))) {
-            
+        //if user enter 0.0.0.0 Create a new blockaine
+        if self.network.bootstrap == SocketAddr::from(([0, 0, 0, 0], 6021)) {
+            peers = vec![];
+            peers.push(self.network.get_socket());
+            block_chaine.push(Block::new());
+        }
+        //if not retreive the blockaine
+        else {
             peers = self.network.bootstrap();
 
             println!("Found {} peer", peers.len());
 
-            chain = self.network.get_chain(& peers).unwrap();
+            block_chaine = self.network.get_chain(&peers).unwrap();
 
-            println!("Catch a chain of {} lenght", chain.len());
-
-        } else {        //first node
-            peers = vec![];
-            peers.push(self.network.get_socket());
-            chain.push(Block::new());
+            println!("Catch a chain of {} lenght", block_chaine.len());
         }
 
         let should_stop = Arc::new(Mutex::new(false));
 
         //complexitée dans Blockhaine
-        let starting_block = chain.last().unwrap().clone();
+        let starting_block = block_chaine.last().unwrap().clone();
         let peer = Arc::new(Mutex::new(peers));
 
         let (rx, tx) = mpsc::channel();
-        let share = Shared::new(peer, should_stop, chain);
+        let share = Shared::new(peer, should_stop, block_chaine);
         let share_copy = share.clone();
 
         let node_clone = self.clone();
@@ -82,9 +72,7 @@ impl Miner {
 
         //serait Miner::start
         self.mine(share, starting_block, tx);
-
     }
-
 
     pub fn listen(&self, share: Shared, rx: mpsc::Sender<Block>) {
         let mut peerdict: HashMap<SocketAddr, Duration> = HashMap::new();
@@ -92,7 +80,6 @@ impl Miner {
         let mut last_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Can not take time");
-
 
         let peer = share.peer.lock().expect("Can not get the peer");
 
@@ -117,11 +104,9 @@ impl Miner {
                     self.network.send_packet(Packet::AnswerKA, sender);
                 }
                 Packet::Block(block) => {
-                    
-
                     println!("recv Block");
 
-                    let mut chain: MutexGuard<'_, Vec<Block>> = share.chain.lock().unwrap(); 
+                    let mut chain: MutexGuard<'_, Vec<Block>> = share.chain.lock().unwrap();
                     if !chain.contains(&block) {
                         if block.check() {
                             let cur_height = chain.last().unwrap().get_height_nonce().0;
@@ -130,7 +115,7 @@ impl Miner {
                                 {
                                     chain.push(block.clone());
                                 }
-                                rx.send(block.clone()).unwrap(); 
+                                rx.send(block.clone()).unwrap();
                                 {
                                     let mut val = share.should_stop.lock().unwrap();
                                     *val = true;
@@ -140,9 +125,10 @@ impl Miner {
 
                                 drop(chain);
 
-                                self.network.send_packet_multi(Packet::Block(block), peerdict.keys().cloned().collect());
-
-
+                                self.network.send_packet_multi(
+                                    Packet::Block(block),
+                                    peerdict.keys().cloned().collect(),
+                                );
                             } else if cur_height + 1 < new_height {
                                 //we are retarded"
                                 println!("We are to late");
@@ -151,15 +137,12 @@ impl Miner {
                                 dist_block.push(block.clone());
                                 let mut last_block_common: i64 = -1;
                                 for i in (0..new_height).rev() {
-                                
                                     self.network.send_packet(Packet::GetBlock(i as i64), sender);
-                                    
+
                                     loop {
                                         let (packet, sender2) = self.network.recv_packet();
 
-                                        if sender2
-                                            != sender
-                                        {
+                                        if sender2 != sender {
                                             continue;
                                         }
 
@@ -219,15 +202,15 @@ impl Miner {
                     let clone_share = share.clone();
                     println!("Recive a new transactions");
                     // thread::spawn(move || {          //mieux mais marche pas
-                        self.verif_transa(clone_share, trans);
+                    self.verif_transa(clone_share, trans);
                     // });
-
                 }
 
                 Packet::GetPeer => {
                     println!("recv GetPeer");
 
-                    self.network.send_packet(Packet::RepPeers(peerdict.keys().cloned().collect()), sender);
+                    self.network
+                        .send_packet(Packet::RepPeers(peerdict.keys().cloned().collect()), sender);
                 }
 
                 Packet::GetBlock(i) => {
@@ -237,17 +220,20 @@ impl Miner {
                         share.chain.lock().expect("Can not lock chain");
                     if i == -1 {
                         //ask the last one
-                        self.network.send_packet(Packet::Block(chain.last().unwrap().clone()),sender);
+                        self.network
+                            .send_packet(Packet::Block(chain.last().unwrap().clone()), sender);
                         drop(chain);
                     } else if chain.len() < i as usize {
                         drop(chain);
-                        self.network.send_packet(Packet::Block(Block::new_wrong(1)),sender);
+                        self.network
+                            .send_packet(Packet::Block(Block::new_wrong(1)), sender);
                     //No enought block
                     } else {
                         if chain[i as usize].get_height_nonce().0 != i as u64 {
                             println!("Pb diff heigh");
                         }
-                        self.network.send_packet(Packet::Block(chain[i as usize].clone()),sender);
+                        self.network
+                            .send_packet(Packet::Block(chain[i as usize].clone()), sender);
                         drop(chain);
                     }
                 }
@@ -258,11 +244,14 @@ impl Miner {
                     let mut peer: Vec<SocketAddr> = peerdict.keys().cloned().collect();
                     if !peer.contains(&sender) {
                         peerdict.insert(sender, time_packet);
-                    
-                        self.network.send_packet(Packet::RepPeers(peer.clone()), sender);
 
-                        
-                        self.network.send_packet_multi(Packet::NewNode(sender), peerdict.keys().filter(|&&x| x!=sender).cloned().collect());
+                        self.network
+                            .send_packet(Packet::RepPeers(peer.clone()), sender);
+
+                        self.network.send_packet_multi(
+                            Packet::NewNode(sender),
+                            peerdict.keys().filter(|&&x| x != sender).cloned().collect(),
+                        );
                     }
                     peer.push(sender);
                     update_peer_share(&mut share.peer.lock().unwrap(), peer);
@@ -274,8 +263,11 @@ impl Miner {
                     if !peer.contains(&new) {
                         peerdict.insert(sender, time_packet);
                         peer.push(new);
-                        
-                        self.network.send_packet_multi(Packet::NewNode(new), peer.iter().filter(|&&x| x !=sender).cloned().collect());
+
+                        self.network.send_packet_multi(
+                            Packet::NewNode(new),
+                            peer.iter().filter(|&&x| x != sender).cloned().collect(),
+                        );
                     }
                     update_peer_share(&mut share.peer.lock().unwrap(), peer);
                 }
@@ -298,13 +290,12 @@ impl Miner {
         }
     }
 
-    fn verif_transa(&self,share: Shared, transa: Transaction) {
+    fn verif_transa(&self, share: Shared, transa: Transaction) {
         //verification /////A FAIRE\\\\\\\\\\\\
-    
+
         let mut val = share.transaction.lock().unwrap();
         (*val).push(transa);
     }
-
 
     fn check_keep_alive(&self, peer: &mut HashMap<SocketAddr, Duration>, time: Duration) {
         let clone = peer.clone();
@@ -320,15 +311,11 @@ impl Miner {
         }
     }
 
-
-
     fn mine(&self, share: Shared, mut block: Block, tx: mpsc::Receiver<Block>) {
         loop {
-            println!("The block is {:?} ", block);
-
             match block.generate_block_stop(self.id, &share.should_stop, "It is a quote") {
                 Some(mut new_block) => {
-                    println!("I found the new_block !!!");
+                    print!("FOUND ");
                     {
                         //add the transactions see during the mining
                         let val = share
@@ -343,12 +330,18 @@ impl Miner {
                     {
                         let peer = share.peer.lock().unwrap();
 
-                        self.network.send_packet_multi(Packet::Block(new_block.clone()), peer.iter().filter(|&&x| x!=self.network.get_socket()).cloned().collect());
+                        self.network.send_packet_multi(
+                            Packet::Block(new_block.clone()),
+                            peer.iter()
+                                .filter(|&&x| x != self.network.get_socket())
+                                .cloned()
+                                .collect(),
+                        );
                     }
                     block = new_block;
                 }
                 None => {
-                    println!("An other found the block");
+                    println!("External ");
                     block = tx
                         .recv()
                         .expect("Error block can't be read from the channel");
@@ -358,15 +351,18 @@ impl Miner {
                     }
                 }
             }
+            println!(" => {:?} ", block);
         }
     }
-
-
 }
 
-impl Clone for Miner{
+impl Clone for Miner {
     fn clone(&self) -> Self {
-        Self { name: self.name.clone(), network: self.network.clone(), id: self.id.clone() }
+        Self {
+            name: self.name.clone(),
+            network: self.network.clone(),
+            id: self.id.clone(),
+        }
     }
 
     fn clone_from(&mut self, source: &Self) {
@@ -374,8 +370,7 @@ impl Clone for Miner{
     }
 }
 
-
-
-fn update_peer_share(shared: &mut MutexGuard<Vec<SocketAddr>>, peer: Vec<SocketAddr>) { //marche pas sans function ??
+fn update_peer_share(shared: &mut MutexGuard<Vec<SocketAddr>>, peer: Vec<SocketAddr>) {
+    //marche pas sans function ??
     **shared = peer;
 }
