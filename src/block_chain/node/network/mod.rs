@@ -41,7 +41,7 @@ impl Network {
     }
 
     pub fn send_packet(&self, packet: Packet, dest: SocketAddr) -> usize {
-        let sera_answer = serialize(&Packet::AnswerKA).expect("Can not serialize AswerKA");
+        let sera_answer = serialize(&packet).expect("Can not serialize AswerKA");
         self.binding
             .send_to(&sera_answer, dest)
             .expect(&format!("Can not send packet {:?}", packet))
@@ -71,8 +71,8 @@ impl Network {
     /// Retreive a node list prome a peer
     pub fn bootstrap(&self) -> Vec<SocketAddr> {
         self.send_packet(Packet::Connexion, self.bootstrap);
-        /////// LE PACKET PEUT ETRE PERDU ENTRE LES 2
-        self.recive_peers()//<== doit être starter dans un thread ou tache asyncrone avant send_packet
+        /////// LE PACKET PEUT ETRE PERDU ENTRE LES 2 ?????????
+        self.recive_peers()
     }
 
     pub fn recive_peers(&self) -> Vec<SocketAddr> {
