@@ -3,6 +3,7 @@ use std::{
     net::SocketAddr,
     sync::mpsc::{self, Receiver, Sender},
     sync::{Arc, Mutex, MutexGuard},
+    thread,
     time::Duration,
 };
 
@@ -33,7 +34,7 @@ impl Server {
             id: id,
         }
     }
-    pub fn start(self) {
+    pub async fn start(self) {
         println!(
             "Server started {} facke id {} -> {:?}",
             &self.name,
@@ -62,14 +63,15 @@ impl Server {
 
         let first_block = block_chaine.last().unwrap().clone();
 
-        /// start le process de mining
-        self.mining(
+        Self::mining(
+            self.id,
             first_block,
             mined_block_tx,
             net_block_rx,
             net_transaction_rx,
             sould_stop,
-        );
+        )
+        .await;
     }
 
     // fn verif_transa(&self, share: Shared, transa: Transaction) {
@@ -80,7 +82,7 @@ impl Server {
 
     //need to be fixed ??
     async fn mining(
-        &self,
+        finder: u64,
         mut block: Block,
         mined_block_tx: Sender<Block>,
         net_block_rx: Receiver<Block>,
@@ -90,17 +92,20 @@ impl Server {
         loop {
             //mining_task
             let mining_task = async {
-                block.generate_block(
-                    self.id,
-                    net_transaction_rx.recv().unwrap(),
-                    " quote",
-                    &Arc::new(Mutex::new(false)),
-                ).unwrap()
+                block
+                    .generate_block(
+                        finder,
+                        // net_transaction_rx.recv().unwrap(),
+                        vec![],
+                        " quote",
+                        &Arc::new(Mutex::new(false)),
+                    )
+                    .unwrap()
             }
             .fuse();
 
             //receving_task
-            let receving_task = async { net_block_rx.recv().unwrap() }.fuse();
+            let receving_task = async { net_block_rx.recv().unwrap() }.fuse();//lib PéTé
 
             //async stuff
             pin_mut!(mining_task, receving_task);

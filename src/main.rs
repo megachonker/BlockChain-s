@@ -39,7 +39,8 @@ fn main() {
     //check error of logique
     let node = parse_args(arg);
 
-    node.start(); // don't care what we start just starting it
+    // don't care what we start just starting it
+    smol::block_on(node.start());
 }
 
 // s'ocupe de faire une logique des argument

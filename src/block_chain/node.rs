@@ -61,10 +61,10 @@ pub enum NewNode {
 // un trait serait mieux ?
 // permet de start un node sans connaitre son type au préalable
 impl NewNode {
-    pub fn start(self) {
+    pub async fn start(self) {
         match self {
             Self::Cli(cli) => cli.start(),
-            Self::Srv(srv) => srv.start(),
+            Self::Srv(srv) => srv.start().await,
         }
     }
 }
