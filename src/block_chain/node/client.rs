@@ -37,4 +37,5 @@ impl Client {
         me.send_transactions(self.networking.bootstrap,self.transaction.destination,self.transaction.ammount as u32);
         println!("Client started name is {} fack id{}", self.name,get_fake_id(&self.name))
     }
+    
 }

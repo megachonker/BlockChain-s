@@ -8,12 +8,11 @@ const HASH_MAX: u64 = 1000000000000;
 
 #[derive(Debug, Serialize, Deserialize , Clone)]
 pub struct Block {
-    block_id: u64,                  //the hash of whole block
+    pub block_id: u64,                  //the hash of whole block
     block_height: u64,              //the number of the current block
     parent_hash: u64,               //the id of last block (block are chain with that)
     transactions: Vec<Transaction>, //the vector of all transaction validated with this block
     miner_hash: u64,                //Who find the answer
-    
     nonce: u64,                     //the answer of the defi
     quote : String,
 }
@@ -48,6 +47,7 @@ impl Block {
         block
     }
 
+    //PARDON ? ces pas clean ??
     pub fn new_wrong(value: u64) -> Block {
         let mut block = Block {
             block_height: 0,
@@ -87,31 +87,28 @@ impl Block {
 
     
 
-    pub fn generate_block_stop(&self, finder: u64, sould_stop: &Arc<Mutex<bool>>,mut quote : &str) -> Option<Block> {
+    pub fn generate_block(&self, finder: u64,transactions:Vec<Transaction>, mut quote : &str,should_stop: &Arc<Mutex<bool>>) ->Option<Block>{
+        //wesh ces l'enfer ça 
+        //si tu check comme ça ces que le buffer peut être gros
+        //faut check si ces pas des carac chelou
         if quote.len() >100{
             quote = "";
         }
+
         let mut new_block = Block {
             block_height: self.block_height + 1,
             block_id: 0,
             parent_hash: self.block_id,
-            transactions: vec![], //put after
+            transactions, //put befort because the proof of work are link to transaction 
             nonce: 0,
-            miner_hash: finder,
+            miner_hash: finder,//j'aime pas 
             quote : String::from(quote),
         };
-        new_block.nonce = mine_stop(&new_block, sould_stop)?;
+        new_block.nonce = mine(&new_block, should_stop)?; //putain...
         new_block.block_id = hash(&new_block); //set the correct id
         Some(new_block)
     }
 
-
-
-
-    pub fn set_transactions(mut self, transactions: Vec<Transaction>) -> Self {
-        self.transactions = transactions;
-        self
-    }
 }
 
 impl Hash for Block {
@@ -135,16 +132,16 @@ impl PartialEq for Block {
 
 
 //comment ça ?
-pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
+pub fn mine(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
     let mut rng = rand::thread_rng(); //to pick random value
     let mut hasher = DefaultHasher::new();
 
     //playload of block to hash
     // block.block_height.hash(&mut hasher);
     block.parent_hash.hash(&mut hasher);
-    // block.transactions.hash(&mut hasher);
+    block.transactions.hash(&mut hasher); //on doit fixer la transaction a avoir 
     // block.miner_hash.hash(&mut hasher);
-    // block.quote.hash(& mut hasher);
+    // block.quote.hash(& mut hasher); 
 
     let mut nonce_to_test = rng.gen::<u64>();
 
@@ -162,6 +159,7 @@ pub fn mine_stop(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
             //test not all time (mutex has big complexity)
             {
                 let mut val = should_stop.lock().unwrap();
+                //each time making hashing make a comparaison for debug not cool
                 if *val {
                     *val = false;
                     return None;

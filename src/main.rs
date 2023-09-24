@@ -6,7 +6,7 @@ mod block_chain{
     pub mod node; 
 }
 
-use block_chain::node::{ client::Client,miner::Miner,network::Network,NewNode};
+use block_chain::node::{ client::Client,server::Server,network::Network,NewNode};
 use std::net::{IpAddr, Ipv4Addr};
 
 #[derive(Parser)]
@@ -80,11 +80,33 @@ fn parse_args(cli: Cli) -> NewNode {
         ));
     } else {
         //create server worker
-        return NewNode::Srv(Miner::new(networking));
+        return NewNode::Srv(Server::new(networking));
     }
 }
 
 //des scénario de test avec 2 node par ex --> oui mais il pouvoir les arreter et le temps de clalcul d'un bloc est alea
 //possible de lancer les calcule de block avec une seed par exemple est de simplifier le nombre d'itération
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use std::net::Ipv4Addr;
+
+    use crate::{Cli, parse_args};
+
+
+    #[test]
+    fn lunch_server_init(){
+        //seed mode
+        let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(0,0,0,0)));
+        let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(0,0,0,0)));
+        let cli = Cli{ammount:f64::NAN,bind,bootstrap,destination:u64::MIN,secret:String::new()};
+        parse_args(cli);
+
+        //client mode
+        let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127,0,0,2)));
+        let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(127,0,0,1)));
+        let cli = Cli{ammount:f64::NAN,bind,bootstrap,destination:u64::MIN,secret:String::new()};
+        parse_args(cli);
+    }
+
+    
+}
