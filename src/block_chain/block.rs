@@ -90,7 +90,7 @@ impl Block {
     pub fn generate_block(&self, finder: u64,transactions:Vec<Transaction>, mut quote : &str,should_stop: &Arc<Mutex<bool>>) ->Option<Block>{
         //wesh ces l'enfer ça 
         //si tu check comme ça ces que le buffer peut être gros
-        //faut check si ces pas des carac chelou
+        //faut check si ces pas des carac chelou --> c'est vite fait quoi 
         if quote.len() >100{
             quote = "";
         }
@@ -138,7 +138,7 @@ pub fn mine(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
 
     //playload of block to hash
     // block.block_height.hash(&mut hasher);
-    block.parent_hash.hash(&mut hasher);
+    block.parent_hash.hash(&mut hasher); 
     block.transactions.hash(&mut hasher); //on doit fixer la transaction a avoir 
     // block.miner_hash.hash(&mut hasher);
     // block.quote.hash(& mut hasher); 

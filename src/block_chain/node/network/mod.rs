@@ -54,7 +54,7 @@ impl Network {
             transa
         );
 
-        //quand on a 3 transaction
+        //quand on a 5 transactions => A changer 
         if self.stack_transa.len() == 5 {
             net_transa_tx.send(self.stack_transa.clone()).unwrap();
             self.stack_transa.clear()
