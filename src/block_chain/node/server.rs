@@ -54,7 +54,7 @@ impl Server {
         let (mined_block_tx, mined_block_rx) = mpsc::channel();
 
         //need to link new stack of transaction because the miner need continue to mine without aprouvale of the network
-        let (net_transaction_tx, net_transaction_rx) = mpsc::channel();
+        let (net_transaction_tx, net_transaction_rx) = mpsc::channel(); //RwLock
 
         //get the whole blochaine
         let block_chaine = self
@@ -81,7 +81,7 @@ impl Server {
     // }
 
     //need to be fixed ??
-    async fn mining(
+    async fn mining(//doit contenire le runetime 
         finder: u64,
         mut block: Block,
         mined_block_tx: Sender<Block>,
@@ -90,6 +90,10 @@ impl Server {
         sould_stop: &Arc<Mutex<bool>>,
     ) {
         loop {
+            //faire un worker qui mine en bloque est qui prend en entrée un flux de block en entrée
+            // il faut pas d'overhead  avoir comment faire
+            
+
             //mining_task
             let mining_task = async {
                 block
@@ -110,7 +114,7 @@ impl Server {
             //async stuff
             pin_mut!(mining_task, receving_task);
 
-            //take the best of two
+            //take the best of two ////////////////ne marche pas avec d es MSCP revc 
             block = select! {
                 //we find a block and we send it
                 block = mining_task => {
