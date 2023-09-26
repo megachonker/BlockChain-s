@@ -9,7 +9,7 @@ const HASH_MAX: u64 = 1000000000000;
 #[derive(Debug, Serialize, Deserialize , Clone)]
 pub struct Block {
     pub block_id: u64,                  //the hash of whole block
-    block_height: u64,              //the number of the current block
+    pub block_height: u64,              //the number of the current block
     parent_hash: u64,               //the id of last block (block are chain with that)
     transactions: Vec<Transaction>, //the vector of all transaction validated with this block
     miner_hash: u64,                //Who find the answer
@@ -29,7 +29,6 @@ pub fn hash<T: Hash>(value: T) -> u64 {
     value.hash(&mut hasher);
     hasher.finish()
 }
-
 impl Block {
     /// create the first block full empty
     pub fn new() -> Block {
@@ -87,7 +86,7 @@ impl Block {
 
     
 
-    pub fn generate_block(&self, finder: u64,transactions:Vec<Transaction>, mut quote : &str,should_stop: &Arc<Mutex<bool>>) ->Option<Block>{
+    pub fn generate_block(&self, finder: u64,transactions:Vec<Transaction>, mut quote : &str,should_stop: Arc<Mutex<bool>>) ->Option<Block>{
         //wesh ces l'enfer ça 
         //si tu check comme ça ces que le buffer peut être gros
         //faut check si ces pas des carac chelou
@@ -132,7 +131,7 @@ impl PartialEq for Block {
 
 
 //comment ça ?
-pub fn mine(block: &Block, should_stop: &Arc<Mutex<bool>>) -> Option<u64> {
+pub fn mine(block: &Block, should_stop: Arc<Mutex<bool>>) -> Option<u64> {
     let mut rng = rand::thread_rng(); //to pick random value
     let mut hasher = DefaultHasher::new();
 
