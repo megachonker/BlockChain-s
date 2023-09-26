@@ -7,7 +7,6 @@ use std::{
     time::Duration,
 };
 
-use futures::{pin_mut, select, FutureExt};
 
 use crate::block_chain::{
     block::{hash, mine, Block, Transaction},
@@ -57,8 +56,12 @@ impl Server {
         let (net_transaction_tx, net_transaction_rx) = mpsc::channel(); //RwLock
 
         //get the whole blochaine
-        self.network
-            .start(mined_block_rx, net_block_tx, net_transaction_tx);
+
+        // thread::Builder::new().name("Network".to_string()).spawn(move ||{
+        let blockaine = self.network.start(mined_block_rx, net_block_tx, net_transaction_tx);
+        // }).unwrap();
+
+        println!("blockaine recus{:?}",blockaine);
 
         Self::mining(self.id, mined_block_tx, net_block_rx, net_transaction_rx).await;
     }
@@ -88,7 +91,7 @@ impl Server {
 
         let is_stoped_cpy = is_stoped.clone();
         let actual_block_thread = actual_block.clone();
-        thread::spawn(move || loop {
+        thread::Builder::new().name("Miner-Controler".to_string()).spawn(move || loop {
             //update
             let tmp = net_block_rx.recv().unwrap();
             let mut actual_block_thread = actual_block_thread.lock().unwrap();
@@ -97,14 +100,14 @@ impl Server {
                 *actual_block_thread = tmp;
                 is_stoped_cpy.store(true, std::sync::atomic::Ordering::Relaxed);
             }
-        });
+        }).unwrap();
 
         //gen block
         loop {
             let is_stoped = is_stoped.clone();
             let transactionis_stoped = transaction.clone();
             let actual_block_thread = actual_block.clone();
-            let handle = thread::spawn(move || {
+            let handle = thread::Builder::new().name("Miner".to_string()).spawn(move || {
                 let actual_block_thread = actual_block_thread.lock().unwrap();
 
                 let mut new_block = Block {
@@ -118,16 +121,18 @@ impl Server {
                 };
                 drop(actual_block_thread);
 
+                ////// on peut multithread comme un gros sale!
                 if let Some(nonce) = mine(&new_block, &is_stoped) {
                     new_block.nonce = nonce;
                     new_block.block_id = hash(&new_block);
                     return Some(new_block);
                 }
                 return None;
-            });
+            }).unwrap();
             if let Some(mined_block) = handle.join().unwrap() {
                 let mut locked_actual_block = actual_block.lock().unwrap();
                 *locked_actual_block = mined_block;
+                println!("{}",locked_actual_block);
                 mined_block_tx.send(locked_actual_block.clone()).unwrap();
             }
         }

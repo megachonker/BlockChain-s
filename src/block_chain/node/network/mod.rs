@@ -123,21 +123,6 @@ impl Network {
 
     ////// END USED BY ROUTER
 
-    /// route tout les événemnet
-    fn router(&mut self, net_block_tx: Sender<Block>, net_transa_tx: Sender<Vec<Transaction>>) {
-        // thread::spawn( move ||
-        loop {
-            let (message, sender) = Self::recv_packet(&self.binding);
-            match message {
-                Packet::Transaction(transa) => self.append_transa(transa, &net_transa_tx),
-                Packet::Peer(peers) => self.peers(peers, sender),
-                Packet::Keepalive => self.keepalive(sender),
-                Packet::Block(typeblock) => self.block(typeblock, sender, &net_block_tx),
-            }
-        }
-        // );
-    }
-
     /// continusly ask for new peers
     /// peer on router eliminate usless
     /// need to create elaborated mecanisme of pasive block
@@ -161,23 +146,23 @@ impl Network {
         
         // when miner have a block send it to all people
         let for_thread = shared_net.clone();
-        thread::spawn(move || {
+        thread::Builder::new().name("Net-Block_Sender".to_string()).spawn(move || {
             loop {
                 let mined_block = mined_block_rx.recv().unwrap();
                 
                 let locked = for_thread.lock().unwrap();
                 // send to all
-                locked.broadcast(Packet::Block(TypeBlock::Block(mined_block)));
+                locked.broadcast(Packet::Block(TypeBlock::Block(mined_block)));/////////on peut utiliser un autre socket pour send no truc
             }
 
-        });
+        }).unwrap();
 
         // routing all message
         let forthread = shared_net.clone();
-        thread::spawn(move || {
+        thread::Builder::new().name("Net-Router".to_string()).spawn(move || {
             loop {
-                let cum = forthread.lock().unwrap().binding.try_clone().unwrap();
-                let (message, sender) = Self::recv_packet(&cum);
+                let cum = &forthread.lock().unwrap().binding;
+                let (message, sender) = Self::recv_packet(cum);
                 let mut locked = forthread.lock().unwrap();
                 println!("RCV from: {:?} {:?}",sender,message);
                 match message {
@@ -187,7 +172,7 @@ impl Network {
                     Packet::Block(typeblock) => locked.block(typeblock, sender, &net_block_tx),
                 }
             }
-        });
+        }).unwrap();
 
         let network = shared_net.clone();
         let network  = network.lock().unwrap();
@@ -260,7 +245,7 @@ impl Network {
         self.peers
             .iter()
             .filter(|&&x| x != self.get_socket())
-            .for_each(|dest| self.send_packet(&packet, dest));
+            .for_each(|dest| self.send_packet(&packet, dest));///////send socket differant
     }
 
     /// awsome
