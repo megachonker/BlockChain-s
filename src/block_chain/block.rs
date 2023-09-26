@@ -3,20 +3,21 @@ use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::Display;
 use std::hash::{Hash,Hasher};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::fmt;
 
 const HASH_MAX: u64 = 1000000000000;
 
-#[derive(Debug, Serialize, Deserialize , Clone)]
-pub struct Block {
+#[derive(Debug, Serialize, Deserialize , Clone,Default)]
+pub struct Block { /////////////////rendre private quand on aura imported mine extern du serveur
     pub block_id: u64,                  //the hash of whole block
     pub block_height: u64,              //the number of the current block
-    parent_hash: u64,               //the id of last block (block are chain with that)
-    transactions: Vec<Transaction>, //the vector of all transaction validated with this block
-    miner_hash: u64,                //Who find the answer
-    nonce: u64,                     //the answer of the defi
-    quote : String,
+    pub parent_hash: u64,               //the id of last block (block are chain with that)
+    pub transactions: Vec<Transaction>, //the vector of all transaction validated with this block
+    pub miner_hash: u64,                //Who find the answer
+    pub nonce: u64,                     //the answer of the defi
+    pub quote : String,
 }
 
 
@@ -112,7 +113,7 @@ impl Block {
 
     
 
-    pub fn generate_block(&self, finder: u64,transactions:Vec<Transaction>, mut quote : &str,should_stop: Arc<Mutex<bool>>) ->Option<Block>{
+    pub fn generate_block(&self, finder: u64,transactions:Vec<Transaction>, mut quote : &str,should_stop: &AtomicBool) ->Option<Block>{
         //wesh ces l'enfer ça 
         //si tu check comme ça ces que le buffer peut être gros
         //faut check si ces pas des carac chelou --> c'est vite fait quoi 
@@ -157,7 +158,7 @@ impl PartialEq for Block {
 
 
 //comment ça ?
-pub fn mine(block: &Block, should_stop: Arc<Mutex<bool>>) -> Option<u64> {
+pub fn mine(block: &Block, should_stop: &AtomicBool) -> Option<u64> {
     let mut rng = rand::thread_rng(); //to pick random value
     let mut hasher = DefaultHasher::new();
 
@@ -183,10 +184,8 @@ pub fn mine(block: &Block, should_stop: Arc<Mutex<bool>>) -> Option<u64> {
         if nonce_to_test % 100000 == 0 {
             //test not all time (mutex has big complexity)
             {
-                let mut val = should_stop.lock().unwrap();
                 //each time making hashing make a comparaison for debug not cool
-                if *val {
-                    *val = false;
+                if should_stop.swap(false,std::sync::atomic::Ordering::Relaxed){
                     return None;
                 }
             }

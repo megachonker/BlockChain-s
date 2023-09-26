@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     net::SocketAddr,
     sync::mpsc::{self, Receiver, Sender},
-    sync::{Arc, Mutex, MutexGuard, atomic::AtomicBool},
+    sync::{atomic::AtomicBool, Arc, Mutex, MutexGuard},
     thread,
     time::Duration,
 };
@@ -10,7 +10,7 @@ use std::{
 use futures::{pin_mut, select, FutureExt};
 
 use crate::block_chain::{
-    block::{Block, Transaction},
+    block::{hash, mine, Block, Transaction},
     node::network::{Network, Packet},
     // shared::Shared,
 };
@@ -57,21 +57,10 @@ impl Server {
         let (net_transaction_tx, net_transaction_rx) = mpsc::channel(); //RwLock
 
         //get the whole blochaine
-        let block_chaine = self
-            .network
+        self.network
             .start(mined_block_rx, net_block_tx, net_transaction_tx);
 
-        let first_block = block_chaine.last().unwrap().clone();
-
-        Self::mining(
-            self.id,
-            first_block,
-            mined_block_tx,
-            net_block_rx,
-            net_transaction_rx,
-            sould_stop,
-        )
-        .await;
+        Self::mining(self.id, mined_block_tx, net_block_rx, net_transaction_rx).await;
     }
 
     // fn verif_transa(&self, share: Shared, transa: Transaction) {
@@ -88,49 +77,59 @@ impl Server {
     async fn mining(
         //doit contenire le runetime
         finder: u64,
-        mut block: Block,
         mined_block_tx: Sender<Block>, //return finder
         net_block_rx: Receiver<Block>,
         net_transaction_rx: Receiver<Vec<Transaction>>, //Rwlock
-        sould_stop: &Arc<Mutex<bool>>,
     ) {
-        let actual_block:Block ;
+        let actual_block = Arc::new(Mutex::new(Block::default()));
 
         let transaction = Arc::new(vec![]); // net_transaction_rx.recv().unwrap();
-        let is_stoped = AtomicBool::new(false);
+        let is_stoped = Arc::new(AtomicBool::new(false));
+
+        let is_stoped_cpy = is_stoped.clone();
+        let actual_block_thread = actual_block.clone();
         thread::spawn(move || loop {
             //update
-            if net_block_rx.recv().unwrap().block_height > actual_block.block_height{
-                is_stoped.
+            let tmp = net_block_rx.recv().unwrap();
+            let mut actual_block_thread = actual_block_thread.lock().unwrap();
+            if tmp.block_height > actual_block_thread.block_height {
+                //stop
+                *actual_block_thread = tmp;
+                is_stoped_cpy.store(true, std::sync::atomic::Ordering::Relaxed);
             }
-            //stop
         });
 
         //gen block
         loop {
-            //clone
-            let block_thread = block.clone();
-            let transactionis_stoped  = transaction.clone();
             let is_stoped = is_stoped.clone();
-
-            //start
+            let transactionis_stoped = transaction.clone();
+            let actual_block_thread = actual_block.clone();
             let handle = thread::spawn(move || {
-                let newblock = block_thread
-                    .generate_block(
-                        finder,
-                        // net_transaction_rx.recv().unwrap(),
-                        transaction.to_vec(),
-                        " quote",
-                        is_stoped,
-                    )
-                    .unwrap();
+                let actual_block_thread = actual_block_thread.lock().unwrap();
 
-                return newblock;
+                let mut new_block = Block {
+                    block_height: actual_block_thread.block_height + 1,
+                    block_id: 0,
+                    parent_hash: actual_block_thread.block_id,
+                    transactions: transactionis_stoped.to_vec(), //put befort because the proof of work are link to transaction
+                    nonce: 0,
+                    miner_hash: finder, //j'aime pas
+                    quote: String::from("quote"),
+                };
+                drop(actual_block_thread);
+
+                if let Some(nonce) = mine(&new_block, &is_stoped) {
+                    new_block.nonce = nonce;
+                    new_block.block_id = hash(&new_block);
+                    return Some(new_block);
+                }
+                return None;
             });
-            let mined_block = match handle.join() {
-                Err(_) => None,
-                Ok(block) => Some(block),
-            };
+            if let Some(mined_block) = handle.join().unwrap() {
+                let mut locked_actual_block = actual_block.lock().unwrap();
+                *locked_actual_block = mined_block;
+                mined_block_tx.send(locked_actual_block.clone()).unwrap();
+            }
         }
     }
 }
