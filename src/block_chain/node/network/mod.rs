@@ -4,7 +4,7 @@ use std::{
         mpsc::{Receiver, Sender},
         Barrier, Arc, Mutex,
     },
-    thread,
+    thread, fmt::Display,
 };
 
 use bincode::{deserialize, serialize};
@@ -212,6 +212,7 @@ impl Network {
 
         block_chaine
     }
+
 
     // fn check_keep_alive(&self, peer: &mut HashMap<SocketAddr, Duration>, time: Duration) {
     //     let clone = peer.clone();

@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     net::SocketAddr,
     sync::mpsc::{self, Receiver, Sender},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard, atomic::AtomicBool},
     thread,
     time::Duration,
 };
@@ -54,7 +54,7 @@ impl Server {
         let (mined_block_tx, mined_block_rx) = mpsc::channel();
 
         //need to link new stack of transaction because the miner need continue to mine without aprouvale of the network
-        let (net_transaction_tx, net_transaction_rx) = mpsc::channel();
+        let (net_transaction_tx, net_transaction_rx) = mpsc::channel(); //RwLock
 
         //get the whole blochaine
         let block_chaine = self
@@ -81,48 +81,56 @@ impl Server {
     // }
 
     //need to be fixed ??
+
+    //sould take at imput
+    //
+
     async fn mining(
+        //doit contenire le runetime
         finder: u64,
         mut block: Block,
-        mined_block_tx: Sender<Block>,
+        mined_block_tx: Sender<Block>, //return finder
         net_block_rx: Receiver<Block>,
-        net_transaction_rx: Receiver<Vec<Transaction>>,
+        net_transaction_rx: Receiver<Vec<Transaction>>, //Rwlock
         sould_stop: &Arc<Mutex<bool>>,
     ) {
+        let actual_block:Block ;
+
+        let transaction = Arc::new(vec![]); // net_transaction_rx.recv().unwrap();
+        let is_stoped = AtomicBool::new(false);
+        thread::spawn(move || loop {
+            //update
+            if net_block_rx.recv().unwrap().block_height > actual_block.block_height{
+                is_stoped.
+            }
+            //stop
+        });
+
+        //gen block
         loop {
-            //mining_task
-            let mining_task = async {
-                block
+            //clone
+            let block_thread = block.clone();
+            let transactionis_stoped  = transaction.clone();
+            let is_stoped = is_stoped.clone();
+
+            //start
+            let handle = thread::spawn(move || {
+                let newblock = block_thread
                     .generate_block(
                         finder,
                         // net_transaction_rx.recv().unwrap(),
-                        vec![],
+                        transaction.to_vec(),
                         " quote",
-                        &Arc::new(Mutex::new(false)),
+                        is_stoped,
                     )
-                    .unwrap()
-            }
-            .fuse();
+                    .unwrap();
 
-            //receving_task
-            let receving_task = async { net_block_rx.recv().unwrap() }.fuse();//lib PéTé
-
-            //async stuff
-            pin_mut!(mining_task, receving_task);
-
-            //take the best of two
-            block = select! {
-                //we find a block and we send it
-                block = mining_task => {
-                    print!("Mined\t");
-                    mined_block_tx.send(block.clone()).unwrap();
-                    block
-                },
-                //we receive a "valide" block befort finding a block
-                block = receving_task => {print!("Received\t"); block},
+                return newblock;
+            });
+            let mined_block = match handle.join() {
+                Err(_) => None,
+                Ok(block) => Some(block),
             };
-            //printing debug
-            println!(" => {:?} ", block);
         }
     }
 }
