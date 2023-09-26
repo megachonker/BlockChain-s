@@ -1,8 +1,10 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
+use std::fmt::Display;
 use std::hash::{Hash,Hasher};
 use std::sync::{Arc, Mutex};
+use std::fmt;
 
 const HASH_MAX: u64 = 1000000000000;
 
@@ -15,6 +17,30 @@ pub struct Block {
     miner_hash: u64,                //Who find the answer
     nonce: u64,                     //the answer of the defi
     quote : String,
+}
+
+
+impl fmt::Display for Block{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let transa_str = if self.transactions.len() > 3{
+            format!("<{}> : [ {:?} {:?} {:?} ... ]",self.transactions.len(),self.transactions[0],self.transactions[1],self.transactions[3])
+        } 
+        else{
+            format!("<{}> : {:?}",self.transactions.len(),self.transactions)
+        };
+
+        write!(f,"\n
+╔═══════════════════════════════════════╗
+║Id block: {}s
+║block_height : {}
+║last_block : {}
+║transactions {}       
+║miner_id : {}                          //if it is pub clefs very long maybe put a hash 
+║nonce : {}
+║quote : {}
+╚═══════════════════════════════════════╝ ",self.block_id,self.block_height,self.parent_hash,transa_str,self.miner_hash,self.nonce,self.quote)
+                
+    }
 }
 #[derive(Debug, Hash, Serialize, Deserialize, Clone)]
 pub struct Transaction {////////////////////on peut implémenter des **TRAI** de transaction ici   
@@ -182,7 +208,15 @@ impl Transaction {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display(){
+        let block = Block::new();
+        println!("There is the block : {}",block);
+    }
     
 }

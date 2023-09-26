@@ -10,7 +10,7 @@ use std::{
 use bincode::{deserialize, serialize};
 use serde::{Deserialize, Serialize};
 
-use crate::block_chain::block::{self, Block, Transaction};
+use crate::block_chain::block::{Block, Transaction};
 
 #[derive(Debug)]
 pub struct Network {
@@ -54,7 +54,7 @@ impl Network {
             transa
         );
 
-        //quand on a 5 transactions => A changer 
+        //quand on a 5 transactions => A changer  
         if self.stack_transa.len() == 5 {
             net_transa_tx.send(self.stack_transa.clone()).unwrap();
             self.stack_transa.clear()
@@ -160,12 +160,12 @@ impl Network {
         let shared_net = Arc::new(Mutex::new(self));
         
         // when miner have a block send it to all people
-        let forthread = shared_net.clone();
+        let for_thread = shared_net.clone();
         thread::spawn(move || {
             loop {
                 let mined_block = mined_block_rx.recv().unwrap();
                 
-                let locked = forthread.lock().unwrap();
+                let locked = for_thread.lock().unwrap();
                 // send to all
                 locked.broadcast(Packet::Block(TypeBlock::Block(mined_block)));
             }
@@ -299,3 +299,5 @@ impl Network {
     //     Some(chain)
     // }
 }
+
+
