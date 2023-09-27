@@ -42,10 +42,6 @@ impl Server {
         );
         let id = get_fake_id(&self.name);
 
-        // need to be a enum of reason of future stop eg
-        // shared between server an network
-        let sould_stop = &Arc::new(Mutex::new(false)); //il y a un type pour ça
-
         // network after starting need to return blockchaine!
         let (net_block_tx, net_block_rx) = mpsc::channel();
 

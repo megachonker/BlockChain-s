@@ -1,10 +1,11 @@
 use std::{
+    fmt::Display,
     net::{IpAddr, SocketAddr, UdpSocket},
     sync::{
         mpsc::{Receiver, Sender},
-        Barrier, Arc, Mutex,
+        Arc, Barrier, Mutex,
     },
-    thread, fmt::Display,
+    thread,
 };
 
 use bincode::{deserialize, serialize};
@@ -20,7 +21,6 @@ pub struct Network {
     peers: Vec<SocketAddr>,
     stack_transa: Vec<Transaction>, //is restarted
     /////
-    fence_blockaine: Barrier, //wait start by receiving a blockaine
     blockchain: Vec<Block>,   //wroung wrong
 }
 
@@ -54,7 +54,7 @@ impl Network {
             transa
         );
 
-        //quand on a 5 transactions => A changer  
+        //quand on a 5 transactions => A changer
         if self.stack_transa.len() == 5 {
             net_transa_tx.send(self.stack_transa.clone()).unwrap();
             self.stack_transa.clear()
@@ -87,7 +87,7 @@ impl Network {
         self.send_packet(&Packet::Keepalive, &sender);
     }
 
-    fn block(&mut self, typeblock: TypeBlock, sender: SocketAddr, sss: &Sender<Block>) {
+    fn block(&mut self, typeblock: TypeBlock, sender: SocketAddr, sss: &Sender<Block>,barrirer_ack:&Arc<Barrier>) {
         match typeblock {
             TypeBlock::Block(block) => {
                 sss.send(block.clone()).unwrap();
@@ -108,14 +108,16 @@ impl Network {
             }
             TypeBlock::Getall(lists) => {
                 if lists.is_empty() {
+                    println!("Hash Getall: receive demande de Hash");
                     self.send_packet(
                         &Packet::Block(TypeBlock::Getall(self.blockchain.clone())),
                         &sender,
                     );
                 } else {
+                    println!("Hash Getall: Send all");
                     self.blockchain = lists;
                     //barierre unlock
-                    self.fence_blockaine.wait();
+                    barrirer_ack.wait();
                 }
             }
         }
@@ -143,45 +145,55 @@ impl Network {
         let mut block_chaine: Vec<Block> = vec![];
 
         let shared_net = Arc::new(Mutex::new(self));
-        
+
         // when miner have a block send it to all people
         let for_thread = shared_net.clone();
-        thread::Builder::new().name("Net-Block_Sender".to_string()).spawn(move || {
-            loop {
-                let mined_block = mined_block_rx.recv().unwrap();
-                
-                let locked = for_thread.lock().unwrap();
-                // send to all
-                locked.broadcast(Packet::Block(TypeBlock::Block(mined_block)));/////////on peut utiliser un autre socket pour send no truc
-            }
+        thread::Builder::new()
+            .name("Net-Block_Sender".to_string())
+            .spawn(move || {
+                loop {
+                    let mined_block = mined_block_rx.recv().unwrap();
 
-        }).unwrap();
+                    let locked = for_thread.lock().unwrap();
+                    // send to all
+                    locked.broadcast(Packet::Block(TypeBlock::Block(mined_block)));
+                    /////////on peut utiliser un autre socket pour send no truc
+                }
+            })
+            .unwrap();
 
+        let fence_blockaine = Arc::new(Barrier::new(2));
+
+            
         // routing all message
         let forthread = shared_net.clone(); //peut opti en ayan try clone
-        thread::Builder::new().name("Net-Router".to_string()).spawn(move || {
-            loop {
-                let cum = forthread.lock().unwrap();
-                let suck = cum.binding.try_clone().unwrap();
-                drop(cum);
-                let (message, sender) = Self::recv_packet(&suck);
-                let mut locked = forthread.lock().unwrap(); /////////BLOCKED
-                println!("RCV from: {:?} {:?}",sender,message);
-                match message {
-                    Packet::Transaction(transa) => locked.append_transa(transa, &net_transa_tx),
-                    Packet::Peer(peers) => locked.peers(peers, sender),
-                    Packet::Keepalive => locked.keepalive(sender),
-                    Packet::Block(typeblock) => locked.block(typeblock, sender, &net_block_tx),
+        let block_ack = fence_blockaine.clone();
+        thread::Builder::new()
+            .name("Net-Router".to_string())
+            .spawn(move || {
+                loop {
+                    let cum = forthread.lock().unwrap();
+                    let suck = cum.binding.try_clone().unwrap();
+                    drop(cum);
+                    let (message, sender) = Self::recv_packet(&suck);
+                    println!("RCV from: {:?} {:?}", sender, message);
+                    let mut locked = forthread.lock().unwrap(); /////////BLOCKED
+                    match message {
+                        Packet::Transaction(transa) => locked.append_transa(transa, &net_transa_tx),
+                        Packet::Peer(peers) => locked.peers(peers, sender),
+                        Packet::Keepalive => locked.keepalive(sender),
+                        Packet::Block(typeblock) => locked.block(typeblock, sender, &net_block_tx,&block_ack),
+                    }
                 }
-            }
-        }).unwrap();
+            })
+            .unwrap();
 
         let network = shared_net.clone();
-        let network  = network.lock().unwrap();
+        let network = network.lock().unwrap();
 
         //if no bootstrap init blockaine
         if network.bootstrap == SocketAddr::from(([0, 0, 0, 0], 6021)) {
-            block_chaine.push(Block::new());
+            // block_chaine.push(Block::new());
         }
         //if not retreive the blockaine
         else {
@@ -190,16 +202,20 @@ impl Network {
             network.send_packet(&Packet::Peer(vec![]), &network.bootstrap);
 
             //request blockaine
-            network.send_packet(&Packet::Block(TypeBlock::Getall(vec![])), &network.bootstrap);
+            network.send_packet(
+                &Packet::Block(TypeBlock::Getall(vec![])),
+                &network.bootstrap,
+            );
+            drop(network);
             //on attend que l'on a recus toute la blockaine
-            network.fence_blockaine.wait();
+            fence_blockaine.wait();
+            let network = shared_net.clone();
+            let network = network.lock().unwrap();
+            block_chaine = network.blockchain.clone();//sale
         }
-
-        
 
         block_chaine
     }
-
 
     // fn check_keep_alive(&self, peer: &mut HashMap<SocketAddr, Duration>, time: Duration) {
     //     let clone = peer.clone();
@@ -220,7 +236,6 @@ impl Network {
         let bootstrap = SocketAddr::new(bootstrap, 6021);
         Self {
             blockchain: vec![], //// WRONG NOT NEED THAT
-            fence_blockaine: Barrier::new(2),
             stack_transa: vec![],
             bootstrap,
             binding,
@@ -247,11 +262,11 @@ impl Network {
         self.peers
             .iter()
             .filter(|&&x| x != self.get_socket())
-            .for_each(|dest| self.send_packet(&packet, dest));///////send socket differant
+            .for_each(|dest| self.send_packet(&packet, dest)); ///////send socket differant
     }
 
     /// awsome
-    pub fn recv_packet(selff:&UdpSocket) -> (Packet, SocketAddr) {
+    pub fn recv_packet(selff: &UdpSocket) -> (Packet, SocketAddr) {
         //faudrait éliminer les vecteur dans les structure pour avoir une taille prédictible
         let mut buf = [0u8; 256]; //pourquoi 256 ???
         let (_, sender) = selff.recv_from(&mut buf).expect("Error recv block");
@@ -287,5 +302,3 @@ impl Network {
     //     Some(chain)
     // }
 }
-
-
