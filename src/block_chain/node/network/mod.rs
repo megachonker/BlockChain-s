@@ -26,7 +26,7 @@ pub struct Network {
 
 #[derive(Serialize, Deserialize, Debug)]
 
-enum TypeBlock {
+pub enum TypeBlock {
     Hash(u64),
     Block(Block),
     Getall(Vec<Block>),
@@ -158,12 +158,14 @@ impl Network {
         }).unwrap();
 
         // routing all message
-        let forthread = shared_net.clone();
+        let forthread = shared_net.clone(); //peut opti en ayan try clone
         thread::Builder::new().name("Net-Router".to_string()).spawn(move || {
             loop {
-                let cum = &forthread.lock().unwrap().binding;
-                let (message, sender) = Self::recv_packet(cum);
-                let mut locked = forthread.lock().unwrap();
+                let cum = forthread.lock().unwrap();
+                let suck = cum.binding.try_clone().unwrap();
+                drop(cum);
+                let (message, sender) = Self::recv_packet(&suck);
+                let mut locked = forthread.lock().unwrap(); /////////BLOCKED
                 println!("RCV from: {:?} {:?}",sender,message);
                 match message {
                     Packet::Transaction(transa) => locked.append_transa(transa, &net_transa_tx),
