@@ -36,11 +36,11 @@ impl fmt::Display for Block{
 ║block_height : {}
 ║last_block : {}
 ║transactions {}       
-║miner_id : {}                          //if it is pub clefs very long maybe put a hash 
+║miner_id : {}                           
 ║nonce : {}
 ║quote : {}
 ╚═══════════════════════════════════════╝ ",self.block_id,self.block_height,self.parent_hash,transa_str,self.miner_hash,self.nonce,self.quote)
-                
+                //if it is pub clefs very long maybe put a hash
     }
 }
 #[derive(Debug, Hash, Serialize, Deserialize, Clone)]
