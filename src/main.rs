@@ -33,6 +33,10 @@ struct Cli {
 use clap::Parser;
 
 fn main() {
+    tracing_subscriber::fmt()
+    .with_max_level(tracing::Level::TRACE)
+    .init();
+
     //get argument
     let arg = Cli::parse();
 
@@ -91,11 +95,13 @@ fn parse_args(cli: Cli) -> NewNode {
 mod tests {
     use std::net::Ipv4Addr;
 
+    use futures::future::join;
+
     use crate::{Cli, parse_args};
 
 
     #[test]
-    fn lunch_server_init(){
+    fn argument_lunch_server_init(){
         //seed mode
         let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(0,0,0,0)));
         let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(0,0,0,0)));
@@ -109,5 +115,27 @@ mod tests {
         parse_args(cli);
     }
 
+
+    #[test]
+    fn test_lunch_server_init(){
+
+
+        //seed mode
+        let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127,0,0,1)));
+        let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(0,0,0,0)));
+        let cli = Cli{ammount:f64::NAN,bind,bootstrap,destination:u64::MIN,secret:String::new()};
+        let a = parse_args(cli);
+
+        //client mode
+        let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127,0,0,2)));
+        let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(127,0,0,1)));
+        let cli = Cli{ammount:f64::NAN,bind,bootstrap,destination:u64::MIN,secret:String::new()};
+        let b = parse_args(cli);
+
+        let future_to_exe= join(a.start(), b.start());
+
+        smol::block_on(future_to_exe);
+
+    }
     
 }

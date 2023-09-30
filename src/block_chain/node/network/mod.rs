@@ -10,6 +10,8 @@ use std::{
 
 use bincode::{deserialize, serialize};
 use serde::{Deserialize, Serialize};
+use tracing::{info, warn};
+use tracing::{debug, instrument};
 
 use crate::block_chain::block::{Block, Transaction};
 
@@ -21,7 +23,7 @@ pub struct Network {
     peers: Vec<SocketAddr>,
     stack_transa: Vec<Transaction>, //is restarted
     /////
-    blockchain: Vec<Block>,   //wroung wrong
+    blockchain: Vec<Block>, //wroung wrong
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -87,13 +89,22 @@ impl Network {
         self.send_packet(&Packet::Keepalive, &sender);
     }
 
-    fn block(&mut self, typeblock: TypeBlock, sender: SocketAddr, sss: &Sender<Block>,barrirer_ack:&Arc<Barrier>) {
+    #[instrument]
+    fn block(
+        &mut self,
+        typeblock: TypeBlock,
+        sender: SocketAddr,
+        sss: &Sender<Block>,
+        barrirer_ack: &Arc<Barrier>,
+    ) {
         match typeblock {
             TypeBlock::Block(block) => {
+                // debug!("Block get:{}", block);                
                 sss.send(block.clone()).unwrap();
                 self.blockchain.push(block); //<=== block not ordered need real blockaine
             }
             TypeBlock::Hash(number) => {
+                // debug!("Hash get Hash:{}", number);
                 self.send_packet(
                     &Packet::Block(TypeBlock::Block(
                         self.blockchain
@@ -108,13 +119,13 @@ impl Network {
             }
             TypeBlock::Getall(lists) => {
                 if lists.is_empty() {
-                    println!("Hash Getall: receive demande de Hash");
+                    // debug!("GET");
                     self.send_packet(
                         &Packet::Block(TypeBlock::Getall(self.blockchain.clone())),
                         &sender,
                     );
                 } else {
-                    println!("Hash Getall: Send all");
+                    // debug!("POST");
                     self.blockchain = lists;
                     //barierre unlock
                     barrirer_ack.wait();
@@ -142,7 +153,8 @@ impl Network {
         net_block_tx: Sender<Block>,
         net_transa_tx: Sender<Vec<Transaction>>,
     ) -> Vec<Block> {
-        let mut block_chaine: Vec<Block> = vec![];
+        info!("network start");
+        let mut block_chaine: Vec<Block> = vec![Block::new()];
 
         let shared_net = Arc::new(Mutex::new(self));
 
@@ -153,6 +165,7 @@ impl Network {
             .spawn(move || {
                 loop {
                     let mined_block = mined_block_rx.recv().unwrap();
+                    //bariere wait receive first block
 
                     let locked = for_thread.lock().unwrap();
                     // send to all
@@ -164,7 +177,6 @@ impl Network {
 
         let fence_blockaine = Arc::new(Barrier::new(2));
 
-            
         // routing all message
         let forthread = shared_net.clone(); //peut opti en ayan try clone
         let block_ack = fence_blockaine.clone();
@@ -176,13 +188,16 @@ impl Network {
                     let suck = cum.binding.try_clone().unwrap();
                     drop(cum);
                     let (message, sender) = Self::recv_packet(&suck);
-                    println!("RCV from: {:?} {:?}", sender, message);
+                    // info!("Router from: {:?} {:?}", sender, message);
+                    // info!("{:?}",message);
                     let mut locked = forthread.lock().unwrap(); /////////BLOCKED
                     match message {
                         Packet::Transaction(transa) => locked.append_transa(transa, &net_transa_tx),
                         Packet::Peer(peers) => locked.peers(peers, sender),
                         Packet::Keepalive => locked.keepalive(sender),
-                        Packet::Block(typeblock) => locked.block(typeblock, sender, &net_block_tx,&block_ack),
+                        Packet::Block(typeblock) => {
+                            locked.block(typeblock, sender, &net_block_tx, &block_ack)
+                        }
                     }
                 }
             })
@@ -191,12 +206,7 @@ impl Network {
         let network = shared_net.clone();
         let network = network.lock().unwrap();
 
-        //if no bootstrap init blockaine
-        if network.bootstrap == SocketAddr::from(([0, 0, 0, 0], 6021)) {
-            // block_chaine.push(Block::new());
-        }
-        //if not retreive the blockaine
-        else {
+        if network.bootstrap != SocketAddr::from(([0, 0, 0, 0], 6021)) {
             //send une demande de peers
             // a voir si on doit faire plusieur cicle ect
             network.send_packet(&Packet::Peer(vec![]), &network.bootstrap);
@@ -206,12 +216,14 @@ impl Network {
                 &Packet::Block(TypeBlock::Getall(vec![])),
                 &network.bootstrap,
             );
+
+
             drop(network);
             //on attend que l'on a recus toute la blockaine
             fence_blockaine.wait();
             let network = shared_net.clone();
             let network = network.lock().unwrap();
-            block_chaine = network.blockchain.clone();//sale
+            block_chaine = network.blockchain.clone(); //sale
         }
 
         block_chaine
@@ -235,7 +247,7 @@ impl Network {
         let binding = UdpSocket::bind(SocketAddr::new(binding, 6021)).unwrap();
         let bootstrap = SocketAddr::new(bootstrap, 6021);
         Self {
-            blockchain: vec![], //// WRONG NOT NEED THAT
+            blockchain: vec![Block::new()], //// WRONG NOT NEED THAT
             stack_transa: vec![],
             bootstrap,
             binding,
@@ -268,7 +280,7 @@ impl Network {
     /// awsome
     pub fn recv_packet(selff: &UdpSocket) -> (Packet, SocketAddr) {
         //faudrait éliminer les vecteur dans les structure pour avoir une taille prédictible
-        let mut buf = [0u8; 256]; //pourquoi 256 ???
+        let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
         let (_, sender) = selff.recv_from(&mut buf).expect("Error recv block");
         let des = deserialize(&mut buf).expect("Can not deserilize block");
         (des, sender)

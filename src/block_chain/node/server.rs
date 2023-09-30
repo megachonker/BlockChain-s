@@ -8,6 +8,8 @@ use std::{
 };
 
 
+use tracing::info;
+
 use crate::block_chain::{
     block::{hash, mine, Block, Transaction},
     node::network::{Network, Packet},
@@ -40,6 +42,7 @@ impl Server {
             get_fake_id(&self.name),
             self.network
         );
+        info!("server mode");
         let id = get_fake_id(&self.name);
 
         // network after starting need to return blockchaine!
@@ -80,6 +83,7 @@ impl Server {
         net_block_rx: Receiver<Block>,
         net_transaction_rx: Receiver<Vec<Transaction>>, //Rwlock
     ) {
+        info!("Mining start");
         let actual_block = Arc::new(Mutex::new(Block::default()));
 
         let transaction = Arc::new(vec![]); // net_transaction_rx.recv().unwrap();
@@ -121,8 +125,10 @@ impl Server {
                 if let Some(nonce) = mine(&new_block, &is_stoped) {
                     new_block.nonce = nonce;
                     new_block.block_id = hash(&new_block);
+                    info!("Block Found!");
                     return Some(new_block);
                 }
+                info!("Not Found!");
                 return None;
             }).unwrap();
             if let Some(mined_block) = handle.join().unwrap() {
