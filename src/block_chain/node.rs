@@ -61,10 +61,10 @@ pub enum NewNode {
 // un trait serait mieux ?
 // permet de start un node sans connaitre son type au préalable
 impl NewNode {
-    pub async fn start(self) {
+    pub fn start(self) {
         match self {
             Self::Cli(cli) => cli.start(),
-            Self::Srv(srv) => srv.start().await,
+            Self::Srv(srv) => srv.start(),
         }
     }
 }
@@ -137,7 +137,7 @@ impl Node {
 // }
 
 
-fn update_peer_share(shared: &mut MutexGuard<Vec<SocketAddr>>, peer: Vec<SocketAddr>) {
-    **shared = peer;
-}
+// fn update_peer_share(shared: &mut MutexGuard<Vec<SocketAddr>>, peer: Vec<SocketAddr>) {
+//     **shared = peer;
+// }
 

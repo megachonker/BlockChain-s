@@ -1,12 +1,12 @@
 mod friendly_name;
 
-mod block_chain{
-    pub mod shared;
+mod block_chain {
+    // pub mod shared;
     pub mod block;
-    pub mod node; 
+    pub mod node;
 }
 
-use block_chain::node::{ client::Client,server::Server,network::Network,NewNode};
+use block_chain::node::{client::Client, network::Network, server::Server, NewNode};
 use std::net::{IpAddr, Ipv4Addr};
 
 #[derive(Parser)]
@@ -34,8 +34,8 @@ use clap::Parser;
 
 fn main() {
     tracing_subscriber::fmt()
-    .with_max_level(tracing::Level::TRACE)
-    .init();
+        .with_max_level(tracing::Level::TRACE)
+        .init();
 
     //get argument
     let arg = Cli::parse();
@@ -44,7 +44,7 @@ fn main() {
     let node = parse_args(arg);
 
     // don't care what we start just starting it
-    smol::block_on(node.start());
+    node.start();
 }
 
 // s'ocupe de faire une logique des argument
@@ -93,49 +93,103 @@ fn parse_args(cli: Cli) -> NewNode {
 //possible de lancer les calcule de block avec une seed par exemple est de simplifier le nombre d'itération
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
-
-    use futures::future::join;
-
-    use crate::{Cli, parse_args};
-
+    // use futures::{future::join, join, pin_mut, select, FutureExt};
+    use std::{net::Ipv4Addr, thread, time::Duration};
+    use crate::{parse_args, Cli};
 
     #[test]
-    fn argument_lunch_server_init(){
+    fn argument_lunch_server_init() {
         //seed mode
-        let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(0,0,0,0)));
-        let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(0,0,0,0)));
-        let cli = Cli{ammount:f64::NAN,bind,bootstrap,destination:u64::MIN,secret:String::new()};
+        let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
+        let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)));
+        let cli = Cli {
+            ammount: f64::NAN,
+            bind,
+            bootstrap,
+            destination: u64::MIN,
+            secret: String::new(),
+        };
         parse_args(cli);
 
         //client mode
-        let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127,0,0,2)));
-        let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(127,0,0,1)));
-        let cli = Cli{ammount:f64::NAN,bind,bootstrap,destination:u64::MIN,secret:String::new()};
+        let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)));
+        let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
+        let cli = Cli {
+            ammount: f64::NAN,
+            bind,
+            bootstrap,
+            destination: u64::MIN,
+            secret: String::new(),
+        };
         parse_args(cli);
     }
 
-
     #[test]
-    fn test_lunch_server_init(){
+    fn test_lunch_server_init() {
+        // let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)));
+        // let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)));
+        // let cli = Cli {
+        //     ammount: f64::NAN,
+        //     bind,
+        //     bootstrap,
+        //     destination: u64::MIN,
+        //     secret: String::new(),
+        // };
+        // let a = parse_args(cli);
 
+        // //client mode
+        // let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 4)));
+        // let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)));
+        // let cli = Cli {
+        //     ammount: f64::NAN,
+        //     bind,
+        //     bootstrap,
+        //     destination: u64::MIN,
+        //     secret: String::new(),
+        // };
+        // let b = parse_args(cli);
 
-        //seed mode
-        let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127,0,0,1)));
-        let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(0,0,0,0)));
-        let cli = Cli{ammount:f64::NAN,bind,bootstrap,destination:u64::MIN,secret:String::new()};
-        let a = parse_args(cli);
+        // tokio::runtime::Builder::new_current_thread()
+        //     .enable_all()
+        //     .build()
+        //     .unwrap()
+        //     .block_on(async {
+        //         // assert!(true);
 
-        //client mode
-        let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127,0,0,2)));
-        let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(127,0,0,1)));
-        let cli = Cli{ammount:f64::NAN,bind,bootstrap,destination:u64::MIN,secret:String::new()};
-        let b = parse_args(cli);
+        //         // futures::Future::
+        //         // futures::executor::block_on(async {
 
-        let future_to_exe= join(a.start(), b.start());
+        //         //seed mode
 
-        smol::block_on(future_to_exe);
+        //         let a = async {
+        //             println!("start server");
+        //             a.start()
+        //         };
+        //         let b = async {
+        //             thread::sleep(Duration::from_secs(3));
+        //             println!("START client");
+        //             b.start()
+        //         };
 
+        //         tokio::select!
+        //     });
+
+        // tokio::task::select();
+
+        //     // let h = thread::spawn(|| thread::sleep(Duration::from_secs(5)));
+        //     // let sleep = async { h.join().unwrap() };
+
+        //     // let my_future = join(a, b).fuse();
+        //     let a = a.fuse();
+        //     let b = b.fuse();
+
+        //     pin_mut!(a, b);
+        //     select! {
+        //         _ = a =>{},
+        //         _ = b =>{},
+        //         // _ = my_future =>{},
+        //         // _ = sleep.fuse() =>{},
+        //     }
+        // });
     }
-    
 }

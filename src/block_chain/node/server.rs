@@ -35,7 +35,7 @@ impl Server {
             id: id,
         }
     }
-    pub async fn start(self) {
+    pub fn start(self) {
         println!(
             "Server started {} facke id {} -> {:?}",
             &self.name,
@@ -62,7 +62,7 @@ impl Server {
 
         println!("blockaine recus{:?}",blockaine);
 
-        Self::mining(self.id, mined_block_tx, net_block_rx, net_transaction_rx).await;
+        Self::mining(self.id, mined_block_tx, net_block_rx, net_transaction_rx);
     }
 
     // fn verif_transa(&self, share: Shared, transa: Transaction) {
@@ -76,7 +76,7 @@ impl Server {
     //sould take at imput
     //
 
-    async fn mining(
+    fn mining(
         //doit contenire le runetime
         finder: u64,
         mined_block_tx: Sender<Block>, //return finder
