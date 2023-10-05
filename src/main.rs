@@ -4,6 +4,7 @@ mod block_chain {
     // pub mod shared;
     pub mod block;
     pub mod node;
+    pub mod blockchain;
 }
 
 use block_chain::node::{client::Client, network::Network, server::Server, NewNode};

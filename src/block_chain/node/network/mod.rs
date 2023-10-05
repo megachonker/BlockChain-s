@@ -150,7 +150,7 @@ impl Network {
     pub fn start(
         self,
         mined_block_rx: Receiver<Block>,
-        net_block_tx: Sender<Block>,
+        net_block_tx: &Sender<Block>,
         net_transa_tx: Sender<Vec<Transaction>>,
     ) -> Vec<Block> {
         info!("network start");
@@ -180,14 +180,17 @@ impl Network {
         // routing all message
         let forthread = shared_net.clone(); //peut opti en ayan try clone
         let block_ack = fence_blockaine.clone();
+
+        let cloned_tx = net_block_tx.clone();
         thread::Builder::new()
             .name("Net-Router".to_string())
             .spawn(move || {
+                
                 loop {
-                    let cum = forthread.lock().unwrap();
-                    let suck = cum.binding.try_clone().unwrap();
-                    drop(cum);
-                    let (message, sender) = Self::recv_packet(&suck);
+                    let cim = forthread.lock().unwrap();
+                    let sick = cim.binding.try_clone().unwrap();
+                    drop(cim);
+                    let (message, sender) = Self::recv_packet(&sick);
                     // info!("Router from: {:?} {:?}", sender, message);
                     // info!("{:?}",message);
                     let mut locked = forthread.lock().unwrap(); /////////BLOCKED
@@ -196,7 +199,7 @@ impl Network {
                         Packet::Peer(peers) => locked.peers(peers, sender),
                         Packet::Keepalive => locked.keepalive(sender),
                         Packet::Block(typeblock) => {
-                            locked.block(typeblock, sender, &net_block_tx, &block_ack)
+                            locked.block(typeblock, sender, &cloned_tx, &block_ack)
                         }
                     }
                 }

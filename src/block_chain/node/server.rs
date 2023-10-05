@@ -3,19 +3,21 @@ use std::{
     net::SocketAddr,
     sync::mpsc::{self, Receiver, Sender},
     sync::{atomic::AtomicBool, Arc, Mutex, MutexGuard},
-    thread,
+    thread::{self, JoinHandle},
     time::Duration,
 };
 
-
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::block_chain::{
-    block::{hash, mine, Block, Transaction},
-    node::network::{Network, Packet},
+    block::{self, hash, mine, Block, Transaction},
+    blockchain::Blockchain,
     // shared::Shared,
+    node::network::{Network, Packet},
 };
 use crate::friendly_name::*;
+
+use super::network;
 
 pub struct Server {
     name: String,
@@ -57,12 +59,14 @@ impl Server {
         //get the whole blochaine
 
         // thread::Builder::new().name("Network".to_string()).spawn(move ||{
-        let blockaine = self.network.start(mined_block_rx, net_block_tx, net_transaction_tx);
+        let blockaine = self
+            .network
+            .start(mined_block_rx, &net_block_tx, net_transaction_tx);
         // }).unwrap();
 
-        println!("blockaine recus{:?}",blockaine);
-
-        Self::mining(self.id, mined_block_tx, net_block_rx, net_transaction_rx);
+        println!("blockaine recus{:?}", blockaine);
+        // net_block_tx.send(Block::default()).unwrap();
+        Self::server_runtime(self.id, net_block_tx,net_block_rx);
     }
 
     // fn verif_transa(&self, share: Shared, transa: Transaction) {
@@ -76,71 +80,32 @@ impl Server {
     //sould take at imput
     //
 
-    fn mining(
+    fn server_runtime(
         //doit contenire le runetime
         finder: u64,
-        mined_block_tx: Sender<Block>, //return finder
-        net_block_rx: Receiver<Block>,
-        net_transaction_rx: Receiver<Vec<Transaction>>, //Rwlock
-    ) {
-        info!("Mining start");
-        let actual_block = Arc::new(Mutex::new(Block::default()));
+        block_tx: Sender<Block>,
+        block_rx: Receiver<Block>, // net_transaction_rx: Receiver<Vec<Transaction>>, //Rwlock
+    )  {
+        info!("Runtime server start");
+        let actual_block = Arc::new(Mutex::new(Block::new()));
 
-        let transaction = Arc::new(vec![]); // net_transaction_rx.recv().unwrap();
-        let is_stoped = Arc::new(AtomicBool::new(false));
+        let actual_block_cpy = actual_block.clone();
 
-        let is_stoped_cpy = is_stoped.clone();
-        let actual_block_thread = actual_block.clone();
-        thread::Builder::new().name("Miner-Controler".to_string()).spawn(move || loop {
-            //update
-            let tmp = net_block_rx.recv().unwrap();
-            let mut actual_block_thread = actual_block_thread.lock().unwrap();
-            if tmp.block_height > actual_block_thread.block_height {
-                //stop
-                *actual_block_thread = tmp;
-                is_stoped_cpy.store(true, std::sync::atomic::Ordering::Relaxed);
-            }
-        }).unwrap();
+        let blockchain = Blockchain::new();
 
-        //gen block
+        thread::Builder::new()
+            .name("Miner".to_string())
+            .spawn(move || {info!("start Miner"); mine(finder,&actual_block_cpy, block_tx); })
+            .unwrap();
+
         loop {
-            let is_stoped = is_stoped.clone();
-            let transactionis_stoped = transaction.clone();
-            let actual_block_thread = actual_block.clone();
-            let handle = thread::Builder::new().name("Miner".to_string()).spawn(move || {
-                let actual_block_thread = actual_block_thread.lock().unwrap();
-
-                let mut new_block = Block {
-                    block_height: actual_block_thread.block_height + 1,
-                    block_id: 0,
-                    parent_hash: actual_block_thread.block_id,
-                    transactions: transactionis_stoped.to_vec(), //put befort because the proof of work are link to transaction
-                    nonce: 0,
-                    miner_hash: finder, //j'aime pas
-                    quote: String::from("quote"),
-                };
-                drop(actual_block_thread);
-
-                ////// on peut multithread comme un gros sale!
-                if let Some(nonce) = mine(&new_block, &is_stoped) {
-                    new_block.nonce = nonce;
-                    new_block.block_id = hash(&new_block);
-                    info!("Block Found!");
-                    return Some(new_block);
-                }
-                info!("Not Found!");
-                return None;
-            }).unwrap();
-            if let Some(mined_block) = handle.join().unwrap() {
-                let mut locked_actual_block = actual_block.lock().unwrap();
-                *locked_actual_block = mined_block;
-                println!("{}",locked_actual_block);
-                mined_block_tx.send(locked_actual_block.clone()).unwrap();
-            }
+            let new_block = block_rx.recv().unwrap();
+            let cur_block = blockchain.append(&new_block);
+            let mut  lock_actual_block = actual_block.lock().unwrap();
+            // if *lock_actual_block != cur_block{
+                *lock_actual_block = new_block;
+            // }
+            drop(lock_actual_block);
         }
     }
 }
-// fn update_peer_share(shared: &mut MutexGuard<Vec<SocketAddr>>, peer: Vec<SocketAddr>) {
-//     //marche pas sans function ??
-//     **shared = peer;
-// }
