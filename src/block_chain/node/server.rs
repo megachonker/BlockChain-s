@@ -88,7 +88,7 @@ impl Server {
     )  {
         info!("Runtime server start");
         
-        let (blockchain,first_block) = Blockchain::new();
+        let (mut blockchain,first_block) = Blockchain::new();
         
         let actual_block = Arc::new(Mutex::new(first_block));
         let actual_block_cpy = actual_block.clone();

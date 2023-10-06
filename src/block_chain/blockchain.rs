@@ -59,4 +59,13 @@ mod tests {
 
         assert_eq!(last_block, last);
     }
+
+    #[test]
+    fn append_blockchain() {
+        let (mut block_chain, _) = Blockchain::new();
+
+        block_chain.append(&Block { block_id: 7, block_height: 7, parent_hash: 7, transactions: vec![], miner_hash: 7, nonce: 7, quote: String::from("") });
+
+        
+    }
 }
