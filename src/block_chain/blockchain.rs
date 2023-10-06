@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, process::exit};
 
 use tracing::warn;
 
@@ -13,7 +13,7 @@ impl Blockchain {
     pub fn new() -> (Blockchain, Block) {
         let mut hash_map = HashMap::new();
         let first_block = Block::new();
-        let hash_first_block = block::hash(&first_block);
+        let hash_first_block = first_block.block_id;
         hash_map.insert(hash_first_block, first_block.clone());
         (
             Blockchain {
@@ -24,15 +24,24 @@ impl Blockchain {
         )
     }
 
-    pub fn append(& mut self, block: &Block) -> Block {
+    pub fn append(&mut self, block: &Block) -> Block {
         if !block.check() {
             warn!("block is not valid ");
-            return self.last_block();
+        } else {
+            self.hash_map_block
+                .insert(block.block_id, block.clone());
+
+            let cur_block = self.hash_map_block.get(&self.last_block_hash).unwrap();
+
+            if block.parent_hash == cur_block.block_id {
+                //basic case
+                self.last_block_hash = block.block_id;
+            } else {
+                println!("{} \n--> {}",block, self.last_block_hash);
+            }
         }
 
-        self.hash_map_block.insert(block::hash(&block), block.clone());
-
-        block.clone()
+        self.last_block()
     }
 
     pub fn last_block(&self) -> Block {
@@ -62,10 +71,18 @@ mod tests {
 
     #[test]
     fn append_blockchain() {
-        let (mut block_chain, _) = Blockchain::new();
+        let (mut block_chain, last) = Blockchain::new();
 
-        block_chain.append(&Block { block_id: 7, block_height: 7, parent_hash: 7, transactions: vec![], miner_hash: 7, nonce: 7, quote: String::from("") });
-
-        
+        let cur_block = block_chain.append(&Block {
+            //not a valid block
+            block_id: 7,
+            block_height: 7,
+            parent_hash: 7,
+            transactions: vec![],
+            miner_hash: 7,
+            nonce: 7,
+            quote: String::from(""),
+        });
+        assert_eq!(cur_block, last);
     }
 }

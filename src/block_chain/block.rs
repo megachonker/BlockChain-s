@@ -9,7 +9,6 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use tracing::{info, warn};
 
-
 const HASH_MAX: u64 = 1000000000000;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -20,8 +19,8 @@ pub struct Block {
     pub parent_hash: u64,               //the id of last block (block are chain with that)
     pub transactions: Vec<Transaction>, //the vector of all transaction validated with this block
     pub miner_hash: u64,                //Who find the answer
-    pub nonce: u64,                     //the answer of the defi
     pub quote: String,
+    pub nonce: u64, //the answer of the defi
 }
 
 impl fmt::Display for Block {
@@ -42,7 +41,7 @@ impl fmt::Display for Block {
             f,
             "\n
 ╔═══════════════════════════════════════╗
-║Id block: {}s
+║Id block: {}
 ║block_height : {}
 ║last_block : {}
 ║transactions {}       
@@ -87,8 +86,6 @@ impl Block {
             miner_hash: 0,
             quote: String::from(""),
         };
-        block.nonce = 0;
-        block.block_id = hash(&block); //the
         block
     }
 
@@ -103,15 +100,17 @@ impl Block {
         let mut hasher = DefaultHasher::new(); //why don't use hash fun ? hash(self) ?? like in last commit  -> je pense faut refaire un peu les hash (nottament il faut que le hash prennent en compte plus de chose comme l'id du hasheur pour la securité)
 
         //playload of block to hash
-        // self.block_height.hash(&mut hasher);
+        self.block_height.hash(&mut hasher);
         self.parent_hash.hash(&mut hasher);
-        // self.transactions.hash(&mut hasher);     //tres variable donc osef
-        // self.miner_hash.hash(&mut hasher);
-        // self.quote.hash(&mut hasher);
+        self.transactions.hash(&mut hasher); //tres variable donc osef
+        self.miner_hash.hash(&mut hasher);
+        self.quote.hash(&mut hasher);
         self.nonce.hash(&mut hasher);
 
         let answer = hasher.finish();
-        answer < HASH_MAX && hash(self) == self.block_id && self.quote.len() < 100
+        println!("{}", answer);
+
+        answer < HASH_MAX && answer == self.block_id && self.quote.len() < 100
     }
 
     /* pub fn generate_block(
@@ -164,67 +163,79 @@ impl PartialEq for Block {
 
 //comment ça ?
 pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
-    let block = cur_block.lock().unwrap().clone();
+    
+    
+    info!("Commencemet");
 
-    let mut new_block = Block {
-        block_height: block.block_height + 1,
-        block_id: 0,
-        parent_hash: block.block_id,
-        transactions: vec![], //put befort because the proof of work are link to transaction
-        nonce: 0,
-        miner_hash: finder, //j'aime pas
-        quote: String::from("bi"),
-    };
-
-    let mut rng = rand::thread_rng(); //to pick random value
-    let mut hasher = DefaultHasher::new();
-
-    //playload of block to hash
-    // block.block_height.hash(&mut hasher);
-    block.parent_hash.hash(&mut hasher);
-    block.transactions.hash(&mut hasher); //on doit fixer la transaction a avoir
-                                          // block.miner_hash.hash(&mut hasher);
-                                          // block.quote.hash(& mut hasher);
-
-    let mut nonce_to_test = rng.gen::<u64>();
-
-    warn!("Commencemet");
+    
     loop {
-        let mut to_hash = hasher.clone(); //save l'état du hasher
-        nonce_to_test.hash(&mut to_hash);
+        let block = cur_block.lock().unwrap().clone();
 
-        let answer = to_hash.finish();
+        let mut new_block: Block = Block {
+            block_height: block.block_height + 1,
+            block_id: 0,
+            parent_hash: block.block_id,
+            transactions: vec![], //put befort because the proof of work are link to transaction
+            nonce: 0,
+            miner_hash: finder, //j'aime pas
+            quote: String::from("bi"),
+        };
 
-        if answer < HASH_MAX {
-            new_block.nonce = answer;
-            new_block.block_id = hash(&block);
-            info!("found this block : {}",new_block);
-            sender.send(new_block.clone()).unwrap();
-        }
-        nonce_to_test = nonce_to_test.wrapping_add(1);
-        if nonce_to_test % 10000000 == 0 {
-            warn!("Refersh");
+        let mut rng = rand::thread_rng(); //to pick random value
+        let mut hasher = DefaultHasher::new();
 
-            let n_block = cur_block.lock().unwrap().clone();
-            /* if n_block == block {
-                continue;
-            } */
+        //playload of block to hash
+        // block.block_height.hash(&mut hasher);
+        new_block.block_height.hash(&mut hasher);
+        new_block.parent_hash.hash(&mut hasher);
+        new_block.transactions.hash(&mut hasher); //on doit fixer la transaction a avoir
+        new_block.miner_hash.hash(&mut hasher);
+        new_block.quote.hash(&mut hasher);
 
-            //rehash
-            new_block = Block {
-                block_height: n_block.block_height + 1,
-                block_id: 0,
-                parent_hash: n_block.block_id,
-                transactions: vec![], //put befort because the proof of work are link to transaction
-                nonce: 0,
-                miner_hash: finder, //j'aime pas
-                quote: String::from("bn"),
-            };
+        let mut nonce_to_test = rng.gen::<u64>();
 
-            let mut hasher = DefaultHasher::new();
-            info!("NEW BLOCK {}",new_block);
-            n_block.parent_hash.hash(&mut hasher);
-            n_block.transactions.hash(&mut hasher);
+        loop {
+            let mut to_hash = hasher.clone(); //save l'état du hasher
+            nonce_to_test.hash(&mut to_hash);
+
+            let answer = to_hash.finish();
+
+            if answer < HASH_MAX {
+                new_block.nonce = nonce_to_test;
+                new_block.block_id = answer; //a modif pour hash plus grand
+                info!("found this block : {}", new_block);
+                sender.send(new_block.clone()).unwrap();
+            }
+            nonce_to_test = nonce_to_test.wrapping_add(1);
+            if nonce_to_test % 10000000 == 0 {
+                warn!("Refersh");
+
+
+                break;
+
+                /* let n_block = cur_block.lock().unwrap().clone();
+                /* if n_block == block {
+                    continue;
+                } */
+
+                //rehash
+                new_block = Block {
+                    block_height: n_block.block_height + 1,
+                    block_id: 0,
+                    parent_hash: n_block.block_id,
+                    transactions: vec![], //put befort because the proof of work are link to transaction
+                    nonce: 0,
+                    miner_hash: finder, //j'aime pas
+                    quote: String::from("bn"),
+                };
+
+                let mut hasher = DefaultHasher::new();
+                new_block.block_height.hash(&mut hasher);
+                new_block.parent_hash.hash(&mut hasher);
+                new_block.transactions.hash(&mut hasher); //on doit fixer la transaction a avoir
+                new_block.miner_hash.hash(&mut hasher);
+                new_block.quote.hash(&mut hasher); */
+            }
         }
     }
 }
@@ -244,11 +255,39 @@ impl Transaction {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        sync::mpsc::{self, Receiver},
+        thread,
+    };
+
     use super::*;
 
     #[test]
     fn test_display() {
         let block = Block::new();
         println!("There is the block : {}", block);
+    }
+
+    #[test]
+    fn test_block_mined_valid() {
+        let (tx, rx) = mpsc::channel::<Block>();
+
+        let cur_block = Arc::new(Mutex::new(Block::new()));
+
+        thread::spawn(move || {
+            mine(1, &cur_block, tx);
+        });
+
+        let b = rx.recv().unwrap();
+
+        assert!(b.check());
+
+        let b = rx.recv().unwrap();
+
+        assert!(b.check());
+
+        let b = rx.recv().unwrap();
+
+        assert!(b.check());
     }
 }
