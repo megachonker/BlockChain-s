@@ -5,6 +5,7 @@ mod block_chain {
     pub mod block;
     pub mod node;
     pub mod blockchain;
+    pub mod transaction;
 }
 
 use block_chain::node::{client::Client, network::Network, server::Server, NewNode};
@@ -94,8 +95,7 @@ fn parse_args(cli: Cli) -> NewNode {
 //possible de lancer les calcule de block avec une seed par exemple est de simplifier le nombre d'itération
 #[cfg(test)]
 mod tests {
-    // use futures::{future::join, join, pin_mut, select, FutureExt};
-    use std::{net::Ipv4Addr, thread, time::Duration};
+    use std::net::Ipv4Addr;
     use crate::{parse_args, Cli};
 
     #[test]
@@ -123,74 +123,5 @@ mod tests {
             secret: String::new(),
         };
         parse_args(cli);
-    }
-
-    #[test]
-    fn test_lunch_server_init() {
-        // let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)));
-        // let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)));
-        // let cli = Cli {
-        //     ammount: f64::NAN,
-        //     bind,
-        //     bootstrap,
-        //     destination: u64::MIN,
-        //     secret: String::new(),
-        // };
-        // let a = parse_args(cli);
-
-        // //client mode
-        // let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 4)));
-        // let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)));
-        // let cli = Cli {
-        //     ammount: f64::NAN,
-        //     bind,
-        //     bootstrap,
-        //     destination: u64::MIN,
-        //     secret: String::new(),
-        // };
-        // let b = parse_args(cli);
-
-        // tokio::runtime::Builder::new_current_thread()
-        //     .enable_all()
-        //     .build()
-        //     .unwrap()
-        //     .block_on(async {
-        //         // assert!(true);
-
-        //         // futures::Future::
-        //         // futures::executor::block_on(async {
-
-        //         //seed mode
-
-        //         let a = async {
-        //             println!("start server");
-        //             a.start()
-        //         };
-        //         let b = async {
-        //             thread::sleep(Duration::from_secs(3));
-        //             println!("START client");
-        //             b.start()
-        //         };
-
-        //         tokio::select!
-        //     });
-
-        // tokio::task::select();
-
-        //     // let h = thread::spawn(|| thread::sleep(Duration::from_secs(5)));
-        //     // let sleep = async { h.join().unwrap() };
-
-        //     // let my_future = join(a, b).fuse();
-        //     let a = a.fuse();
-        //     let b = b.fuse();
-
-        //     pin_mut!(a, b);
-        //     select! {
-        //         _ = a =>{},
-        //         _ = b =>{},
-        //         // _ = my_future =>{},
-        //         // _ = sleep.fuse() =>{},
-        //     }
-        // });
     }
 }

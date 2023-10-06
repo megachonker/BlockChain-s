@@ -1,5 +1,4 @@
 use std::{
-    fmt::Display,
     net::{IpAddr, SocketAddr, UdpSocket},
     sync::{
         mpsc::{Receiver, Sender},
@@ -11,9 +10,10 @@ use std::{
 use bincode::{deserialize, serialize};
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
-use tracing::{debug, instrument};
+use tracing::instrument;
 
-use crate::block_chain::block::{Block, Transaction};
+
+use crate::block_chain::{block::Block, transaction::Transaction};
 
 #[derive(Debug)]
 pub struct Network {
@@ -21,7 +21,8 @@ pub struct Network {
     binding: UdpSocket,
     ///////
     peers: Vec<SocketAddr>,
-    stack_transa: Vec<Transaction>, //is restarted
+    stack_transa: Vec<Transaction>, //is restarted /// usless ?
+
     /////
     blockchain: Vec<Block>, //wroung wrong
 }
