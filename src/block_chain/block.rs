@@ -92,21 +92,6 @@ impl Block {
         block
     }
 
-    //PARDON ? ces pas clean ??
-    pub fn new_wrong(value: u64) -> Block {
-        let mut block = Block {
-            block_height: 0,
-            block_id: 0,
-            parent_hash: 0,
-            transactions: vec![],
-            nonce: value, //for the block zero the nonce indique the status of the block (use to response to GetBlock(i))
-            miner_hash: 0,
-            quote: String::from(""),
-        };
-        block.block_id = hash(&block); //the
-        block
-    }
-
     pub fn get_height_nonce(&self) -> (u64, u64) {
         (self.block_height, self.nonce)
     }

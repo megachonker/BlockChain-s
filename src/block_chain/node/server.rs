@@ -87,11 +87,11 @@ impl Server {
         block_rx: Receiver<Block>, // net_transaction_rx: Receiver<Vec<Transaction>>, //Rwlock
     )  {
         info!("Runtime server start");
-        let actual_block = Arc::new(Mutex::new(Block::new()));
-
+        
+        let (blockchain,first_block) = Blockchain::new();
+        
+        let actual_block = Arc::new(Mutex::new(first_block));
         let actual_block_cpy = actual_block.clone();
-
-        let blockchain = Blockchain::new();
 
         thread::Builder::new()
             .name("Miner".to_string())
