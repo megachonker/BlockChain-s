@@ -9,7 +9,7 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use tracing::{info, warn};
 
-const HASH_MAX: u64 = 1000000000000;
+const HASH_MAX: u64 = 100000000000;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Block {
@@ -163,7 +163,7 @@ impl PartialEq for Block {
 
 //comment ça ?
 pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
-    
+
     
     info!("Commencemet");
 
@@ -184,8 +184,6 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
         let mut rng = rand::thread_rng(); //to pick random value
         let mut hasher = DefaultHasher::new();
 
-        //playload of block to hash
-        // block.block_height.hash(&mut hasher);
         new_block.block_height.hash(&mut hasher);
         new_block.parent_hash.hash(&mut hasher);
         new_block.transactions.hash(&mut hasher); //on doit fixer la transaction a avoir
@@ -207,34 +205,12 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
                 sender.send(new_block.clone()).unwrap();
             }
             nonce_to_test = nonce_to_test.wrapping_add(1);
-            if nonce_to_test % 10000000 == 0 {
+            if nonce_to_test % 50000000 == 0 {
                 warn!("Refersh");
 
 
                 break;
 
-                /* let n_block = cur_block.lock().unwrap().clone();
-                /* if n_block == block {
-                    continue;
-                } */
-
-                //rehash
-                new_block = Block {
-                    block_height: n_block.block_height + 1,
-                    block_id: 0,
-                    parent_hash: n_block.block_id,
-                    transactions: vec![], //put befort because the proof of work are link to transaction
-                    nonce: 0,
-                    miner_hash: finder, //j'aime pas
-                    quote: String::from("bn"),
-                };
-
-                let mut hasher = DefaultHasher::new();
-                new_block.block_height.hash(&mut hasher);
-                new_block.parent_hash.hash(&mut hasher);
-                new_block.transactions.hash(&mut hasher); //on doit fixer la transaction a avoir
-                new_block.miner_hash.hash(&mut hasher);
-                new_block.quote.hash(&mut hasher); */
             }
         }
     }
@@ -259,6 +235,8 @@ mod tests {
         sync::mpsc::{self, Receiver},
         thread,
     };
+
+    use crate::block_chain::blockchain::Blockchain;
 
     use super::*;
 
@@ -290,4 +268,23 @@ mod tests {
 
         assert!(b.check());
     }
+
+    #[test]
+    fn append_blockchain_second_block(){
+        let (mut blockchain, _) = Blockchain::new();
+
+        let block = Block {         //hard code
+            block_height: 1,
+            block_id: 38250827465,
+            parent_hash: 0,
+            transactions: vec![],
+            nonce:3675872114024089965 ,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+        assert_eq!(block, blockchain.append(&block));
+    }
+
+
 }

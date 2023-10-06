@@ -37,7 +37,6 @@ impl Blockchain {
                 //basic case
                 self.last_block_hash = block.block_id;
             } else {
-                println!("{} \n--> {}",block, self.last_block_hash);
             }
         }
 
