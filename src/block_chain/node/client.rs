@@ -33,6 +33,13 @@ impl Client {
         let ip = self.networking.get_socket();
         let id = get_fake_id(&self.name);
 
+        //ofline mode use a file to load utxo
+
+        //online use network
+
+
+        // let transaction  = Transaction::new_online();
+
         let me: Node = Node::create(id,ip); // <=== éclater au sol
         me.send_transactions(self.networking.bootstrap,self.transaction.destination,self.transaction.ammount as u32);
         println!("Client started name is {} fack id{}", self.name,get_fake_id(&self.name))
