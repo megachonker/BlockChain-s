@@ -2,12 +2,12 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
-use std::fmt::Display;
 use std::hash::{Hash, Hasher};
-use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use tracing::{info, warn};
+
+use super::transaction::Transaction;
 
 
 const HASH_MAX: u64 = 1000000000000;
@@ -61,13 +61,7 @@ impl fmt::Display for Block {
         //if it is pub clefs very long maybe put a hash
     }
 }
-#[derive(Debug, Hash, Serialize, Deserialize, Clone)]
-pub struct Transaction {
-    ////////////////////on peut implémenter des **TRAI** de transaction ici
-    src: u64,  //who send coin
-    dst: u64,  //who recive
-    qqty: u32, //the acount
-}
+
 
 pub fn hash<T: Hash>(value: T) -> u64 {
     //return the hash of the item (need to have Hash trait)
@@ -244,18 +238,6 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
     }
 }
 
-//pourait être dans un autre fichier car les transaction travaille sur la BLOCKCHAINE qui elle meme a des transa  --> les transa on peut les faire autre part
-//en gros une transaction peut être un TRAI a blockchaine est a block  -> je comprend pas bien la phrase, et je vois pas comment une transa peut être un trait ?
-// ce trait poura avoir un for et spécifier ce qu'on veux faire transiter
-impl Transaction {
-    pub fn new(src: u64, dst: u64, qqt: u32) -> Transaction {
-        Transaction {
-            src,
-            dst,
-            qqty: qqt,
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

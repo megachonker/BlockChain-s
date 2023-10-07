@@ -5,6 +5,7 @@ mod block_chain {
     pub mod block;
     pub mod node;
     pub mod blockchain;
+    pub mod transaction;
 }
 
 use block_chain::node::{client::Client, network::Network, server::Server, NewNode};
@@ -95,7 +96,7 @@ fn parse_args(cli: Cli) -> NewNode {
 #[cfg(test)]
 mod tests {
     // use futures::{future::join, join, pin_mut, select, FutureExt};
-    use std::{net::Ipv4Addr, thread, time::Duration};
+    use std::{net::Ipv4Addr};
     use crate::{parse_args, Cli};
 
     #[test]

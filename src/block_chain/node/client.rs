@@ -1,7 +1,11 @@
 // use crate::block_chain::node::{network::Network,NewTransaction};
-use crate::{friendly_name::*, block_chain::node::Node};
 
-use super::{network::Network, NewTransaction};
+use crate::{
+    block_chain::transaction::Transaction,
+    friendly_name::{get_fake_id, get_friendly_name},
+};
+
+use super::network::Network;
 
 pub struct Client {
     name: String,
@@ -12,37 +16,21 @@ pub struct Client {
         balance //calcule argent compte
         transaction(destination)
     }*/
-    transaction: NewTransaction,
 }
 
 impl Client {
     pub fn new(networking: Network, destination: u64, secret: String, ammount: f64) -> Self {
-        let name = get_friendly_name(networking.get_socket()).expect("generation name from ip imposble");
-        let transaction = NewTransaction {
-            destination,
-            secret,
-            ammount,
-        }; //can make check here
-        Self {
-            name,
-            networking,
-            transaction,
-        }
+        let name =
+            get_friendly_name(networking.get_socket()).expect("generation name from ip imposble");
+
+        Self { name, networking }
     }
     pub fn start(self) {
         let ip = self.networking.get_socket();
         let id = get_fake_id(&self.name);
 
-        //ofline mode use a file to load utxo
-
-        //online use network
 
 
-        // let transaction  = Transaction::new_online();
-
-        let me: Node = Node::create(id,ip); // <=== éclater au sol
-        me.send_transactions(self.networking.bootstrap,self.transaction.destination,self.transaction.ammount as u32);
-        println!("Client started name is {} fack id{}", self.name,get_fake_id(&self.name))
+        // let transaction = Transaction::new_offline(&vec![], 10, 555);
     }
-    
 }

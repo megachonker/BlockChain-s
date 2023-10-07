@@ -1,4 +1,4 @@
-use super::{block::Block, transaction::Transaction};
+use super::{block::Block, transaction::RxUtxo};
 
 pub struct Blockchain {
     pub blocks: Vec<Block>,
@@ -13,15 +13,15 @@ impl Blockchain {
         block.clone()
     }
 
-    // need to reimplement
-    pub fn iter_transa(&self, pubkey: u64) -> Vec<&Transaction> {
-        let iter_transa = self
-            .blocks
-            .iter()
-            .flat_map(|block| block.transactions.iter());
-
-        // qsdfqdsf
-        let a = iter_transa.filter(|transa| transa.target_pubkey == pubkey);
-        a.collect()
+    pub fn filter_utxo(&self, addr: u64) -> Vec<RxUtxo> {
+        self.blocks.iter().map(|block| {
+            let block_utxo_vec:Vec<RxUtxo> = block
+                .transactions
+                .iter()
+                .filter(|transa| transa.target_pubkey == addr)
+                .flat_map(|transa| transa.get_utxos(block.block_id))
+                .collect();
+            block_utxo_vec
+        }).flatten().collect()
     }
 }

@@ -1,23 +1,18 @@
 use std::{
-    collections::HashMap,
-    net::SocketAddr,
     sync::mpsc::{self, Receiver, Sender},
-    sync::{atomic::AtomicBool, Arc, Mutex, MutexGuard},
-    thread::{self, JoinHandle},
-    time::Duration,
+    sync::{ Arc, Mutex}, thread,
 };
 
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::block_chain::{
-    block::{self, hash, mine, Block, Transaction},
+    block::{mine, Block},
     blockchain::Blockchain,
     // shared::Shared,
-    node::network::{Network, Packet},
+    node::network::Network,
 };
 use crate::friendly_name::*;
 
-use super::network;
 
 pub struct Server {
     name: String,
@@ -69,16 +64,6 @@ impl Server {
         Self::server_runtime(self.id, net_block_tx,net_block_rx);
     }
 
-    // fn verif_transa(&self, share: Shared, transa: Transaction) {
-    //     //verification /////A FAIRE\\\\\\\\\\\\
-    //     let mut val = share.transaction.lock().unwrap();
-    //     (*val).push(transa);
-    // }
-
-    //need to be fixed ??
-
-    //sould take at imput
-    //
 
     fn server_runtime(
         //doit contenire le runetime
