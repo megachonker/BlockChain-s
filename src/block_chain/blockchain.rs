@@ -4,10 +4,57 @@ use tracing::warn;
 
 use super::block::{self, Block};
 
+struct PotentialsTopBlock {
+    hmap: HashMap<u64, (u64,u64)>,  //k : potentail top block,  v: (needed,height_of_k)
+}
+
+impl PotentialsTopBlock {
+    fn new() -> PotentialsTopBlock {
+        PotentialsTopBlock {
+            hmap: HashMap::new(),
+        }
+    }
+
+    fn get_needed_block(self) -> Vec<u64> {
+        self.hmap.values().map(|v| v.0).collect()
+    }
+
+    fn add_new(&mut self, pot_top: & Block, needed_block: u64) {
+        self.hmap.insert(pot_top.block_id , (needed_block,pot_top.block_height));
+    }
+
+    fn replace_or_create(& mut self, last_needed_block: & Block, new_needed_block: u64) {
+        for (pot, v) in self.hmap.clone() {
+            if v.0 == last_needed_block.block_id {
+                self.hmap.insert(pot, (new_needed_block,v.1)); //replace
+            }
+        }
+        self.hmap.insert(last_needed_block.block_id, (new_needed_block,last_needed_block.block_id)); //create
+    }
+
+    fn found_potential_from_need(&self, need: u64) -> Option<u64> {
+        for (k, v) in & self.hmap {
+            if v.0 == need {
+                return Some(*k);
+            }
+        }
+        return None;
+    }
+
+    fn erease_old(&mut self, height_top_block: u64){
+        for (k,v) in self.hmap.clone(){
+            if v.1 <= height_top_block{
+                self.hmap.remove(&k);
+            }
+        }
+    }
+
+}
+
 pub struct Blockchain {
     hash_map_block: HashMap<u64, Block>,
-    last_block_hash: u64,
-    potential_last_block: Option<(u64, u64)>, // (block, block need to finish the chain)
+    top_block_hash: u64,
+    potentials_top_block: PotentialsTopBlock, // block need to finish the chain)
 }
 
 impl Blockchain {
@@ -19,68 +66,87 @@ impl Blockchain {
         (
             Blockchain {
                 hash_map_block: hash_map,
-                last_block_hash: hash_first_block,
-                potential_last_block: None,
+                top_block_hash: hash_first_block,
+                potentials_top_block: PotentialsTopBlock::new(),
             },
             first_block,
         )
     }
 
-    pub fn append(&mut self, block: &Block) -> (Block, Option<u64>) {
+    fn get_needed_block(self) -> Vec<u64> {
+        self.potentials_top_block.get_needed_block()
+    }
+
+    pub fn append(&mut self, block: &Block) -> (Option<Block>, Option<u64>) {
         if self.hash_map_block.contains_key(&block.block_id) {
-            return (
-                self.last_block(),
-                if let Some(plb) = self.potential_last_block {
-                    Some(plb.1)
-                } else {
-                    None
-                },
-            );
+            return (None, None); //already prensent
         }
 
         if !block.check() {
             warn!("block is not valid ");
-            return (
-                self.last_block(),
-                if let Some(plb) = self.potential_last_block {
-                    Some(plb.1)
-                } else {
-                    None
-                },
-            );
+            return (None, None);
         }
 
         self.hash_map_block.insert(block.block_id, block.clone());
 
-        let cur_block = self.hash_map_block.get(&self.last_block_hash).unwrap();
+        let cur_block = self.hash_map_block.get(&self.top_block_hash).unwrap();
         if block.block_height > cur_block.block_height {
             if block.parent_hash == cur_block.block_id
                 && block.block_height == cur_block.block_height + 1
             {
                 //basic case
-                self.last_block_hash = block.block_id;
-            } else { //block to high
-                if self.potential_last_block == None || block.block_height > self.hash_map_block.get(&self.potential_last_block.unwrap().0).unwrap().block_height {
-
-                } 
+                self.top_block_hash = block.block_id;
+            } else {
+                //block to high
+                match self.search_chain(block) {
+                    Ok(_) => {        //the block can be chained into the initial block
+                        match self
+                            .potentials_top_block
+                            .found_potential_from_need(block.block_id)
+                        {
+                            Some(new_top_block) => {
+                                self.top_block_hash = new_top_block;
+                            }
+                            None => {
+                                self.top_block_hash = block.block_id;
+                            }
+                        }
+                    }
+                    Err(needed) => { //the block can not be chained into the initial block : needed is missing 
+                        self.potentials_top_block
+                            .replace_or_create(&block, needed);
+                        return (None, Some(needed));
+                    }
+                }
             }
+
+            self.potentials_top_block.erease_old(self.top_block_hash);
+
+            return (Some(self.last_block()), None);
         }
 
-        (
-            self.last_block(),
-            if let Some(plb) = self.potential_last_block {
-                Some(plb.1)
-            } else {
-                None
-            },
-        )
+        (None, None)
     }
 
     pub fn last_block(&self) -> Block {
         self.hash_map_block
-            .get(&self.last_block_hash)
+            .get(&self.top_block_hash)
             .unwrap()
             .clone()
+    }
+
+    fn search_chain<'a>(& 'a self, mut block: &'a Block) -> Result<Vec<u64>, u64> {
+        //the second u64 is a block which we don't have (need for the chain)
+        let mut vec = vec![block.block_id];
+        while block.block_id != 0 {
+            vec.push(block.parent_hash);
+            match self.hash_map_block.get(&block.parent_hash) {
+                Some(parent) => block = parent,
+                None => return Err(block.parent_hash),
+            }
+        }
+
+        return Ok(vec);
     }
 }
 
@@ -135,4 +201,11 @@ mod tests {
 
         assert_eq!(block, blockchain.append(&block).0);
     }
+
+    /* #[test]
+    fn search_chain() {
+        let (mut blockchain, _) = Blockchain::new();
+
+        blockchain.append(Blo)
+    } */
 }
