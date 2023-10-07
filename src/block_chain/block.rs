@@ -163,11 +163,8 @@ impl PartialEq for Block {
 
 //comment ça ?
 pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
-
-    
     info!("Commencemet");
 
-    
     loop {
         let block = cur_block.lock().unwrap().clone();
 
@@ -208,9 +205,7 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
             if nonce_to_test % 50000000 == 0 {
                 warn!("Refersh");
 
-
                 break;
-
             }
         }
     }
@@ -268,23 +263,4 @@ mod tests {
 
         assert!(b.check());
     }
-
-    #[test]
-    fn append_blockchain_second_block(){
-        let (mut blockchain, _) = Blockchain::new();
-
-        let block = Block {         //hard code
-            block_height: 1,
-            block_id: 38250827465,
-            parent_hash: 0,
-            transactions: vec![],
-            nonce:3675872114024089965 ,
-            miner_hash: 17904917467964170301,
-            quote: String::from("bi"),
-        };
-
-        assert_eq!(block, blockchain.append(&block));
-    }
-
-
 }

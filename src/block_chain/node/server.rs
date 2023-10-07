@@ -100,7 +100,7 @@ impl Server {
 
         loop {
             let new_block = block_rx.recv().unwrap();
-            let cur_block = blockchain.append(&new_block);
+            let (cur_block,block_need) = blockchain.append(&new_block);
             let mut  lock_actual_block = actual_block.lock().unwrap();
 
             // if *lock_actual_block != cur_block{
