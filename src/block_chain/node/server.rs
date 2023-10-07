@@ -9,7 +9,7 @@ use crate::block_chain::{
     block::{mine, Block},
     blockchain::Blockchain,
     // shared::Shared,
-    node::network::Network,
+    node::network::Network, transaction::Transaction,
 };
 use crate::friendly_name::*;
 
@@ -60,6 +60,8 @@ impl Server {
         // }).unwrap();
 
         println!("blockaine recus{:?}", blockaine);
+
+
         // net_block_tx.send(Block::default()).unwrap();
         Self::server_runtime(self.id, net_block_tx,net_block_rx);
     }

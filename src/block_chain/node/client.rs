@@ -1,7 +1,7 @@
 // use crate::block_chain::node::{network::Network,NewTransaction};
 
 use crate::{
-    block_chain::transaction::Transaction,
+    block_chain::{transaction::Transaction, blockchain::Blockchain},
     friendly_name::{get_fake_id, get_friendly_name},
 };
 
@@ -29,8 +29,9 @@ impl Client {
         let ip = self.networking.get_socket();
         let id = get_fake_id(&self.name);
 
+        let blockaine = Blockchain::default();
+        let transaction = Transaction::new_online(&blockaine, 10, 10, 10);
 
-
-        // let transaction = Transaction::new_offline(&vec![], 10, 555);
+        let transaction = Transaction::new_offline(&vec![], 10, 555);
     }
 }

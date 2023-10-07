@@ -7,7 +7,7 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use tracing::{info, warn};
 
-use super::transaction::Transaction;
+use super::transaction::{Transaction, RxUtxo};
 
 
 const HASH_MAX: u64 = 1000000000000;
@@ -150,6 +150,14 @@ impl Block {
         new_block.block_id = hash(&new_block); //set the correct id
         Some(new_block)
     } */
+
+    /// return a list of all utxo for a address
+    pub fn get_utxos(&self,addr:u64) -> Vec<RxUtxo>{
+        self.transactions.iter()
+        .filter(|transa| transa.target_pubkey == addr)
+        .flat_map(|transa| transa.get_utxos(self.block_id))
+        .collect()
+    }
 }
 
 impl Hash for Block {
