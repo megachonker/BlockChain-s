@@ -1,15 +1,10 @@
 use crate::block_chain::block::Block;
-use crate::friendly_name::{get_fake_id, get_friendly_name};
 
-use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::{Arc, Barrier, Mutex, MutexGuard};
-use std::thread;
-use std::time::Duration;
 
 // use crate::
 use bincode::{deserialize, serialize};
-use std::sync::mpsc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use client::Client;

@@ -1,0 +1,98 @@
+const HASH_MAX: u64 = 100000000000;
+
+
+                   
+                   
+                   
+let b1 = Block {
+            block_height: 1,
+            block_id: 84739656938,
+            parent_hash: 0,
+            transactions: vec![],
+            nonce: 8308871350387475192,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+                   
+let b2 = Block {
+            block_height: 2,
+            block_id: 32147335136,
+            parent_hash: 84739656938,
+            transactions: vec![],
+            nonce: 9377674440955505,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+
+let b2_bis = Block {
+            block_height: 2,
+            block_id: 32479786738,
+            parent_hash: 29090761102,
+            transactions: vec![],
+            nonce: 16060077928867923892,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+                  
+
+let b3 = Block {
+            block_height: 3,
+            block_id: 44263391524,
+            parent_hash: 32147335136,
+            transactions: vec![],
+            nonce: 13893443482872540816,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+                  
+
+let b4 = Block {
+            block_height: 4,
+            block_id: 99254147937,
+            parent_hash: 44263391524,
+            transactions: vec![],
+            nonce: 1543200279465947426,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+                  
+
+let b5 = Block {
+            block_height: 5,
+            block_id: 14263803133,
+            parent_hash: 99254147937,
+            transactions: vec![],
+            nonce: 5444040690195402308,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+                  
+
+let b6 = Block {
+            block_height: 6,
+            block_id: 59280720353,
+            parent_hash: 14263803133,
+            transactions: vec![],
+            nonce: 17617067329785389037,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+
+                  
+
+let b7 = Block {
+            block_height: 7,
+            block_id: 17275820811,
+            parent_hash: 59280720353,
+            transactions: vec![],
+            nonce: 610024993744491042,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };

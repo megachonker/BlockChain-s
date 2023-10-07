@@ -1,11 +1,11 @@
-use std::{collections::HashMap, process::exit};
+use std::collections::HashMap;
 
 use tracing::warn;
 
-use super::block::{self, Block};
+use super::block::Block;
 
 struct PotentialsTopBlock {
-    hmap: HashMap<u64, (u64,u64)>,  //k : potentail top block,  v: (needed,height_of_k)
+    hmap: HashMap<u64, (u64, u64)>, //k : potentail top block,  v: (needed,height_of_k)
 }
 
 impl PotentialsTopBlock {
@@ -19,21 +19,25 @@ impl PotentialsTopBlock {
         self.hmap.values().map(|v| v.0).collect()
     }
 
-    fn add_new(&mut self, pot_top: & Block, needed_block: u64) {
-        self.hmap.insert(pot_top.block_id , (needed_block,pot_top.block_height));
+    fn add_new(&mut self, pot_top: &Block, needed_block: u64) {
+        self.hmap
+            .insert(pot_top.block_id, (needed_block, pot_top.block_height));
     }
 
-    fn replace_or_create(& mut self, last_needed_block: & Block, new_needed_block: u64) {
+    fn replace_or_create(&mut self, last_needed_block: &Block, new_needed_block: u64) {
         for (pot, v) in self.hmap.clone() {
             if v.0 == last_needed_block.block_id {
-                self.hmap.insert(pot, (new_needed_block,v.1)); //replace
+                self.hmap.insert(pot, (new_needed_block, v.1)); //replace
             }
         }
-        self.hmap.insert(last_needed_block.block_id, (new_needed_block,last_needed_block.block_id)); //create
+        self.hmap.insert(
+            last_needed_block.block_id,
+            (new_needed_block, last_needed_block.block_id),
+        ); //create
     }
 
     fn found_potential_from_need(&self, need: u64) -> Option<u64> {
-        for (k, v) in & self.hmap {
+        for (k, v) in &self.hmap {
             if v.0 == need {
                 return Some(*k);
             }
@@ -41,14 +45,22 @@ impl PotentialsTopBlock {
         return None;
     }
 
-    fn erease_old(&mut self, height_top_block: u64){
-        for (k,v) in self.hmap.clone(){
-            if v.1 <= height_top_block{
+    fn erease_old(&mut self, height_top_block: u64) {
+        for (k, v) in self.hmap.clone() {
+            if v.1 <= height_top_block {
                 self.hmap.remove(&k);
             }
         }
     }
 
+    fn needed(&self, block: u64) -> bool {
+        for (_, v) in &self.hmap {
+            if v.0 == block {
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 pub struct Blockchain {
@@ -93,13 +105,15 @@ impl Blockchain {
         if block.block_height > cur_block.block_height {
             if block.parent_hash == cur_block.block_id
                 && block.block_height == cur_block.block_height + 1
+                && !self.potentials_top_block.needed(block.block_id)
             {
                 //basic case
                 self.top_block_hash = block.block_id;
             } else {
                 //block to high
                 match self.search_chain(block) {
-                    Ok(_) => {        //the block can be chained into the initial block
+                    Ok(_) => {
+                        //the block can be chained into the initial block
                         match self
                             .potentials_top_block
                             .found_potential_from_need(block.block_id)
@@ -112,9 +126,9 @@ impl Blockchain {
                             }
                         }
                     }
-                    Err(needed) => { //the block can not be chained into the initial block : needed is missing 
-                        self.potentials_top_block
-                            .replace_or_create(&block, needed);
+                    Err(needed) => {
+                        //the block can not be chained into the initial block : needed is missing
+                        self.potentials_top_block.replace_or_create(&block, needed);
                         return (None, Some(needed));
                     }
                 }
@@ -135,7 +149,7 @@ impl Blockchain {
             .clone()
     }
 
-    fn search_chain<'a>(& 'a self, mut block: &'a Block) -> Result<Vec<u64>, u64> {
+    fn search_chain<'a>(&'a self, mut block: &'a Block) -> Result<Vec<u64>, u64> {
         //the second u64 is a block which we don't have (need for the chain)
         let mut vec = vec![block.block_id];
         while block.block_id != 0 {
@@ -168,20 +182,20 @@ mod tests {
     }
 
     #[test]
-    fn append_blockchain() {
-        let (mut block_chain, last) = Blockchain::new();
+    fn append_wrong_blockchain() {
+        let (mut block_chain, _) = Blockchain::new();
 
         let (cur_block, _) = block_chain.append(&Block {
             //not a valid block
             block_id: 7,
-            block_height: 7,
+            block_height: 1,
             parent_hash: 7,
             transactions: vec![],
             miner_hash: 7,
             nonce: 7,
             quote: String::from(""),
         });
-        assert_eq!(cur_block, last);
+        assert_eq!(cur_block, None);
     }
 
     #[test]
@@ -199,13 +213,95 @@ mod tests {
             quote: String::from("bi"),
         };
 
-        assert_eq!(block, blockchain.append(&block).0);
+        assert_eq!(block, blockchain.append(&block).0.unwrap());
     }
 
-    /* #[test]
-    fn search_chain() {
+    #[test]
+    fn add_block_unchainned() {
         let (mut blockchain, _) = Blockchain::new();
 
-        blockchain.append(Blo)
-    } */
+        let b2 = Block {
+            //hard code
+            block_height: 2,
+            block_id: 38293290087,
+            parent_hash: 8958567695,
+            transactions: vec![],
+            nonce: 3322205353230188497,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+        let (new, need) = blockchain.append(&b2);
+
+        assert_eq!(new, None);
+        assert_eq!(need.unwrap(), 8958567695);
+
+        let b1 = Block {
+            //hard code
+            block_height: 1,
+            block_id: 8958567695,
+            parent_hash: 0,
+            transactions: vec![],
+            nonce: 7478944047245117081,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+        let (new, need) = blockchain.append(&b1);
+
+        assert_eq!(new.unwrap(), b2);
+        assert_eq!(need, None);
+    }
+
+    #[test]
+    fn remove_old_potential_top() {
+        let (mut blockchain, _) = Blockchain::new();
+
+        let b1 = Block {
+            block_height: 1,
+            block_id: 84739656938,
+            parent_hash: 0,
+            transactions: vec![],
+            nonce: 8308871350387475192,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+        let b2 = Block {
+            block_height: 2,
+            block_id: 32147335136,
+            parent_hash: 84739656938,
+            transactions: vec![],
+            nonce: 9377674440955505,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+        let b2_bis = Block {
+            block_height: 2,
+            block_id: 32479786738,
+            parent_hash: 29090761102,
+            transactions: vec![],
+            nonce: 16060077928867923892,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+        let (_, _) = blockchain.append(&b2_bis);
+        if blockchain.potentials_top_block.hmap.get(&b2_bis.block_id) == None{      //present here
+            assert!(false);
+        }
+        
+        let (_, _) = blockchain.append(&b1);
+        let (_, _) = blockchain.append(&b2);
+
+        if blockchain.potentials_top_block.hmap.get(&b2_bis.block_id) != None{      //erease here
+            assert!(false);
+        }
+
+        
+
+
+
+    }
 }

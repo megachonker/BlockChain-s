@@ -2,9 +2,7 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
-use std::fmt::Display;
 use std::hash::{Hash, Hasher};
-use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use tracing::{info, warn};
@@ -43,7 +41,7 @@ impl fmt::Display for Block {
 ╔═══════════════════════════════════════╗
 ║Id block: {}
 ║block_height : {}
-║last_block : {}
+║parent_block : {}
 ║transactions {}       
 ║miner_id : {}                           
 ║nonce : {}
