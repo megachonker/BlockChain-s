@@ -196,12 +196,12 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
             if answer < HASH_MAX {
                 new_block.nonce = nonce_to_test;
                 new_block.block_id = answer; //a modif pour hash plus grand
-                info!("found this block : {}", new_block);
+                println!("found this block : {}", new_block);
                 sender.send(new_block.clone()).unwrap();
             }
             nonce_to_test = nonce_to_test.wrapping_add(1);
             if nonce_to_test % 50000000 == 0 {
-                warn!("Refersh");
+                info!("Refersh");
 
                 break;
             }

@@ -35,7 +35,7 @@ use clap::Parser;
 
 fn main() {
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::TRACE)
+        .with_max_level(tracing::Level::ERROR)
         .init();
 
     //get argument
