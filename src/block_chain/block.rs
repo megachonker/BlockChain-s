@@ -9,6 +9,8 @@ use tracing::{info, warn};
 
 use super::transaction::{RxUtxo, Transaction};
 
+use super::node::server::BlockFrom;
+
 const HASH_MAX: u64 = 1000000000000;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -66,9 +68,6 @@ impl fmt::Display for Block {
         //if it is pub clefs very long maybe put a hash
     }
 }
-
-
-
 
 impl Block {
     /// create the first block full empty
@@ -140,9 +139,8 @@ impl Block {
                 new_block.block_id = answer; //a modif pour hash plus grand
                 println!("found this block : {}", new_block);
                 return Some(new_block);
-
             }
-            
+
             if nonce_to_test % 50000000 == 0 {
                 info!("Refersh");
                 return None;
@@ -182,13 +180,12 @@ impl PartialEq for Block {
 }
 
 /// # Mining Runner
-/// never ending function that feeded in transaction and block; 
-pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
+/// never ending function that feeded in transaction and block;
+pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<BlockFrom>) {
     info!("Begining mining operation");
     loop {
-        let block = cur_block.lock().unwrap().clone();//presque toujour blocker
+        let block = cur_block.lock().unwrap().clone(); //presque toujour blocker
         let transaction = vec![];
-
 
         // do the same things
         // block
@@ -197,14 +194,14 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
         //     .unwrap();
 
         if let Some(mined_block) = block.find_next_block(finder, transaction) {
-            sender.send(mined_block).unwrap();
+            sender.send(BlockFrom::Mined(mined_block)).unwrap();
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{thread, sync::mpsc};
+    use std::{sync::mpsc, thread};
 
     use super::*;
 
@@ -221,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_block_mined_valid() {
-        let (tx, rx) = mpsc::channel::<Block>();
+        let (tx, rx) = mpsc::channel::<BlockFrom>();
 
         let cur_block = Arc::new(Mutex::new(Block::new()));
 
@@ -229,24 +226,25 @@ mod tests {
             mine(1, &cur_block, tx);
         });
 
-        let b = rx.recv().unwrap();
+        for _ in 0..2 {
+            let b = rx.recv().unwrap();
 
-        assert!(b.check());
+            if let BlockFrom::Mined(b) = b {
+                assert!(b.check());
+            } else {
+                assert!(false);
+            }
+        }
 
-        let b = rx.recv().unwrap();
-
-        assert!(b.check());
-
-        let b = rx.recv().unwrap();
-
-        assert!(b.check());
     }
 
     #[test]
     fn test_find_next_block() {
         let block = Block::default();
         loop {
-            if let Some(block_to_test) = block.find_next_block(Default::default(), Default::default()){
+            if let Some(block_to_test) =
+                block.find_next_block(Default::default(), Default::default())
+            {
                 assert!(block_to_test.check());
                 break;
             }

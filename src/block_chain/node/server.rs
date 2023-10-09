@@ -6,12 +6,18 @@ use std::{
 use tracing::info;
 
 use crate::block_chain::{
-    block::{mine, Block},
+    block::{mine, Block, self},
     blockchain::Blockchain,
     // shared::Shared,
     node::network::Network, transaction::Transaction,
 };
 use crate::friendly_name::*;
+
+
+pub enum BlockFrom{
+    Mined(Block),
+    Network(Block),
+}
 
 
 pub struct Server {
@@ -43,7 +49,7 @@ impl Server {
         let id = get_fake_id(&self.name);
 
         // network after starting need to return blockchaine!
-        let (net_block_tx, net_block_rx) = mpsc::channel();
+        let (block_tx, block_rx) = mpsc::channel();
 
         //need to link new transaction block to create block
         let (mined_block_tx, mined_block_rx) = mpsc::channel();
@@ -56,22 +62,22 @@ impl Server {
         // thread::Builder::new().name("Network".to_string()).spawn(move ||{
         let blockaine = self
             .network
-            .start(mined_block_rx, &net_block_tx, net_transaction_tx);
+            .start(mined_block_rx, &block_tx, net_transaction_tx);
         // }).unwrap();
 
         println!("blockaine recus{:?}", blockaine);
 
 
         // net_block_tx.send(Block::default()).unwrap();
-        Self::server_runtime(self.id, net_block_tx, net_block_rx);
+        Self::server_runtime(self.id, block_tx, block_rx);
     }
 
 
     fn server_runtime(
         //doit contenire le runetime
         finder: u64,
-        block_tx: Sender<Block>,
-        block_rx: Receiver<Block>, // net_transaction_rx: Receiver<Vec<Transaction>>, //Rwlock
+        block_tx: Sender<BlockFrom>,
+        block_rx: Receiver<BlockFrom>, // net_transaction_rx: Receiver<Vec<Transaction>>, //Rwlock
     ) {
         info!("Runtime server start");
 
@@ -89,7 +95,13 @@ impl Server {
             .unwrap();
 
         loop {
-            let new_block = block_rx.recv().unwrap();
+            let new_block = match block_rx.recv().unwrap(){
+                BlockFrom::Mined(block) => {
+                    //network send
+                    block
+            }
+                BlockFrom::Network(block) => block,
+            };
             let (new_top_block, block_need) = blockchain.append(&new_block);
             
             if let Some(top_block) = new_top_block {

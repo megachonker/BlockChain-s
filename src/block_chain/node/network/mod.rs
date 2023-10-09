@@ -14,6 +14,8 @@ use tracing::{instrument};
 
 use crate::block_chain::{block::{Block}, transaction::Transaction};
 
+use super::server::BlockFrom;
+
 #[derive(Debug)]
 pub struct Network {
     pub bootstrap: SocketAddr,
@@ -93,13 +95,13 @@ impl Network {
         &mut self,
         typeblock: TypeBlock,
         sender: SocketAddr,
-        sss: &Sender<Block>,
+        sss: &Sender<BlockFrom>,
         barrirer_ack: &Arc<Barrier>,
     ) {
         match typeblock {
             TypeBlock::Block(block) => {
                 // debug!("Block get:{}", block);                
-                sss.send(block.clone()).unwrap();
+                sss.send(BlockFrom::Network( block.clone())).unwrap();
                 self.blockchain.push(block); //<=== block not ordered need real blockaine
             }
             TypeBlock::Hash(number) => {
@@ -149,7 +151,7 @@ impl Network {
     pub fn start(
         self,
         mined_block_rx: Receiver<Block>,
-        net_block_tx: &Sender<Block>,
+        net_block_tx: &Sender<BlockFrom>,
         net_transa_tx: Sender<Vec<Transaction>>,
     ) -> Vec<Block> {
         info!("network start");
