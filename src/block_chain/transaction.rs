@@ -28,7 +28,7 @@ impl fmt::Display for RxUtxo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "\n
+            "
 ║Rx: [{}=>{}=>{}] {}",
             self.block_location, self.transa_id, self.moula_id, self.value,
         )
@@ -97,7 +97,7 @@ impl Transaction {
         let utxos = blockchain.filter_utxo(source);
 
         //not optimal but i is a NP problem see bag problem
-        let (rx, mut resend) = Self::select_utxo_from_vec(&utxos, amount);
+        let (rx, resend) = Self::select_utxo_from_vec(&utxos, amount);
 
         Self {
             rx,
@@ -108,7 +108,7 @@ impl Transaction {
 
     /// ofline use actual wallet and create transa
     pub fn new_offline(input: &Vec<RxUtxo>, amount: u128, destination: u64) -> Transaction {
-        let (rx, mut resend) = Self::select_utxo_from_vec(input, amount);
+        let (rx, resend) = Self::select_utxo_from_vec(input, amount);
 
         Self {
             rx,
@@ -135,12 +135,16 @@ impl Transaction {
         let r: Vec<RxUtxo> = avaible
             .iter()
             .take_while(|utxo| {
-                sum += utxo.value;
-                sum < amount + fee
+                if sum <= amount + fee {
+                    sum += utxo.value;
+                    true
+                } else {
+                    false
+                }
             })
             .cloned()
             .collect();
-        let to_send_back = (amount + fee) - sum;
+        let to_send_back = sum - (amount + fee) ;
         (r, to_send_back)
     }
 
@@ -163,3 +167,30 @@ impl Transaction {
             .collect()
     }
 }
+
+
+
+#[cfg(test)]
+mod tests {
+    use crate::block_chain::transaction::{RxUtxo, Transaction};
+
+
+
+    #[test]
+    fn test_select_utxo_from_vec(){
+        let rx_7 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:5};
+        let rx_3 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:4};
+        let rx_2 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:8};
+        let rx_9 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:9};
+
+        let wallet = vec![rx_7,rx_3,rx_2,rx_9];
+        
+        let (transa,sendback) = Transaction::select_utxo_from_vec(&wallet,10);
+        transa.iter().for_each(|transa|print!("{}",transa));
+        let full:u128 = transa.iter().map(|f|f.value).into_iter().sum();
+        let total_cost = full-10;
+        println!("\nneed to send back:{}, total spend with fee:{}",sendback,total_cost);
+        assert_eq!(sendback,6);
+        assert_eq!(total_cost,7)
+    }
+}  
