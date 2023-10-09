@@ -9,8 +9,6 @@ use tracing::{info, warn};
 
 use super::transaction::{RxUtxo, Transaction};
 
-use super::node::server::BlockFrom;
-
 const HASH_MAX: u64 = 1000000000000;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -181,7 +179,7 @@ impl PartialEq for Block {
 
 /// # Mining Runner
 /// never ending function that feeded in transaction and block;
-pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<BlockFrom>) {
+pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
     info!("Begining mining operation");
     loop {
         let block = cur_block.lock().unwrap().clone(); //presque toujour blocker
@@ -194,7 +192,7 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<BlockFrom
         //     .unwrap();
 
         if let Some(mined_block) = block.find_next_block(finder, transaction) {
-            sender.send(BlockFrom::Mined(mined_block)).unwrap();
+            sender.send(mined_block).unwrap();
         }
     }
 }
@@ -218,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_block_mined_valid() {
-        let (tx, rx) = mpsc::channel::<BlockFrom>();
+        let (tx, rx) = mpsc::channel::<Block>();
 
         let cur_block = Arc::new(Mutex::new(Block::new()));
 
@@ -229,13 +227,8 @@ mod tests {
         for _ in 0..2 {
             let b = rx.recv().unwrap();
 
-            if let BlockFrom::Mined(b) = b {
-                assert!(b.check());
-            } else {
-                assert!(false);
-            }
+            assert!(b.check());
         }
-
     }
 
     #[test]
@@ -250,5 +243,4 @@ mod tests {
             }
         }
     }
-
 }

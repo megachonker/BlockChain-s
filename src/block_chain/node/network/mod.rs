@@ -19,13 +19,23 @@ use crate::block_chain::{
     transaction::{RxUtxo, Transaction},
 };
 
-use super::server::BlockFrom;
+use super::server::{RequestNetwork, RequestServer};
 
 #[derive(Debug)]
 pub struct Network {
     pub bootstrap: SocketAddr,
     binding: UdpSocket,
-    peers: Vec<SocketAddr>,
+    peers: Arc<Mutex<Vec<SocketAddr>>>,
+}
+
+impl Clone for Network {
+    fn clone(&self) -> Self {
+        Self {
+            bootstrap: self.bootstrap.clone(),
+            binding: self.binding.try_clone().unwrap(),
+            peers: self.peers.clone(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -81,16 +91,16 @@ impl Network {
         //reception demande
         if peers.is_empty() {
             println!("Net: receive demande de peers");
-            self.send_packet(&Packet::Peer(self.peers.clone()), &source);
+            self.send_packet(&Packet::Peer(self.peers.lock().unwrap().clone()), &source);
         }
         //reception reponse
         else {
             println!("Net: receive peers");
-            self.peers.append(&mut peers.clone());
+            self.peers.lock().unwrap().append(&mut peers.clone());
         }
 
         //on add aussi le remote dans la liste
-        self.peers.append(&mut vec![source.clone()]);
+        self.peers.lock().unwrap().append(&mut vec![source.clone()]);
     }
 
     /// Ping Pong but update timestamp
@@ -105,15 +115,19 @@ impl Network {
         &mut self,
         typeblock: TypeBlock,
         sender: SocketAddr,
-        block_tx: &Sender<Block>,
-        barrirer_ack: &Arc<Barrier>,
+        network_server_tx: &Sender<RequestNetwork>,
     ) {
         match typeblock {
             TypeBlock::Block(block) => {
                 // debug!("Block get:{}", block);
-                block_tx.send(block).unwrap();
+                network_server_tx
+                    .send(RequestNetwork::NewBlock(block))
+                    .unwrap();
             }
             TypeBlock::Hash(number) => {
+                network_server_tx
+                    .send(RequestNetwork::SendHash((number, sender)))
+                    .unwrap();
                 // debug!("Hash get Hash:{}", number);
                 /*
                 self.send_packet(
@@ -140,7 +154,7 @@ impl Network {
     /// peer on router eliminate usless
     /// need to create elaborated mecanisme of pasive block
     fn peers_manager(&self) {
-        if self.peers.len() < 100 {
+        if self.peers.lock().unwrap().len() < 100 {
             self.broadcast(Packet::Peer(vec![]))
         }
     }
@@ -150,28 +164,52 @@ impl Network {
     pub fn start(
         self,
         mined_block_rx: Receiver<Block>,
-        net_block_tx: &Sender<Block>,
         net_transa_tx: Sender<Transaction>,
+        network_server_tx: Sender<RequestNetwork>,
+        server_network_rx: Receiver<RequestServer>,
     ) -> Vec<Block> {
         info!("network start");
         let mut block_chaine: Vec<Block> = vec![Block::new()];
 
-        let shared_net = Arc::new(Mutex::new(self));
+        // let shared_net = Arc::new(Mutex::new(self));
 
         // when miner have a block send it to all people
-        let for_thread = shared_net.clone();
+        // let for_thread = shared_net.clone();
+        let self_cpy = self.clone();
+        let network_server_tx_clone = network_server_tx.clone();
+
         thread::Builder::new()
             .name("Net-Block_Sender".to_string())
             .spawn(move || {
                 debug!("Net-Block_Sender started");
                 loop {
                     let mined_block = mined_block_rx.recv().unwrap();
-                    //bariere wait receive first block
 
-                    let locked = for_thread.lock().unwrap();
+                    // let locked = for_thread.lock().unwrap();
+
                     // send to all
-                    locked.broadcast(Packet::Block(TypeBlock::Block(mined_block)));
-                    /////////on peut utiliser un autre socket pour send no truc
+                    self_cpy.broadcast(Packet::Block(TypeBlock::Block(mined_block.clone())));
+                    network_server_tx_clone.send(RequestNetwork::NewBlock(mined_block)).unwrap();
+                    // drop(locked);
+                }
+            })
+            .unwrap();
+
+        let self_cpy = self.clone();
+
+        thread::Builder::new()
+            .name("Asker of block at peers".to_string())
+            .spawn(move || loop {
+                info!("Launch thread asker of blocks");
+                match server_network_rx.recv().unwrap() {
+                    RequestServer::AnswerHash((block, dest)) => {
+                        self_cpy.send_packet(&Packet::Block(TypeBlock::Block(block)), &dest)
+                    }
+                    RequestServer::AskHash(hash) => {
+                        for p in self_cpy.peers.lock().unwrap().clone().into_iter() {
+                            self_cpy.send_packet(&Packet::Block(TypeBlock::Hash(hash)), &p);
+                        }
+                    }
                 }
             })
             .unwrap();
@@ -179,50 +217,51 @@ impl Network {
         let fence_blockaine = Arc::new(Barrier::new(2));
 
         // routing all message
-        let forthread = shared_net.clone(); //peut opti en ayan try clone
+        // let forthread = shared_net.clone(); //peut opti en ayan try clone
         let block_ack = fence_blockaine.clone();
 
-        let cloned_tx = net_block_tx.clone();
+        // let network_server_tx_clone = network_server_tx.clone();
+        let mut self_cpy = self.clone();
         thread::Builder::new()
             .name("Net-Router".to_string())
             .spawn(move || {
                 debug!("Net-Router");
                 loop {
-                    let cim = forthread.lock().unwrap();
-                    let sick = cim.binding.try_clone().unwrap();
-                    drop(cim);
+                    // let cim = forthread.lock().unwrap();
+                    let sick = self_cpy.binding.try_clone().unwrap();
+                    // drop(cim);
                     let (message, sender) = Self::recv_packet(&sick);
-                    let mut locked = forthread.lock().unwrap(); /////////BLOCKED
+                    // let mut locked = forthread.lock().unwrap(); /////////BLOCKED
                     match message {
                         Packet::Transaction(transa) => Network::transaction(transa, &net_transa_tx),
-                        Packet::Peer(peers) => locked.peers(peers, sender),
-                        Packet::Keepalive => locked.keepalive(sender),
+                        Packet::Peer(peers) => self_cpy.peers(peers, sender),
+                        Packet::Keepalive => self_cpy.keepalive(sender),
                         Packet::Block(typeblock) => {
-                            locked.block(typeblock, sender, &cloned_tx, &block_ack)
+                            self_cpy.block(typeblock, sender, &network_server_tx)
                         }
                     }
                 }
             })
             .unwrap();
 
-        let network = shared_net.clone();
-        let network = network.lock().unwrap();
+        // let network = shared_net.clone();
+        // let network = network.lock().unwrap();
 
         //calquer
-        if network.bootstrap != SocketAddr::from(([0, 0, 0, 0], 6021)) {
+        if self.bootstrap != SocketAddr::from(([0, 0, 0, 0], 6021)) {
             //send une demande de peers
             // a voir si on doit faire plusieur cicle ect
-            network.send_packet(&Packet::Peer(vec![]), &network.bootstrap);
+            self.send_packet(&Packet::Peer(vec![]), &self.bootstrap);
 
             //request blockaine
-            let blockchain = Blockchain::default();
+            // let blockchain = Blockchain::default();
             //lunch function to do that
 
-            drop(network);
+            // drop(network);
             //on attend que l'on a recus toute la blockaine
             fence_blockaine.wait();
-            let network = shared_net.clone();
-            let network = network.lock().unwrap();
+            // let network = shared_net.clone();
+            // let network = network.lock().unwrap();
             block_chaine = vec![]; //sale§/////////////////////////////
         }
         block_chaine
@@ -248,7 +287,7 @@ impl Network {
         Self {
             bootstrap,
             binding,
-            peers: vec![],
+            peers: Arc::new(Mutex::new(vec![])),
         }
     }
 
@@ -269,6 +308,8 @@ impl Network {
     /// awsome send a packet broadcast
     pub fn broadcast(&self, packet: Packet) {
         self.peers
+            .lock()
+            .unwrap()
             .iter()
             .filter(|&&x| x != self.get_socket())
             .for_each(|dest| self.send_packet(&packet, dest)); ///////send socket differant
