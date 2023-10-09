@@ -162,6 +162,25 @@ impl Blockchain {
 
         return Ok(vec);
     }
+
+    pub fn get_chain<'a>(&'a self) -> Vec<&'a Block> {
+        let mut vec = vec![];
+        let mut hash = self.top_block_hash;
+
+        loop {
+            let b = self.hash_map_block.get(&hash).unwrap();
+            vec.push(b);
+
+            hash = b.parent_hash;
+
+
+            if hash == 0 {
+                vec.push(self.hash_map_block.get(&0).unwrap());
+                break;
+            }
+        }
+        return  vec;
+    }
 }
 
 #[cfg(test)]
@@ -288,16 +307,38 @@ mod tests {
         };
 
         let (_, _) = blockchain.append(&b2_bis);
-        if blockchain.potentials_top_block.hmap.get(&b2_bis.block_id) == None{      //present here
+        if blockchain.potentials_top_block.hmap.get(&b2_bis.block_id) == None {
+            //present here
             assert!(false);
         }
-        
+
         let (_, _) = blockchain.append(&b1);
         let (_, _) = blockchain.append(&b2);
 
-        if blockchain.potentials_top_block.hmap.get(&b2_bis.block_id) != None{      //erease here
+        if blockchain.potentials_top_block.hmap.get(&b2_bis.block_id) != None {
+            //erease here
             assert!(false);
         }
+    }
 
+
+    #[test]
+    fn get_chain(){
+        let (mut blockchain, _) = Blockchain::new();
+
+        let block = Block {
+            //hard code
+            block_height: 1,
+            block_id: 38250827465,
+            parent_hash: 0,
+            transactions: vec![],
+            nonce: 3675872114024089965,
+            miner_hash: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+        blockchain.append(&block);
+
+        assert_eq!(blockchain.get_chain(), vec![&block,& Block::new()]);
     }
 }
