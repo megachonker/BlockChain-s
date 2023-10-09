@@ -85,6 +85,10 @@ impl Blockchain {
         )
     }
 
+    pub fn get_block<'a>(& 'a self, hash : u64) -> Option<&'a Block>{
+        self.hash_map_block.get(&hash)
+    }
+
     fn get_needed_block(self) -> Vec<u64> {
         self.potentials_top_block.get_needed_block()
     }
