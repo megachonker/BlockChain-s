@@ -244,6 +244,12 @@ mod tests {
 
     #[test]
     fn test_find_next_block() {
-        assert!(Block::default().find_next_block(Default::default(), Default::default()).unwrap().check())
+        let block = Block::default();
+        loop {
+            if let Some(block_to_test) = block.find_next_block(Default::default(), Default::default()){
+                assert!(block_to_test.check());
+                break;
+            }
+        }
     }
 }
