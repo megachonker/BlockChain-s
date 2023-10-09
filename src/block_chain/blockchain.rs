@@ -64,11 +64,14 @@ impl PotentialsTopBlock {
     }
 }
 
-#[derive(Default)]
 pub struct Blockchain {
     hash_map_block: HashMap<u64, Block>,
     top_block_hash: u64,
     potentials_top_block: PotentialsTopBlock, // block need to finish the chain)
+}
+
+impl Default for Blockchain {
+    fn default() -> Self { Blockchain::new().0 }
 }
 
 impl Blockchain {
@@ -222,8 +225,8 @@ mod tests {
             block_height: 1,
             parent_hash: 7,
             transactions: vec![],
-            miner_hash: 7,
-            nonce: 7,
+            finder: 7,
+            answer: 7,
             quote: String::from(""),
         });
         assert_eq!(cur_block, None);
@@ -239,8 +242,8 @@ mod tests {
             block_id: 38250827465,
             parent_hash: 0,
             transactions: vec![],
-            nonce: 3675872114024089965,
-            miner_hash: 17904917467964170301,
+            answer: 3675872114024089965,
+            finder: 17904917467964170301,
             quote: String::from("bi"),
         };
 
@@ -257,8 +260,8 @@ mod tests {
             block_id: 38293290087,
             parent_hash: 8958567695,
             transactions: vec![],
-            nonce: 3322205353230188497,
-            miner_hash: 17904917467964170301,
+            answer: 3322205353230188497,
+            finder: 17904917467964170301,
             quote: String::from("bi"),
         };
 
@@ -273,8 +276,8 @@ mod tests {
             block_id: 8958567695,
             parent_hash: 0,
             transactions: vec![],
-            nonce: 7478944047245117081,
-            miner_hash: 17904917467964170301,
+            answer: 7478944047245117081,
+            finder: 17904917467964170301,
             quote: String::from("bi"),
         };
 
@@ -293,8 +296,8 @@ mod tests {
             block_id: 84739656938,
             parent_hash: 0,
             transactions: vec![],
-            nonce: 8308871350387475192,
-            miner_hash: 17904917467964170301,
+            answer: 8308871350387475192,
+            finder: 17904917467964170301,
             quote: String::from("bi"),
         };
 
@@ -303,8 +306,8 @@ mod tests {
             block_id: 32147335136,
             parent_hash: 84739656938,
             transactions: vec![],
-            nonce: 9377674440955505,
-            miner_hash: 17904917467964170301,
+            answer: 9377674440955505,
+            finder: 17904917467964170301,
             quote: String::from("bi"),
         };
 
@@ -313,8 +316,8 @@ mod tests {
             block_id: 32479786738,
             parent_hash: 29090761102,
             transactions: vec![],
-            nonce: 16060077928867923892,
-            miner_hash: 17904917467964170301,
+            answer: 16060077928867923892,
+            finder: 17904917467964170301,
             quote: String::from("bi"),
         };
 
@@ -344,8 +347,8 @@ mod tests {
             block_id: 38250827465,
             parent_hash: 0,
             transactions: vec![],
-            nonce: 3675872114024089965,
-            miner_hash: 17904917467964170301,
+            answer: 3675872114024089965,
+            finder: 17904917467964170301,
             quote: String::from("bi"),
         };
 

@@ -7,21 +7,26 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use tracing::{info, warn};
 
-use super::transaction::{Transaction, RxUtxo};
-
+use super::transaction::{RxUtxo, Transaction};
 
 const HASH_MAX: u64 = 1000000000000;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Block {
     /////////////////rendre private quand on aura imported mine extern du serveur
     pub block_id: u64,                  //the hash of whole block
     pub block_height: u64,              //the number of the current block
     pub parent_hash: u64,               //the id of last block (block are chain with that)
     pub transactions: Vec<Transaction>, //the vector of all transaction validated with this block
-    pub miner_hash: u64,                //Who find the answer
+    pub finder: u64,                    //Who find the answer
     pub quote: String,
-    pub nonce: u64, //the answer of the defi
+    pub answer: u64, //the answer of the defi
+}
+
+impl Default for Block {
+    fn default() -> Self {
+        Block::new()
+    }
 }
 
 impl fmt::Display for Block {
@@ -54,8 +59,8 @@ impl fmt::Display for Block {
             self.block_height,
             self.parent_hash,
             transa_str,
-            self.miner_hash,
-            self.nonce,
+            self.finder,
+            self.answer,
             self.quote
         )
         //if it is pub clefs very long maybe put a hash
@@ -63,29 +68,25 @@ impl fmt::Display for Block {
 }
 
 
-pub fn hash<T: Hash>(value: T) -> u64 {
-    //return the hash of the item (need to have Hash trait)
-    let mut hasher = DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
-}
+
+
 impl Block {
     /// create the first block full empty
     pub fn new() -> Block {
-        let mut block = Block {
+        let block = Block {
             block_height: 0,
             block_id: 0,
             parent_hash: 0,
             transactions: vec![],
-            nonce: 0,
-            miner_hash: 0,
+            answer: 0,
+            finder: 0,
             quote: String::from(""),
         };
         block
     }
 
     pub fn get_height_nonce(&self) -> (u64, u64) {
-        (self.block_height, self.nonce)
+        (self.block_height, self.answer)
     }
 
     //la structure transaction peut faire un check sur le block donc pourait être un trait requi d'une transaction  --> une transaction est verifier surtout par les mineurs, pas vraiment duarnt la creation mais plutot dans l'interegration dans un bloc
@@ -97,10 +98,10 @@ impl Block {
         //playload of block to hash
         self.block_height.hash(&mut hasher);
         self.parent_hash.hash(&mut hasher);
-        self.transactions.hash(&mut hasher); //tres variable donc osef
-        self.miner_hash.hash(&mut hasher);
+        self.transactions.hash(&mut hasher);
+        self.finder.hash(&mut hasher);
         self.quote.hash(&mut hasher);
-        self.nonce.hash(&mut hasher);
+        self.answer.hash(&mut hasher);
 
         let answer = hasher.finish();
         println!("{}", answer);
@@ -108,77 +109,13 @@ impl Block {
         answer < HASH_MAX && answer == self.block_id && self.quote.len() < 100
     }
 
-    /* pub fn generate_block(
-        &self,
-        finder: u64,
-        transactions: Vec<Transaction>,
-        mut quote: &str,
-        should_stop: &AtomicBool,
-    ) -> Option<Block> {
-        //wesh ces l'enfer ça
-        //si tu check comme ça ces que le buffer peut être gros
-        //faut check si ces pas des carac chelou --> c'est vite fait quoi
-        if quote.len() > 100 {
-            quote = "";
-        }
-
-        let mut new_block = Block {
-            block_height: self.block_height + 1,
-            block_id: 0,
-            parent_hash: self.block_id,
-            transactions, //put befort because the proof of work are link to transaction
-            nonce: 0,
-            miner_hash: finder, //j'aime pas
-            quote: String::from(quote),
-        };
-        new_block.nonce = mine(&new_block, should_stop)?; //putain...
-        new_block.block_id = hash(&new_block); //set the correct id
-        Some(new_block)
-    } */
-
-    /// return a list of all utxo for a address
-    pub fn get_utxos(&self,addr:u64) -> Vec<RxUtxo>{
-        self.transactions.iter()
-        .filter(|transa| transa.target_pubkey == addr)
-        .flat_map(|transa| transa.get_utxos(self.block_id))
-        .collect()
-    }
-}
-
-impl Hash for Block {
-    //implement the Hash's trait for Block
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.block_height.hash(state);
-        self.parent_hash.hash(state);
-        self.transactions.hash(state);
-        self.miner_hash.hash(state);
-        self.quote.hash(state);
-        self.nonce.hash(state);
-    }
-}
-
-//exelent!
-impl PartialEq for Block {
-    fn eq(&self, o: &Block) -> bool {
-        self.block_id == o.block_id
-    }
-}
-
-//comment ça ?
-pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
-    info!("Commencemet");
-
-    loop {
-        let block = cur_block.lock().unwrap().clone();
-
+    fn find_next_block(&self, finder: u64, transactions: Vec<Transaction>) -> Option<Block> {
         let mut new_block: Block = Block {
-            block_height: block.block_height + 1,
-            block_id: 0,
-            parent_hash: block.block_id,
-            transactions: vec![], //put befort because the proof of work are link to transaction
-            nonce: 0,
-            miner_hash: finder, //j'aime pas
-            quote: String::from("bi"),
+            block_height: self.block_height + 1,
+            parent_hash: self.block_id,
+            finder,
+            transactions,
+            ..Default::default() //styler
         };
 
         let mut rng = rand::thread_rng(); //to pick random value
@@ -187,7 +124,7 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
         new_block.block_height.hash(&mut hasher);
         new_block.parent_hash.hash(&mut hasher);
         new_block.transactions.hash(&mut hasher); //on doit fixer la transaction a avoir
-        new_block.miner_hash.hash(&mut hasher);
+        new_block.finder.hash(&mut hasher);
         new_block.quote.hash(&mut hasher);
 
         let mut nonce_to_test = rng.gen::<u64>();
@@ -199,30 +136,75 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
             let answer = to_hash.finish();
 
             if answer < HASH_MAX {
-                new_block.nonce = nonce_to_test;
+                new_block.answer = nonce_to_test;
                 new_block.block_id = answer; //a modif pour hash plus grand
                 println!("found this block : {}", new_block);
-                sender.send(new_block.clone()).unwrap();
+                return Some(new_block);
+
             }
-            nonce_to_test = nonce_to_test.wrapping_add(1);
+            
             if nonce_to_test % 50000000 == 0 {
                 info!("Refersh");
-
-                break;
+                return None;
             }
+
+            nonce_to_test = nonce_to_test.wrapping_add(1);
+        }
+    }
+
+    /// return a list of all utxo for a address
+    pub fn get_utxos(&self, addr: u64) -> Vec<RxUtxo> {
+        self.transactions
+            .iter()
+            .filter(|transa| transa.target_pubkey == addr)
+            .flat_map(|transa| transa.get_utxos(self.block_id))
+            .collect()
+    }
+}
+
+impl Hash for Block {
+    //implement the Hash's trait for Block
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.block_height.hash(state);
+        self.parent_hash.hash(state);
+        self.transactions.hash(state);
+        self.finder.hash(state);
+        self.quote.hash(state);
+        self.answer.hash(state);
+    }
+}
+
+//exelent!
+impl PartialEq for Block {
+    fn eq(&self, o: &Block) -> bool {
+        self.block_id == o.block_id
+    }
+}
+
+/// # Mining Runner
+/// never ending function that feeded in transaction and block; 
+pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
+    info!("Begining mining operation");
+    loop {
+        let block = cur_block.lock().unwrap().clone();//presque toujour blocker
+        let transaction = vec![];
+
+
+        // do the same things
+        // block
+        //     .find_next_block(finder, transaction)
+        //     .map(|block| sender.send(block))
+        //     .unwrap();
+
+        if let Some(mined_block) = block.find_next_block(finder, transaction) {
+            sender.send(mined_block).unwrap();
         }
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::mpsc::{self, Receiver},
-        thread,
-    };
-
-    use crate::block_chain::blockchain::Blockchain;
+    use std::{thread, sync::mpsc};
 
     use super::*;
 
@@ -230,6 +212,11 @@ mod tests {
     fn test_display() {
         let block = Block::new();
         println!("There is the block : {}", block);
+    }
+
+    #[test]
+    fn default() {
+        assert!(Block::new() == Block::default())
     }
 
     #[test]
@@ -253,5 +240,10 @@ mod tests {
         let b = rx.recv().unwrap();
 
         assert!(b.check());
+    }
+
+    #[test]
+    fn test_find_next_block() {
+        assert!(Block::default().find_next_block(Default::default(), Default::default()).unwrap().check())
     }
 }

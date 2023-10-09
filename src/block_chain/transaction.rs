@@ -66,13 +66,13 @@ pub struct Transaction {
 
 impl fmt::Display for Transaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "╔════════════════RX═════════════════════╗");
+        writeln!(f, "╔════════════════RX═════════════════════╗").unwrap();
         for transrx in &self.rx {
-            writeln!(f, "║{}", transrx);
+            writeln!(f, "║{}", transrx).unwrap();
         }
-        writeln!(f, "╠════════════════TX═════════════════════╣");
+        writeln!(f, "╠════════════════TX═════════════════════╣").unwrap();
         for transtx in &self.tx {
-            writeln!(f, "║{}", transtx.value);
+            writeln!(f, "║{}", transtx.value).unwrap();
         }
         write!(
             f,
