@@ -1,6 +1,7 @@
 use std::{
     sync::mpsc::{self, Receiver, Sender},
-    sync::{ Arc, Mutex}, thread,
+    sync::{Arc, Mutex},
+    thread,
 };
 
 use tracing::info;
@@ -9,7 +10,8 @@ use crate::block_chain::{
     block::{mine, Block, self},
     blockchain::Blockchain,
     // shared::Shared,
-    node::network::Network, transaction::Transaction,
+    node::network::Network,
+    transaction::Transaction,
 };
 use crate::friendly_name::*;
 
@@ -58,26 +60,24 @@ impl Server {
         let (net_transaction_tx, net_transaction_rx) = mpsc::channel(); //RwLock
 
         //get the whole blochaine
-
-        // thread::Builder::new().name("Network".to_string()).spawn(move ||{
-        let blockaine = self
-            .network
-            .start(mined_block_rx, &block_tx, net_transaction_tx);
-        // }).unwrap();
+        let blockaine = self.network.start(mined_block_rx, &block_tx, net_transaction_tx);
 
         println!("blockaine recus{:?}", blockaine);
 
 
-        // net_block_tx.send(Block::default()).unwrap();
-        Self::server_runtime(self.id, block_tx, block_rx);
-    }
+//////////////////
+let (a,b) = mpsc::channel();
+//////////////////////
 
+        Self::server_runtime(self.id, a, b,net_transaction_rx);
+    }
 
     fn server_runtime(
         //doit contenire le runetime
         finder: u64,
         block_tx: Sender<BlockFrom>,
-        block_rx: Receiver<BlockFrom>, // net_transaction_rx: Receiver<Vec<Transaction>>, //Rwlock
+        block_rx: Receiver<BlockFrom>,
+        net_transaction:Receiver<Transaction>,
     ) {
         info!("Runtime server start");
 
@@ -103,13 +103,13 @@ impl Server {
                 BlockFrom::Network(block) => block,
             };
             let (new_top_block, block_need) = blockchain.append(&new_block);
-            
+
             if let Some(top_block) = new_top_block {
                 let mut lock_actual_top_block = actual_top_block.lock().unwrap();
                 *lock_actual_top_block = top_block;
             }
 
-            if let Some(needed_block) = block_need{
+            if let Some(needed_block) = block_need {
                 // network.ask(needed_block);
             }
 

@@ -87,6 +87,10 @@ impl fmt::Display for Transaction {
 
 /// Make the split of the coin
 impl Transaction {
+    pub fn check(&self) -> bool{
+        !self.rx.is_empty()
+    }
+
     /// Use the blockaine to find money and send it
     pub fn new_online(
         blockchain: &Blockchain,
@@ -174,8 +178,6 @@ impl Transaction {
 mod tests {
     use crate::block_chain::transaction::{RxUtxo, Transaction};
 
-
-
     #[test]
     fn test_select_utxo_from_vec(){
         let rx_7 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:5};
@@ -193,4 +195,22 @@ mod tests {
         assert_eq!(sendback,6);
         assert_eq!(total_cost,7)
     }
+
+    // #[test]
+    // fn test_new_offline(){
+    //     let rx_7 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:5};
+    //     let rx_3 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:4};
+    //     let rx_2 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:8};
+    //     let rx_9 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:9};
+
+    //     let wallet = vec![rx_7,rx_3,rx_2,rx_9];
+        
+    //     let (transa,sendback) = Transaction::select_utxo_from_vec(&wallet,10);
+    //     transa.iter().for_each(|transa|print!("{}",transa));
+    //     let full:u128 = transa.iter().map(|f|f.value).into_iter().sum();
+    //     let total_cost = full-10;
+    //     println!("\nneed to send back:{}, total spend with fee:{}",sendback,total_cost);
+    //     assert_eq!(sendback,6);
+    //     assert_eq!(total_cost,7)
+    // }
 }  

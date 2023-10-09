@@ -1,4 +1,5 @@
 use std::{
+    default,
     net::{IpAddr, SocketAddr, UdpSocket},
     sync::{
         mpsc::{Receiver, Sender},
@@ -9,10 +10,14 @@ use std::{
 
 use bincode::{deserialize, serialize};
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
-use tracing::{instrument};
+use tracing::instrument;
+use tracing::{debug, info, warn};
 
-use crate::block_chain::{block::{Block}, transaction::Transaction};
+use crate::block_chain::{
+    block::Block,
+    blockchain::Blockchain,
+    transaction::{RxUtxo, Transaction},
+};
 
 use super::server::BlockFrom;
 
@@ -20,11 +25,7 @@ use super::server::BlockFrom;
 pub struct Network {
     pub bootstrap: SocketAddr,
     binding: UdpSocket,
-    ///////
     peers: Vec<SocketAddr>,
-    stack_transa: Vec<Transaction>, //is restarted
-    /////
-    blockchain: Vec<Block>, //wroung wrong
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -32,13 +33,19 @@ pub struct Network {
 pub enum TypeBlock {
     Hash(u64),
     Block(Block),
-    Getall(Vec<Block>),
 }
-#[derive(Serialize, Deserialize, Debug)]
 
+#[derive(Serialize, Deserialize, Debug)]
+pub enum TypeTransa {
+    Push(Transaction),
+    Req(u64),
+    Ans(Vec<RxUtxo>),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Packet {
     Keepalive,
-    Transaction(Transaction),
+    Transaction(TypeTransa),
     Block(TypeBlock),
     Peer(Vec<SocketAddr>),
 }
@@ -49,19 +56,22 @@ impl Network {
     ///// USED BY ROUTER
 
     /// append transaction when enought transa send it to miner to create a new block
-    fn append_transa(&mut self, transa: Transaction, net_transa_tx: &Sender<Vec<Transaction>>) {
-        self.stack_transa.push(transa.clone());
-        println!(
-            "App Transa size{}: Received {:?}",
-            self.stack_transa.len(),
-            transa
-        );
-
-        //quand on a 5 transactions => A changer
-        if self.stack_transa.len() == 5 {
-            net_transa_tx.send(self.stack_transa.clone()).unwrap();
-            self.stack_transa.clear()
+    fn transaction(transa: TypeTransa, net_transa_tx: &Sender<Transaction>) {
+        match transa {
+            TypeTransa::Ans(utxos) => { /* array of all utxo append */ }
+            TypeTransa::Push(transaction) => {
+                if !transaction.check() {
+                    return;
+                } else {
+                    net_transa_tx.send(transaction).unwrap();
+                }
+            }
+            TypeTransa::Req(userid) => { /* get all transa and filter by user id*/ }
         }
+
+        //check préliminer avant d'utiliser un prim
+
+        //send la transa au miner
     }
 
     /// If received empty reply with all peers
@@ -95,42 +105,31 @@ impl Network {
         &mut self,
         typeblock: TypeBlock,
         sender: SocketAddr,
-        sss: &Sender<BlockFrom>,
+        block_tx: &Sender<Block>,
         barrirer_ack: &Arc<Barrier>,
     ) {
         match typeblock {
             TypeBlock::Block(block) => {
-                // debug!("Block get:{}", block);                
-                sss.send(BlockFrom::Network( block.clone())).unwrap();
-                self.blockchain.push(block); //<=== block not ordered need real blockaine
+                // debug!("Block get:{}", block);
+                block_tx.send(block).unwrap();
             }
             TypeBlock::Hash(number) => {
                 // debug!("Hash get Hash:{}", number);
+                /*
                 self.send_packet(
-                    &Packet::Block(TypeBlock::Block(
+                    &Packet::Block(TypeBlock::Block(uwu)=>{}
+
                         self.blockchain
                             .iter()
                             .filter(|block| block.block_id == number)
                             .next()
                             .unwrap()
                             .clone(),
-                    )),
-                    &sender,
-                );
-            }
-            TypeBlock::Getall(lists) => {
-                if lists.is_empty() {
-                    // debug!("GET");
-                    self.send_packet(
-                        &Packet::Block(TypeBlock::Getall(self.blockchain.clone())),
+                            u
+                        )),
                         &sender,
                     );
-                } else {
-                    // debug!("POST");
-                    self.blockchain = lists;
-                    //barierre unlock
-                    barrirer_ack.wait();
-                }
+                    */
             }
         }
     }
@@ -151,8 +150,8 @@ impl Network {
     pub fn start(
         self,
         mined_block_rx: Receiver<Block>,
-        net_block_tx: &Sender<BlockFrom>,
-        net_transa_tx: Sender<Vec<Transaction>>,
+        net_block_tx: &Sender<Block>,
+        net_transa_tx: Sender<Transaction>,
     ) -> Vec<Block> {
         info!("network start");
         let mut block_chaine: Vec<Block> = vec![Block::new()];
@@ -164,6 +163,7 @@ impl Network {
         thread::Builder::new()
             .name("Net-Block_Sender".to_string())
             .spawn(move || {
+                debug!("Net-Block_Sender started");
                 loop {
                     let mined_block = mined_block_rx.recv().unwrap();
                     //bariere wait receive first block
@@ -186,17 +186,15 @@ impl Network {
         thread::Builder::new()
             .name("Net-Router".to_string())
             .spawn(move || {
-                
+                debug!("Net-Router");
                 loop {
                     let cim = forthread.lock().unwrap();
                     let sick = cim.binding.try_clone().unwrap();
                     drop(cim);
                     let (message, sender) = Self::recv_packet(&sick);
-                    // info!("Router from: {:?} {:?}", sender, message);
-                    // info!("{:?}",message);
                     let mut locked = forthread.lock().unwrap(); /////////BLOCKED
                     match message {
-                        Packet::Transaction(transa) => locked.append_transa(transa, &net_transa_tx),
+                        Packet::Transaction(transa) => Network::transaction(transa, &net_transa_tx),
                         Packet::Peer(peers) => locked.peers(peers, sender),
                         Packet::Keepalive => locked.keepalive(sender),
                         Packet::Block(typeblock) => {
@@ -210,26 +208,23 @@ impl Network {
         let network = shared_net.clone();
         let network = network.lock().unwrap();
 
+        //calquer
         if network.bootstrap != SocketAddr::from(([0, 0, 0, 0], 6021)) {
             //send une demande de peers
             // a voir si on doit faire plusieur cicle ect
             network.send_packet(&Packet::Peer(vec![]), &network.bootstrap);
 
             //request blockaine
-            network.send_packet(
-                &Packet::Block(TypeBlock::Getall(vec![])),
-                &network.bootstrap,
-            );
-
+            let blockchain = Blockchain::default();
+            //lunch function to do that
 
             drop(network);
             //on attend que l'on a recus toute la blockaine
             fence_blockaine.wait();
             let network = shared_net.clone();
             let network = network.lock().unwrap();
-            block_chaine = network.blockchain.clone(); //sale
+            block_chaine = vec![]; //sale§/////////////////////////////
         }
-
         block_chaine
     }
 
@@ -251,8 +246,6 @@ impl Network {
         let binding = UdpSocket::bind(SocketAddr::new(binding, 6021)).unwrap();
         let bootstrap = SocketAddr::new(bootstrap, 6021);
         Self {
-            blockchain: vec![Block::new()], //// WRONG NOT NEED THAT
-            stack_transa: vec![],
             bootstrap,
             binding,
             peers: vec![],
@@ -289,32 +282,4 @@ impl Network {
         let des = deserialize(&mut buf).expect("Can not deserilize block");
         (des, sender)
     }
-
-    // need that to filter block recived
-    // hashmap would be better
-    //
-    // pub fn get_chain(&self) -> Option<Vec<Block>> {
-    //     //for the moment just take the gate maybe after take a radam peer for each loop
-
-    //     let last_block = self.get_block(-1, self.bootstrap); //take the last block
-    //     let mut chain = vec![];
-    //     let (height, nonce) = last_block.get_height_nonce();
-    //     if height == 0 && nonce != 0 {
-    //         return None;
-    //     }
-    //     if height > 0 {
-    //         for i in 0..height {
-    //             let block = self.get_block(i as i64, self.bootstrap);
-    //             let (h, n) = block.get_height_nonce();
-    //             if (h != i) || (h == 0 && n != 0) {
-    //                 return None;
-    //             }
-    //             chain.push(block);
-    //         }
-    //     }
-    //     chain.push(last_block);
-    //     println!("get the chain : {:?}", chain);
-
-    //     Some(chain)
-    // }
 }
