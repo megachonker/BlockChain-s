@@ -40,7 +40,7 @@ impl RxUtxo {
     fn get_utcxo<'a>(&self, blockchain: &'a Blockchain) -> Option<&'a TxUtxo> {
         let mut s = DefaultHasher::new();
         blockchain
-            .blocks
+            .get_chain()
             .iter()
             .find(|block| block.block_id == self.block_location)
             .and_then(|block| {

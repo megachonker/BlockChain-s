@@ -63,7 +63,7 @@ impl Server {
 
 
         // net_block_tx.send(Block::default()).unwrap();
-        Self::server_runtime(self.id, net_block_tx,net_block_rx);
+        Self::server_runtime(self.id, net_block_tx, net_block_rx);
     }
 
 
@@ -72,27 +72,36 @@ impl Server {
         finder: u64,
         block_tx: Sender<Block>,
         block_rx: Receiver<Block>, // net_transaction_rx: Receiver<Vec<Transaction>>, //Rwlock
-    )  {
+    ) {
         info!("Runtime server start");
-        let actual_block = Arc::new(Mutex::new(Block::new()));
 
-        let actual_block_cpy = actual_block.clone();
+        let (mut blockchain, first_block) = Blockchain::new();
 
-        let blockchain = Blockchain::new();
+        let actual_top_block = Arc::new(Mutex::new(first_block));
+        let actual_top_block_cpy = actual_top_block.clone();
 
         thread::Builder::new()
             .name("Miner".to_string())
-            .spawn(move || {info!("start Miner"); mine(finder,&actual_block_cpy, block_tx); })
+            .spawn(move || {
+                info!("start Miner");
+                mine(finder, &actual_top_block_cpy, block_tx);
+            })
             .unwrap();
 
         loop {
             let new_block = block_rx.recv().unwrap();
-            let cur_block = blockchain.append(&new_block);
-            let mut  lock_actual_block = actual_block.lock().unwrap();
-            // if *lock_actual_block != cur_block{
-                *lock_actual_block = new_block;
+            let (new_top_block, block_need) = blockchain.append(&new_block);
+            
+            if let Some(top_block) = new_top_block {
+                let mut lock_actual_top_block = actual_top_block.lock().unwrap();
+                *lock_actual_top_block = top_block;
+            }
+
+            if let Some(needed_block) = block_need{
+                // network.ask(needed_block);
+            }
+
             // }
-            drop(lock_actual_block);
         }
     }
 }

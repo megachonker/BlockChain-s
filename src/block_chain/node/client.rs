@@ -29,11 +29,11 @@ impl Client {
         let ip = self.networking.get_socket();
         let id = get_fake_id(&self.name);
 
-        let blockaine = Blockchain::default();
-        let transaction = Transaction::new_online(&blockaine, 10, 10, 10);
+        // let blockaine = Blockchain::default();
+        // let transaction = Transaction::new_online(&blockaine, 10, 10, 10);
 
         let transactionb = Transaction::new_offline(&vec![], 10, 555);
 
-        println!("{}\nvs\n{}",transaction,transactionb);
+        println!("vs\n{}",transactionb);
     }
 }
