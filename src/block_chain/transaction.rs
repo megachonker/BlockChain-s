@@ -1,5 +1,6 @@
 use std::{
     collections::hash_map::DefaultHasher,
+    fmt,
     hash::{Hash, Hasher},
 };
 
@@ -21,6 +22,17 @@ pub struct RxUtxo {
     // no value !
     // it can seem verry cringe but there only refering to actual transaction
     value: u128, //can work without but Simplify the challenge NOT NEED TO SERIALIZED
+}
+
+impl fmt::Display for RxUtxo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "\n
+║Rx: [{}=>{}=>{}] {}",
+            self.block_location, self.transa_id, self.moula_id, self.value,
+        )
+    }
 }
 
 impl RxUtxo {
@@ -52,11 +64,26 @@ pub struct Transaction {
     //add signature of the sender
 }
 
-// impl fmt::Display for Block {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         write!();aezr
-//     }
-// }
+impl fmt::Display for Transaction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "╔════════════════RX═════════════════════╗");
+        for transrx in &self.rx {
+            writeln!(f, "║{}", transrx);
+        }
+        writeln!(f, "╠════════════════TX═════════════════════╣");
+        for transtx in &self.tx {
+            writeln!(f, "║{}", transtx.value);
+        }
+        write!(
+            f,
+            "\
+╠═══════════════════════════════════════╣
+║Sender PubKey: {}
+╚═══════════════════════════════════════╝",
+            self.target_pubkey,
+        )
+    }
+}
 
 /// Make the split of the coin
 impl Transaction {

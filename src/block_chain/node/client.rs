@@ -32,6 +32,8 @@ impl Client {
         let blockaine = Blockchain::default();
         let transaction = Transaction::new_online(&blockaine, 10, 10, 10);
 
-        let transaction = Transaction::new_offline(&vec![], 10, 555);
+        let transactionb = Transaction::new_offline(&vec![], 10, 555);
+
+        println!("{}\nvs\n{}",transaction,transactionb);
     }
 }
