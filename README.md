@@ -4,7 +4,7 @@ cargo run <ip_bootstart> <ip_node>
 Run one node with ip bind : *ip_node* and try to connect to the network throws *ip_bootstrap* (0.0.0.0 if it is the first node)
 ```
 
-
+ 
 
 ## ROAD MAP
 
