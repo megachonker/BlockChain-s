@@ -1,20 +1,24 @@
-use std::{
-    collections::hash_map::DefaultHasher,
-    fmt,
-    hash::{Hash, Hasher},
-};
-
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex, RwLock};
+use std::thread;
+use std::{
+    collections::{hash_map::DefaultHasher, HashSet},
+    default, fmt,
+    hash::{Hash, Hasher},
+    sync::mpsc::Receiver,
+};
 
 use super::blockchain::{self, Blockchain};
 
 /// can be used iside smart contract
-#[derive(Serialize, Deserialize, Debug, Clone, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 struct TxUtxo {
     pub value: u128, //wider + simpler + undivisible + optimisation + reusing common acronyme M K
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct RxUtxo {
     block_location: u64, //dans quelle block est la transa
     transa_id: u64,      //hash de Transaction
@@ -56,7 +60,7 @@ impl RxUtxo {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Transaction {
     rx: Vec<RxUtxo>,
     tx: Vec<TxUtxo>, //fist is what is send back
@@ -87,7 +91,55 @@ impl fmt::Display for Transaction {
 
 /// Make the split of the coin
 impl Transaction {
-    pub fn check(&self) -> bool{
+    fn runer(
+        from_network: Receiver<Transaction>,
+        from_block: Receiver<Transaction>,
+        valid_transa: Sender<Vec<Transaction>>,
+    ) {
+        let register = Arc::new(Mutex::new(HashMap::new()));
+
+        let hashmap = register.clone();
+        let val = valid_transa.clone();
+        thread::spawn(move || {
+            loop {
+                //blockaine valide destruction of it
+                let transa_from_block = from_block.recv().unwrap();
+                hashmap.lock().unwrap().insert(transa_from_block, false);
+                val.send(
+                    hashmap
+                        .lock()
+                        .unwrap()
+                        .iter()
+                        .filter_map(|(k, v)| if !*v { Some(k.clone()) } else { None })
+                        .collect(),
+                )
+                .unwrap();
+            }
+        });
+        thread::spawn(move || {
+            loop {
+                //if not exist add new transa
+                let transa_from_net = from_network.recv().unwrap();
+                register
+                    .lock()
+                    .unwrap()
+                    .entry(transa_from_net)
+                    .or_insert(true);
+                valid_transa
+                    .send(
+                        register
+                            .lock()
+                            .unwrap()
+                            .iter()
+                            .filter_map(|(k, v)| if !*v { Some(k.clone()) } else { None })
+                            .collect(),
+                    )
+                    .unwrap();
+            }
+        });
+    }
+
+    pub fn check(&self) -> bool {
         !self.rx.is_empty()
     }
 
@@ -148,7 +200,7 @@ impl Transaction {
             })
             .cloned()
             .collect();
-        let to_send_back = sum - (amount + fee) ;
+        let to_send_back = sum - (amount + fee);
         (r, to_send_back)
     }
 
@@ -172,28 +224,49 @@ impl Transaction {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use crate::block_chain::transaction::{RxUtxo, Transaction};
 
     #[test]
-    fn test_select_utxo_from_vec(){
-        let rx_7 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:5};
-        let rx_3 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:4};
-        let rx_2 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:8};
-        let rx_9 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:9};
+    fn test_select_utxo_from_vec() {
+        let rx_7 = RxUtxo {
+            block_location: 0,
+            transa_id: 0,
+            moula_id: 0,
+            value: 5,
+        };
+        let rx_3 = RxUtxo {
+            block_location: 0,
+            transa_id: 0,
+            moula_id: 0,
+            value: 4,
+        };
+        let rx_2 = RxUtxo {
+            block_location: 0,
+            transa_id: 0,
+            moula_id: 0,
+            value: 8,
+        };
+        let rx_9 = RxUtxo {
+            block_location: 0,
+            transa_id: 0,
+            moula_id: 0,
+            value: 9,
+        };
 
-        let wallet = vec![rx_7,rx_3,rx_2,rx_9];
-        
-        let (transa,sendback) = Transaction::select_utxo_from_vec(&wallet,10);
-        transa.iter().for_each(|transa|print!("{}",transa));
-        let full:u128 = transa.iter().map(|f|f.value).into_iter().sum();
-        let total_cost = full-10;
-        println!("\nneed to send back:{}, total spend with fee:{}",sendback,total_cost);
-        assert_eq!(sendback,6);
-        assert_eq!(total_cost,7)
+        let wallet = vec![rx_7, rx_3, rx_2, rx_9];
+
+        let (transa, sendback) = Transaction::select_utxo_from_vec(&wallet, 10);
+        transa.iter().for_each(|transa| print!("{}", transa));
+        let full: u128 = transa.iter().map(|f| f.value).into_iter().sum();
+        let total_cost = full - 10;
+        println!(
+            "\nneed to send back:{}, total spend with fee:{}",
+            sendback, total_cost
+        );
+        assert_eq!(sendback, 6);
+        assert_eq!(total_cost, 7)
     }
 
     // #[test]
@@ -204,7 +277,7 @@ mod tests {
     //     let rx_9 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:9};
 
     //     let wallet = vec![rx_7,rx_3,rx_2,rx_9];
-        
+
     //     let (transa,sendback) = Transaction::select_utxo_from_vec(&wallet,10);
     //     transa.iter().for_each(|transa|print!("{}",transa));
     //     let full:u128 = transa.iter().map(|f|f.value).into_iter().sum();
@@ -213,4 +286,4 @@ mod tests {
     //     assert_eq!(sendback,6);
     //     assert_eq!(total_cost,7)
     // }
-}  
+}
