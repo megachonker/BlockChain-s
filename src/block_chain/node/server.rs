@@ -55,34 +55,42 @@ impl Server {
         let id = get_fake_id(&self.name);
 
         // network after starting need to return blockchaine!
-        let (mined_block_tx, mined_block_rx) = mpsc::channel();
+        // let (mined_block_tx, mined_block_rx) = mpsc::channel();
 
         //need to link new transaction block to create block
         // let (new_block_tx, new_block_rx) = mpsc::channel();
 
         //need to link new stack of transaction because the miner need continue to mine without aprouvale of the network
-        let (net_transaction_tx, net_transaction_rx) = mpsc::channel(); //RwLock
+        // let (net_transaction_tx, net_transaction_rx) = mpsc::channel(); //RwLock
 
-        let (server_network_tx, server_network_rx) = mpsc::channel();
-        let (network_server_tx, network_server_rx) = mpsc::channel();
+        // let (server_network_tx, server_network_rx) = mpsc::channel();
+        // let (network_server_tx, network_server_rx) = mpsc::channel();
 
-        //get the whole blochaine
-        let blockaine = self.network.start(
-            mined_block_rx,
-            net_transaction_tx,
-            network_server_tx,
-            server_network_rx,
-        );
 
-        println!("blockaine recus{:?}", blockaine);
+        //transaction
+        thread::spawn(move||{
+            /*
+            Mutex of 
+            when receive a transaction
+             */
+        });
 
-        Self::server_runtime(
-            self.id,
-            mined_block_tx,
-            net_transaction_rx,
-            network_server_rx,
-            server_network_tx,
-        );
+        // self.network.start(
+        //     mined_block_rx,
+        //     net_transaction_tx,
+        //     // network_server_tx,
+        //     // server_network_rx,
+        // );
+
+        // println!("blockaine recus{:?}", blockaine);
+
+        // Self::server_runtime(
+        //     self.id,
+        //     mined_block_tx,
+        //     net_transaction_rx,
+        //     network_server_rx,
+        //     server_network_tx,
+        // );
     }
 
     fn server_runtime(
@@ -119,7 +127,9 @@ impl Server {
             match network_server_rx.recv().unwrap() {
                 RequestNetwork::SendHash((hash, dest)) => {
                     if let Some(block) = blockchain.get_block(hash) {
-                        server_network_tx.send(RequestServer::AnswerHash((block.clone(), dest))).unwrap();
+                        server_network_tx
+                            .send(RequestServer::AnswerHash((block.clone(), dest)))
+                            .unwrap();
                     }
                 }
                 RequestNetwork::NewBlock(new_block) => {
@@ -132,7 +142,9 @@ impl Server {
                     }
 
                     if let Some(needed_block) = block_need {
-                        server_network_tx.send(RequestServer::AskHash(needed_block)).unwrap();
+                        server_network_tx
+                            .send(RequestServer::AskHash(needed_block))
+                            .unwrap();
                     }
                 }
             }
