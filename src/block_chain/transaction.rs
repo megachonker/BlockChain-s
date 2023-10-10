@@ -13,12 +13,12 @@ use std::{
 use super::blockchain::{self, Blockchain};
 
 /// can be used iside smart contract
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Default,Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 struct TxUtxo {
     pub value: u128, //wider + simpler + undivisible + optimisation + reusing common acronyme M K
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Default,Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct RxUtxo {
     block_location: u64, //dans quelle block est la transa
     transa_id: u64,      //hash de Transaction
@@ -226,33 +226,27 @@ impl Transaction {
 
 #[cfg(test)]
 mod tests {
+    use std::default;
+
     use crate::block_chain::transaction::{RxUtxo, Transaction};
 
     #[test]
     fn test_select_utxo_from_vec() {
         let rx_7 = RxUtxo {
-            block_location: 0,
-            transa_id: 0,
-            moula_id: 0,
             value: 5,
+            ..Default::default()
         };
         let rx_3 = RxUtxo {
-            block_location: 0,
-            transa_id: 0,
-            moula_id: 0,
             value: 4,
+            ..Default::default()
         };
         let rx_2 = RxUtxo {
-            block_location: 0,
-            transa_id: 0,
-            moula_id: 0,
             value: 8,
+            ..Default::default()
         };
         let rx_9 = RxUtxo {
-            block_location: 0,
-            transa_id: 0,
-            moula_id: 0,
             value: 9,
+            ..Default::default()
         };
 
         let wallet = vec![rx_7, rx_3, rx_2, rx_9];
