@@ -1,24 +1,25 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex, RwLock};
-use std::thread;
+use std::sync::mpsc::{self, Sender};
+use std::sync::{Arc, Barrier, Mutex, RwLock};
 use std::{
     collections::{hash_map::DefaultHasher, HashSet},
     default, fmt,
     hash::{Hash, Hasher},
     sync::mpsc::Receiver,
 };
+use std::{hash, thread};
+use tracing::{info, warn};
 
 use super::blockchain::{self, Blockchain};
 
 /// can be used iside smart contract
-#[derive(Default,Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 struct TxUtxo {
     pub value: u128, //wider + simpler + undivisible + optimisation + reusing common acronyme M K
 }
 
-#[derive(Default,Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct RxUtxo {
     block_location: u64, //dans quelle block est la transa
     transa_id: u64,      //hash de Transaction
@@ -60,7 +61,7 @@ impl RxUtxo {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Transaction {
     rx: Vec<RxUtxo>,
     tx: Vec<TxUtxo>, //fist is what is send back
@@ -90,53 +91,74 @@ impl fmt::Display for Transaction {
 }
 
 /// Make the split of the coin
+
 impl Transaction {
     fn runer(
         from_network: Receiver<Transaction>,
         from_block: Receiver<Transaction>,
-        valid_transa: Sender<Vec<Transaction>>,
-    ) {
+        valid_transa: Arc<RwLock<Vec<Transaction>>>,
+        fucktard: Arc<Barrier>,
+    ) -> Arc<Barrier> {
         let register = Arc::new(Mutex::new(HashMap::new()));
 
         let hashmap = register.clone();
-        let val = valid_transa.clone();
+
+        let (tx, rx) = mpsc::channel();
+
+        let ttx = tx.clone();
+
+
+        let phisicalpain = fucktard.clone();
         thread::spawn(move || {
             loop {
                 //blockaine valide destruction of it
+                phisicalpain.wait();
                 let transa_from_block = from_block.recv().unwrap();
-                hashmap.lock().unwrap().insert(transa_from_block, false);
-                val.send(
-                    hashmap
-                        .lock()
-                        .unwrap()
-                        .iter()
-                        .filter_map(|(k, v)| if !*v { Some(k.clone()) } else { None })
-                        .collect(),
-                )
-                .unwrap();
+
+                let mut hashlocked = hashmap.lock().unwrap();
+
+                hashlocked.insert(transa_from_block, false);
+
+                let new_trans_block: Vec<Transaction> = hashlocked
+                    .iter()
+                    .filter_map(|(k, v)| if !*v { Some(k.clone()) } else { None })
+                    .collect();
+                ttx.send(new_trans_block).unwrap();
             }
         });
+        let phisicalpain = fucktard.clone();
         thread::spawn(move || {
+            ///////pa la
             loop {
                 //if not exist add new transa
+                phisicalpain.wait(); ///////////////LA
                 let transa_from_net = from_network.recv().unwrap();
-                register
-                    .lock()
-                    .unwrap()
-                    .entry(transa_from_net)
-                    .or_insert(true);
-                valid_transa
-                    .send(
-                        register
-                            .lock()
-                            .unwrap()
-                            .iter()
-                            .filter_map(|(k, v)| if !*v { Some(k.clone()) } else { None })
-                            .collect(),
-                    )
-                    .unwrap();
+
+                let mut hashlock = register.lock().unwrap();
+
+                hashlock.entry(transa_from_net).or_insert(true);
+
+                let new_trans_block: Vec<Transaction> = hashlock
+                    .iter()
+                    .filter_map(|(k, v)| if !*v { Some(k.clone()) } else { None })
+                    .collect();
+                tx.send(new_trans_block).unwrap();
             }
         });
+
+        let phisicalpain = fucktard.clone();
+        let ffkingdying = Arc::new(Barrier::new(2));
+        let cursed_cloon = ffkingdying.clone();
+        thread::spawn(move || {
+            loop {
+                phisicalpain.wait();
+                let lock_transa = rx.recv().unwrap();
+                let mut lock_out = valid_transa.write().unwrap();
+                *lock_out = lock_transa;
+                // ffkingdying.wait();
+            }
+        });
+        return cursed_cloon;
     }
 
     pub fn check(&self) -> bool {
@@ -153,7 +175,7 @@ impl Transaction {
         let utxos = blockchain.filter_utxo(source);
 
         //not optimal but i is a NP problem see bag problem
-        let (rx, resend) = Self::select_utxo_from_vec(&utxos, amount);
+        let (rx, resend) = Self::select_utxo_from_vec(&utxos, amount).unwrap();
 
         Self {
             rx,
@@ -164,7 +186,7 @@ impl Transaction {
 
     /// ofline use actual wallet and create transa
     pub fn new_offline(input: &Vec<RxUtxo>, amount: u128, destination: u64) -> Transaction {
-        let (rx, resend) = Self::select_utxo_from_vec(input, amount);
+        let (rx, resend) = Self::select_utxo_from_vec(input, amount).unwrap();
 
         Self {
             rx,
@@ -185,7 +207,7 @@ impl Transaction {
     /// it select 7 3 2
     ///
     /// it need to give 1 to miner give implicitly, 10 to the user and send back 1
-    fn select_utxo_from_vec(avaible: &Vec<RxUtxo>, amount: u128) -> (Vec<RxUtxo>, u128) {
+    fn select_utxo_from_vec(avaible: &Vec<RxUtxo>, amount: u128) -> Option<(Vec<RxUtxo>, u128)> {
         let fee = amount / 10;
         let mut sum = 0;
         let r: Vec<RxUtxo> = avaible
@@ -200,8 +222,8 @@ impl Transaction {
             })
             .cloned()
             .collect();
-        let to_send_back = sum - (amount + fee);
-        (r, to_send_back)
+        let to_send_back = sum.checked_sub(amount + fee);
+        to_send_back.map(|val| (r, val))
     }
 
     pub fn get_utxos(&self, block_location: u64) -> Vec<RxUtxo> {
@@ -226,7 +248,10 @@ impl Transaction {
 
 #[cfg(test)]
 mod tests {
-    use std::default;
+    use std::{
+        default,
+        sync::{mpsc, Arc, Barrier, RwLock}, thread, time::Duration,
+    };
 
     use crate::block_chain::transaction::{RxUtxo, Transaction};
 
@@ -251,7 +276,7 @@ mod tests {
 
         let wallet = vec![rx_7, rx_3, rx_2, rx_9];
 
-        let (transa, sendback) = Transaction::select_utxo_from_vec(&wallet, 10);
+        let (transa, sendback) = Transaction::select_utxo_from_vec(&wallet, 10).unwrap();
         transa.iter().for_each(|transa| print!("{}", transa));
         let full: u128 = transa.iter().map(|f| f.value).into_iter().sum();
         let total_cost = full - 10;
@@ -261,6 +286,37 @@ mod tests {
         );
         assert_eq!(sendback, 6);
         assert_eq!(total_cost, 7)
+    }
+
+    #[test]
+    fn runner_lunch() {
+        let (from_network_tx, from_network_rx) = mpsc::channel();
+        let (from_block_tx, from_block_rx) = mpsc::channel();
+        let valid = Arc::new(RwLock::new(vec![]));
+
+        let fucktard = Arc::new(Barrier::new(4));
+        
+        let t1 = Transaction::new_offline(&vec![], 0, 1);
+        let t2 = Transaction::new_offline(&Default::default(), 0, 2);
+
+        from_network_tx.send(t1.clone()).unwrap();
+        from_network_tx.send(t2.clone()).unwrap();
+
+        from_block_tx.send(t1.clone()).unwrap();
+        
+        let let_me_end_pain = Transaction::runer(from_network_rx, from_block_rx, valid.clone(), fucktard.clone());
+
+        let stor = valid.read().unwrap();
+        // println!("{}",stor.first().unwrap());
+        fucktard.wait();
+        // let_me_end_pain.wait();
+        thread::sleep(Duration::from_millis(800));
+        let a = stor.iter().any(|f| f.target_pubkey == 1);
+        println!("{:?}",stor);
+
+        // assert!(valid_rx.recv().unwrap().iter().any(|f|*f==t2));
+
+        assert!(a);
     }
 
     // #[test]

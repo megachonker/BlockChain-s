@@ -314,7 +314,9 @@ mod tests {
     fn create_blockchain() {
         let (client, server) = Network::new_pair();
 
-        // server.start(mined_block_rx, net_transa_tx, network_server_tx, server_network_rx)
+        std::thread::spawn(||{
+            // server.start(net_transa_tx, network_server_tx);
+        });
 
         assert!(true)
     }
