@@ -9,7 +9,7 @@ mod block_chain {
 }
 
 use block_chain::node::{client::Client, network::Network, server::Server, NewNode};
-use std::net::{IpAddr, Ipv4Addr};
+use std::{net::{IpAddr, Ipv4Addr}, str::FromStr};
 
 #[derive(Parser)]
 struct Cli {
@@ -30,18 +30,23 @@ struct Cli {
     /// Key file: fichier contenant la clef privée
     #[arg(short, long,default_value_t = String::new())]
     secret: String,
+
+
+    #[arg(short, long,default_value_t =String::from("TRACE") )]         //a changer a terme
+    verbose: String
 }
 
 use clap::Parser;
 
 fn main() {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::TRACE)
-        .init();
-
+    
     //get argument
     let arg = Cli::parse();
-
+    
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::from_str(&arg.verbose).unwrap_or(tracing::Level::TRACE))
+        .init();
+    
     //check error of logique
     let node = parse_args(arg);
 
@@ -110,6 +115,7 @@ mod tests {
             bootstrap,
             destination: u64::MIN,
             secret: String::new(),
+            verbose : String::new(),
         };
         parse_args(cli);
 
@@ -122,6 +128,8 @@ mod tests {
             bootstrap,
             destination: u64::MIN,
             secret: String::new(),
+            verbose : String::new(),
+
         };
         parse_args(cli);
     }

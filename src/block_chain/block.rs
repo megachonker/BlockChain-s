@@ -102,7 +102,6 @@ impl Block {
         self.answer.hash(&mut hasher);
 
         let answer = hasher.finish();
-        println!("{}", answer);
 
         answer < HASH_MAX && answer == self.block_id && self.quote.len() < 100
     }

@@ -178,6 +178,7 @@ impl Network {
 
             if self.bootstrap != SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 6021) //ask for last block 
             {
+                self.send_packet(&Packet::Peer(vec![]), &self.bootstrap);          //to register and get peers
                 self.send_packet(&Packet::Block(TypeBlock::Hash(-1)), &self.bootstrap);
             }
     }
