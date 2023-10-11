@@ -89,10 +89,15 @@ impl Network {
     /// need to manage duplication
     fn peers(&mut self, peers: Vec<SocketAddr>, source: SocketAddr) {
         //reception demande
+        let mut ownpeers = self.peers.lock().unwrap();
+        if !ownpeers.contains(&source){
+            ownpeers.push(source);
+        }
+        drop(ownpeers);
+
         if peers.is_empty() {
             debug!("Net: receive demande de peers");
             self.send_packet(&Packet::Peer(self.peers.lock().unwrap().clone()), &source);
-            self.peers.lock().unwrap().append(&mut vec![source.clone()]);
         }
         //reception reponse
         else {
@@ -136,11 +141,11 @@ impl Network {
     /// continusly ask for new peers
     /// peer on router eliminate usless
     /// need to create elaborated mecanisme of pasive block
-    fn peers_manager(&self) {
+/*     fn peers_manager(&self) {
         if self.peers.lock().unwrap().len() < 100 {
             self.broadcast(Packet::Peer(vec![]))
         }
-    }
+    } */
 
     /// return the a blockaine
     /// catch from another peer or created
@@ -159,10 +164,8 @@ impl Network {
             .spawn(move || {
                 debug!("Net-Router");
                 loop {
-                    // let cim = forthread.lock().unwrap();
-                    let sick = self_cpy.binding.try_clone().unwrap();
-                    // drop(cim);
-                    let (message, sender) = Self::recv_packet(&sick);
+
+                    let (message, sender) = Self::recv_packet(&self_cpy.binding.try_clone().unwrap());
                     // let mut locked = forthread.lock().unwrap(); /////////BLOCKED
                     match message {
                         Packet::Transaction(transa) => Network::transaction(transa, &event_tx),
