@@ -102,7 +102,12 @@ impl Network {
         //reception reponse
         else {
             println!("Net: receive peers");
-            self.peers.lock().unwrap().append(&mut peers.clone());
+            let mut ownpeers = self.peers.lock().unwrap();
+            for p in peers{
+                if !ownpeers.contains(&p){
+                    ownpeers.push(p);
+                }
+            }
         }
 
         //on add aussi le remote dans la liste
