@@ -19,7 +19,7 @@ use crate::block_chain::{
     transaction::{RxUtxo, Transaction},
 };
 
-use super::server::{RequestNetwork, RequestServer};
+use super::server::{Event, NewBlock};
 
 #[derive(Debug)]
 pub struct Network {
@@ -66,14 +66,14 @@ impl Network {
     ///// USED BY ROUTER
 
     /// append transaction when enought transa send it to miner to create a new block
-    fn transaction(transa: TypeTransa, net_transa_tx: &Sender<Transaction>) {
+    fn transaction(transa: TypeTransa, net_transa_tx: &Sender<Event>) {
         match transa {
             TypeTransa::Ans(utxos) => { /* array of all utxo append */ }
             TypeTransa::Push(transaction) => {
                 if !transaction.check() {
                     return;
                 } else {
-                    net_transa_tx.send(transaction).unwrap();
+                    net_transa_tx.send(Event::Transaction(transaction)).unwrap();
                 }
             }
             TypeTransa::Req(userid) => { /* get all transa and filter by user id*/ }
@@ -115,35 +115,19 @@ impl Network {
         &mut self,
         typeblock: TypeBlock,
         sender: SocketAddr,
-        network_server_tx: &Sender<RequestNetwork>,
+        network_server_tx: &Sender<Event>,
     ) {
         match typeblock {
             TypeBlock::Block(block) => {
                 // debug!("Block get:{}", block);
                 network_server_tx
-                    .send(RequestNetwork::NewBlock(block))
+                    .send(Event::NewBlock(NewBlock::Network(block)))
                     .unwrap();
             }
-            TypeBlock::Hash(number) => {
+            TypeBlock::Hash(number) => {    
                 network_server_tx
-                    .send(RequestNetwork::SendHash((number, sender)))
+                    .send(Event::HashReq((number,sender)))
                     .unwrap();
-                // debug!("Hash get Hash:{}", number);
-                /*
-                self.send_packet(
-                    &Packet::Block(TypeBlock::Block(uwu)=>{}
-
-                        self.blockchain
-                            .iter()
-                            .filter(|block| block.block_id == number)
-                            .next()
-                            .unwrap()
-                            .clone(),
-                            u
-                        )),
-                        &sender,
-                    );
-                    */
             }
         }
     }
@@ -164,52 +148,12 @@ impl Network {
     pub fn start(
         self,
         // mined_block_rx: Receiver<Block>,
-        net_transa_tx: Sender<Transaction>,
-        network_server_tx: Sender<RequestNetwork>,
+        event_tx : Sender<Event>, 
         // server_network_rx: Receiver<RequestServer>,
     ) {
         info!("network start");
 
-        // when miner have a block send it to all people
-        // let for_thread = shared_net.clone();
-        // let self_cpy = self.clone();
-        // let network_server_tx_clone = network_server_tx.clone();
-
-        // thread::Builder::new()
-        //     .name("Net-Block_Sender".to_string())
-        //     .spawn(move || {
-        //         debug!("Net-Block_Sender started");
-        //         loop {
-        //             let mined_block = mined_block_rx.recv().unwrap();
-
-        //             // send to all
-        //             self_cpy.broadcast(Packet::Block(TypeBlock::Block(mined_block.clone())));
-        //             network_server_tx_clone
-        //                 .send(RequestNetwork::NewBlock(mined_block))
-        //                 .unwrap();
-        //         }
-        //     })
-        //     .unwrap();
-
-        // let self_cpy = self.clone();
-        // thread::Builder::new()
-        //     .name("Asker of block at peers".to_string())
-        //     .spawn(move || loop {
-        //         info!("Launch thread asker of blocks");
-        //         match server_network_rx.recv().unwrap() {
-        //             RequestServer::AnswerHash((block, dest)) => {
-        //                 self_cpy.send_packet(&Packet::Block(TypeBlock::Block(block)), &dest)
-        //             }
-        //             RequestServer::AskHash(hash) => {
-        //                 for p in self_cpy.peers.lock().unwrap().clone().into_iter() {
-        //                     self_cpy.send_packet(&Packet::Block(TypeBlock::Hash(hash)), &p);
-        //                 }
-        //             }
-        //         }
-        //     })
-        //     .unwrap();
-
-        // let network_server_tx_clone = network_server_tx.clone();
+        
         let mut self_cpy = self.clone();
         thread::Builder::new()
             .name("Net-Router".to_string())
@@ -222,11 +166,11 @@ impl Network {
                     let (message, sender) = Self::recv_packet(&sick);
                     // let mut locked = forthread.lock().unwrap(); /////////BLOCKED
                     match message {
-                        Packet::Transaction(transa) => Network::transaction(transa, &net_transa_tx),
+                        Packet::Transaction(transa) => Network::transaction(transa, &event_tx),
                         Packet::Peer(peers) => self_cpy.peers(peers, sender),
                         Packet::Keepalive => self_cpy.keepalive(sender),
                         Packet::Block(typeblock) => {
-                            self_cpy.block(typeblock, sender, &network_server_tx)
+                            self_cpy.block(typeblock, sender, &event_tx)
                         }
                     }
                 }
@@ -234,19 +178,6 @@ impl Network {
             .unwrap();
     }
 
-    // fn check_keep_alive(&self, peer: &mut HashMap<SocketAddr, Duration>, time: Duration) {
-    //     let clone = peer.clone();
-    //     for (p, t) in clone {
-    //         if time - t > Duration::from_secs(240) {
-    //             peer.remove(&p);
-    //             println!("Remove the peer {}", p);
-    //         } else if time - t > Duration::from_secs(60) {
-    //             println!("Send a keep alive to {}", p);
-
-    //             self.network.send_packet(Packet::Keepalive, p);
-    //         }
-    //     }
-    // }
 
     /// Constructor of network
     pub fn new(bootstrap: IpAddr, binding: IpAddr) -> Self {
