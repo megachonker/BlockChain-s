@@ -7,6 +7,7 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use tracing::{info, warn};
 
+use super::node::server::{Event,NewBlock};
 use super::transaction::{RxUtxo, Transaction};
 
 const HASH_MAX: u64 = 1000000000000;
@@ -179,7 +180,7 @@ impl PartialEq for Block {
 
 /// # Mining Runner
 /// never ending function that feeded in transaction and block;
-pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
+pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
     info!("Begining mining operation");
     loop {
         let block = cur_block.lock().unwrap().clone(); //presque toujour blocker
@@ -192,7 +193,7 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Block>) {
         //     .unwrap();
 
         if let Some(mined_block) = block.find_next_block(finder, transaction) {
-            sender.send(mined_block).unwrap();
+            sender.send(Event::NewBlock(NewBlock::Mined(mined_block))).unwrap();
         }
     }
 }
@@ -216,7 +217,7 @@ mod tests {
 
     #[test]
     fn test_block_mined_valid() {
-        let (tx, rx) = mpsc::channel::<Block>();
+        let (tx, rx) = mpsc::channel::<Event>();
 
         let cur_block = Arc::new(Mutex::new(Block::new()));
 
@@ -227,7 +228,16 @@ mod tests {
         for _ in 0..2 {
             let b = rx.recv().unwrap();
 
-            assert!(b.check());
+            match b {
+                Event::NewBlock(b) => {match b {
+                    NewBlock::Mined(b) => assert!(b.check()),
+                    NewBlock::Network(_) => assert!(false),
+                }}
+                Event::HashReq(_) => assert!(false),
+                Event::Transaction(_) => assert!(false),
+            }
+
+            
         }
     }
 

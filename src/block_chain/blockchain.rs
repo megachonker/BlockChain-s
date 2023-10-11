@@ -71,7 +71,7 @@ pub struct Blockchain {
 }
 
 impl Default for Blockchain {
-    fn default() -> Self { Blockchain::new().0 }
+    fn default() -> Self { Blockchain::new() }
 }
 
 impl Blockchain {
@@ -81,19 +81,17 @@ impl Blockchain {
         self.get_chain().iter().map(|block| block.get_utxos(addr)).flatten().collect()
     }
 
-    pub fn new() -> (Blockchain, Block) {
+    pub fn new() -> Blockchain {
         let mut hash_map = HashMap::new();
         let first_block = Block::new();
         let hash_first_block = first_block.block_id;
-        hash_map.insert(hash_first_block, first_block.clone());
-        (
+        hash_map.insert(hash_first_block, first_block);
+        
             Blockchain {
                 hash_map_block: hash_map,
                 top_block_hash: hash_first_block,
                 potentials_top_block: PotentialsTopBlock::new(),
-            },
-            first_block,
-        )
+            }        
     }
 
     pub fn get_block<'a>(& 'a self, hash : u64) -> Option<&'a Block>{
@@ -206,18 +204,16 @@ mod tests {
 
     #[test]
     fn create_blockchain() {
-        let (block_chain, last) = Blockchain::new();
+        let block_chain = Blockchain::new();
 
-        assert_eq!(last, Block::new());
+        assert_eq!(block_chain.last_block(), Block::new());
 
-        let last_block = block_chain.last_block();
 
-        assert_eq!(last_block, last);
     }
 
     #[test]
     fn append_wrong_blockchain() {
-        let (mut block_chain, _) = Blockchain::new();
+        let mut block_chain = Blockchain::new();
 
         let (cur_block, _) = block_chain.append(&Block {
             //not a valid block
@@ -234,7 +230,7 @@ mod tests {
 
     #[test]
     fn append_blockchain_second_block() {
-        let (mut blockchain, _) = Blockchain::new();
+        let mut blockchain = Blockchain::new();
 
         let block = Block {
             //hard code
@@ -252,7 +248,7 @@ mod tests {
 
     #[test]
     fn add_block_unchainned() {
-        let (mut blockchain, _) = Blockchain::new();
+        let mut blockchain = Blockchain::new();
 
         let b2 = Block {
             //hard code
@@ -289,7 +285,7 @@ mod tests {
 
     #[test]
     fn remove_old_potential_top() {
-        let (mut blockchain, _) = Blockchain::new();
+        let mut blockchain = Blockchain::new();
 
         let b1 = Block {
             block_height: 1,
@@ -339,7 +335,7 @@ mod tests {
 
     #[test]
     fn get_chain(){
-        let (mut blockchain, _) = Blockchain::new();
+        let mut blockchain = Blockchain::new();
 
         let block = Block {
             //hard code
