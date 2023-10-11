@@ -1,16 +1,17 @@
 use rand::Rng;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
-use tracing::{info, warn};
+use tracing::{info, warn, debug};
 
 use super::node::server::{Event,NewBlock};
 use super::transaction::{RxUtxo, Transaction};
 
-const HASH_MAX: u64 = 100000000000;
+const HASH_MAX: u64 = 1000000000000;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Block {
@@ -46,7 +47,7 @@ impl fmt::Display for Block {
 
         write!(
             f,
-            "
+            "\n
 ╔═══════════════════════════════════════╗
 ║Id block: {}
 ║block_height : {}
@@ -102,7 +103,6 @@ impl Block {
         self.answer.hash(&mut hasher);
 
         let answer = hasher.finish();
-
         answer < HASH_MAX && answer == self.block_id && self.quote.len() < 100
     }
 
@@ -135,12 +135,12 @@ impl Block {
             if answer < HASH_MAX {
                 new_block.answer = nonce_to_test;
                 new_block.block_id = answer; //a modif pour hash plus grand
-                println!("found this block : {}", new_block);
+                info!("found this block : {}", new_block);
                 return Some(new_block);
             }
 
             if nonce_to_test % 50000000 == 0 {
-                info!("Refersh");
+                debug!("Refersh");
                 return None;
             }
 
@@ -182,7 +182,9 @@ impl PartialEq for Block {
 pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
     info!("Begining mining operation");
     loop {
-        let block = cur_block.lock().unwrap().clone(); //presque toujour blocker
+        let block_locked = cur_block.lock().unwrap();
+        let block = block_locked.clone(); //presque toujour blocker
+        drop(block_locked);
         let transaction = vec![];
 
         // do the same things

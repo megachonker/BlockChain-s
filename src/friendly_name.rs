@@ -4,6 +4,8 @@ use std::hash::{Hash, Hasher};
 use std::io::{self, BufRead};
 use std::net::SocketAddr;
 
+use tracing::debug;
+
 pub fn get_friendly_name(addr: SocketAddr) -> io::Result<String> {
     // Step 1 & 2: Convert SocketAddr to string and hash it using DefaultHasher
     let addr_str = addr.to_string();
@@ -23,7 +25,7 @@ pub fn get_friendly_name(addr: SocketAddr) -> io::Result<String> {
     // Step 5 & 6: Calculate the line index using modulo operation and return the string at that index
     let max_line_index = lines.len() as u64;
     let line_index = (hash_result % max_line_index) as usize;
-    println!("{}",lines[line_index].clone());
+    debug!("{}",lines[line_index].clone());
     Ok(lines[line_index].clone())
 }
 

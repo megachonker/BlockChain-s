@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     default,
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
     sync::{
@@ -10,12 +11,10 @@ use std::{
 
 use bincode::{deserialize, serialize};
 use serde::{Deserialize, Serialize};
-use tracing::instrument;
 use tracing::{debug, info, warn};
 
 use crate::block_chain::{
     block::Block,
-    blockchain::Blockchain,
     transaction::{RxUtxo, Transaction},
 };
 
@@ -25,7 +24,7 @@ use super::server::{Event, NewBlock};
 pub struct Network {
     pub bootstrap: SocketAddr,
     binding: UdpSocket,
-    peers: Arc<Mutex<Vec<SocketAddr>>>,
+    peers: Arc<Mutex<HashSet<SocketAddr>>>,
 }
 
 impl Clone for Network {
@@ -39,8 +38,14 @@ impl Clone for Network {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum TypePeer {
+    List(HashSet<SocketAddr>), //we now how manny peers we want
+    Request(usize),            //number of peers to ask
+}
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum TypeBlock {
+    Lastblock,
     Hash(i128),
     Block(Block),
 }
@@ -57,7 +62,7 @@ pub enum Packet {
     Keepalive,
     Transaction(TypeTransa),
     Block(TypeBlock),
-    Peer(Vec<SocketAddr>),
+    Peer(TypePeer),
 }
 
 // whole network function inside it
@@ -87,29 +92,22 @@ impl Network {
     /// If received empty reply with all peers
     /// If received append new peers to the list
     /// need to manage duplication
-    fn peers(&mut self, peers: Vec<SocketAddr>, source: SocketAddr) {
-        //reception demande
-        let mut ownpeers = self.peers.lock().unwrap();
-        if !ownpeers.contains(&source){
-            ownpeers.push(source);
-        }
-        drop(ownpeers);
-
-        if peers.is_empty() {
-            debug!("Net: receive demande de peers");
-            self.send_packet(&Packet::Peer(self.peers.lock().unwrap().clone()), &source);
-        }
-        //reception reponse
-        else {
-            println!("Net: receive peers");
-            let mut ownpeers = self.peers.lock().unwrap();
-            for p in peers{
-                if !ownpeers.contains(&p){
-                    ownpeers.push(p);
-                }
+    fn peers(&mut self, peers: TypePeer, source: SocketAddr) {
+        self.peers.lock().unwrap().insert(source);
+        match peers {
+            TypePeer::List(new_peers) => {
+                /*test peers befort pls */
+                warn!("Network LIST peers recus");
+                self.peers.lock().unwrap().extend(new_peers);
+                debug!("apres {:?}",self.peers.lock().unwrap());
             }
+            TypePeer::Request(sizer) => {
+                warn!("Network Request Peers");
+                self.send_packet(
+                &Packet::Peer(TypePeer::List(self.peers.lock().unwrap().clone())),
+                &source,
+            )},
         }
-
         //on add aussi le remote dans la liste
     }
 
@@ -127,70 +125,53 @@ impl Network {
         network_server_tx: &Sender<Event>,
     ) {
         match typeblock {
+            TypeBlock::Lastblock => {
+                network_server_tx
+                    .send(Event::HashReq((-1, sender)))
+                    .unwrap();
+            }
             TypeBlock::Block(block) => {
                 // debug!("Block get:{}", block);
                 network_server_tx
                     .send(Event::NewBlock(NewBlock::Network(block)))
                     .unwrap();
             }
-            TypeBlock::Hash(number) => {    
+            TypeBlock::Hash(number) => {
                 network_server_tx
-                    .send(Event::HashReq((number,sender)))
+                    .send(Event::HashReq((number, sender)))
                     .unwrap();
             }
         }
     }
 
-    ////// END USED BY ROUTER
-
-    /// continusly ask for new peers
-    /// peer on router eliminate usless
-    /// need to create elaborated mecanisme of pasive block
-/*     fn peers_manager(&self) {
-        if self.peers.lock().unwrap().len() < 100 {
-            self.broadcast(Packet::Peer(vec![]))
-        }
-    } */
-
-    /// return the a blockaine
-    /// catch from another peer or created
-    pub fn start(
-        self,
-        // mined_block_rx: Receiver<Block>,
-        event_tx : Sender<Event>, 
-        // server_network_rx: Receiver<RequestServer>,
-    ) {
+    pub fn start(self, event_tx: Sender<Event>) {
         info!("network start");
 
-        
         let mut self_cpy = self.clone();
         thread::Builder::new()
             .name("Net-Router".to_string())
             .spawn(move || {
                 debug!("Net-Router");
                 loop {
-
-                    let (message, sender) = Self::recv_packet(&self_cpy.binding.try_clone().unwrap());
-                    // let mut locked = forthread.lock().unwrap(); /////////BLOCKED
+                    let (message, sender) =
+                        Self::recv_packet(&self_cpy.binding.try_clone().unwrap());
                     match message {
                         Packet::Transaction(transa) => Network::transaction(transa, &event_tx),
                         Packet::Peer(peers) => self_cpy.peers(peers, sender),
                         Packet::Keepalive => self_cpy.keepalive(sender),
-                        Packet::Block(typeblock) => {
-                            self_cpy.block(typeblock, sender, &event_tx)
-                        }
+                        Packet::Block(typeblock) => self_cpy.block(typeblock, sender, &event_tx),
                     }
                 }
             })
             .unwrap();
 
-            if self.bootstrap != SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 6021) //ask for last block 
-            {
-                self.send_packet(&Packet::Peer(vec![]), &self.bootstrap);          //to register and get peers
-                self.send_packet(&Packet::Block(TypeBlock::Hash(-1)), &self.bootstrap);
-            }
+        if self.bootstrap != SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 6021)
+        //ask for last block
+        {
+            self.send_packet(&Packet::Peer(TypePeer::Request(100)), &self.bootstrap); //to register and get peers
+            self.send_packet(&Packet::Block(TypeBlock::Lastblock), &self.bootstrap);
+        }
     }
-
 
     /// Constructor of network
     pub fn new(bootstrap: IpAddr, binding: IpAddr) -> Self {
@@ -199,7 +180,7 @@ impl Network {
         Self {
             bootstrap,
             binding,
-            peers: Arc::new(Mutex::new(vec![])),
+            peers: Arc::new(Mutex::new(Default::default())),
         }
     }
 
@@ -252,15 +233,19 @@ impl Network {
 
 #[cfg(test)]
 mod tests {
-    use crate::block_chain::node::network::Network;
-
+    use crate::block_chain::node::{network::Network, server::Event};
+    use std::sync::mpsc::{self, Receiver};
     #[test]
     fn create_blockchain() {
         let (client, server) = Network::new_pair();
-
-        std::thread::spawn(||{
-            // server.start(net_transa_tx, network_server_tx);
+        // let (server_tx,server_rx) = mpsc::channel();
+        
+        std::thread::spawn(|| {
+            // server.start(tx);:
+            // client.start(event_tx)
         });
+
+        // client.send_packet(packet, dest)
 
         assert!(true)
     }
