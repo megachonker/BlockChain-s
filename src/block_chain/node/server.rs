@@ -33,7 +33,7 @@ pub enum NewBlock {
 
 pub enum Event {
     NewBlock(NewBlock),
-    HashReq((u64, SocketAddr)),
+    HashReq((i128, SocketAddr)),
     Transaction(Transaction),
 }
 
@@ -100,11 +100,18 @@ impl Server {
             //Routing Event
             match event_channels.1.recv().unwrap() {
                 Event::HashReq((hash, dest)) => {
-                    if let Some(block) = self.blockchain.get_block(hash) {
+                    if hash == -1{
+                        self.network
+                            .send_packet(&Packet::Block(TypeBlock::Block(self.blockchain.last_block())), &dest)
+                    }
+                    else if hash.is_negative(){
+                        warn!("Reciv negative hash != -1 : {}",hash);
+                    }
+                    else if let Some(block) = self.blockchain.get_block(hash as u64) {
                         self.network
                             .send_packet(&Packet::Block(TypeBlock::Block(block.clone())), &dest)
                     }else {
-                        warn!("hash not found in database {}",hash);
+                        warn!("hash not found in database :{}",hash);
                     }
                 }
                 Event::NewBlock(new_block) => {
@@ -130,7 +137,7 @@ impl Server {
 
                     if let Some(needed_block) = block_need {
                         self.network
-                            .broadcast(Packet::Block(TypeBlock::Hash(needed_block)));
+                            .broadcast(Packet::Block(TypeBlock::Hash(needed_block as i128)));
                     }
                 }
                 Event::Transaction(_) => todo!(),

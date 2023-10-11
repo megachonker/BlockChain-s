@@ -41,7 +41,7 @@ impl Clone for Network {
 #[derive(Serialize, Deserialize, Debug)]
 
 pub enum TypeBlock {
-    Hash(u64),
+    Hash(i128),
     Block(Block),
 }
 
@@ -175,6 +175,11 @@ impl Network {
                 }
             })
             .unwrap();
+
+            if self.bootstrap != SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 6021) //ask for last block 
+            {
+                self.send_packet(&Packet::Block(TypeBlock::Hash(-1)), &self.bootstrap);
+            }
     }
 
 

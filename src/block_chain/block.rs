@@ -10,7 +10,7 @@ use tracing::{info, warn};
 use super::node::server::{Event,NewBlock};
 use super::transaction::{RxUtxo, Transaction};
 
-const HASH_MAX: u64 = 1000000000000;
+const HASH_MAX: u64 = 100000000000;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Block {
@@ -46,7 +46,7 @@ impl fmt::Display for Block {
 
         write!(
             f,
-            "\n
+            "
 ╔═══════════════════════════════════════╗
 ║Id block: {}
 ║block_height : {}
