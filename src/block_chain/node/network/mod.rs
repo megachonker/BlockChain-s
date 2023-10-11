@@ -90,8 +90,9 @@ impl Network {
     fn peers(&mut self, peers: Vec<SocketAddr>, source: SocketAddr) {
         //reception demande
         if peers.is_empty() {
-            println!("Net: receive demande de peers");
+            debug!("Net: receive demande de peers");
             self.send_packet(&Packet::Peer(self.peers.lock().unwrap().clone()), &source);
+            self.peers.lock().unwrap().append(&mut vec![source.clone()]);
         }
         //reception reponse
         else {
@@ -100,7 +101,6 @@ impl Network {
         }
 
         //on add aussi le remote dans la liste
-        self.peers.lock().unwrap().append(&mut vec![source.clone()]);
     }
 
     /// Ping Pong but update timestamp
@@ -110,7 +110,6 @@ impl Network {
         self.send_packet(&Packet::Keepalive, &sender);
     }
 
-    #[instrument]
     fn block(
         &mut self,
         typeblock: TypeBlock,

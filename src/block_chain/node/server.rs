@@ -5,7 +5,7 @@ use std::{
     thread,
 };
 
-use tracing::info;
+use tracing::{debug, info, warn};
 
 use crate::block_chain::{
     block::{self, mine, Block},
@@ -58,18 +58,14 @@ impl Server {
         }
     }
     pub fn start(mut self) {
-        println!(
+        info!(
             "Server started {} facke id {} -> {:?}",
             &self.name,
             get_fake_id(&self.name),
             self.network
         );
-        info!("server mode");
-        let id = get_fake_id(&self.name);
 
-        //
         // need to link new stack of transaction because the miner need continue to mine without aprouvale of the network
-
         let event_channel = mpsc::channel::<Event>();
 
         //transaction
@@ -80,27 +76,13 @@ impl Server {
              */
         });
 
-        self.network.clone().start(
-            // mined_block_rx,
-            event_channel.0.clone(),
-            // server_network_rx,
-        );
+        self.network.clone().start(event_channel.0.clone());
 
-        // println!("blockaine recus{:?}", blockaine);
-
-        self.server_runtime(
-            self.id,
-            event_channel, // server_network_tx,
-        );
+        self.server_runtime(self.id, event_channel);
     }
 
-    fn server_runtime(
-        &mut self,
-        finder: u64,
-        // mined_block_tx: Sender<Block>,
-        event_channels: (Sender<Event>, Receiver<Event>),
-        // server_network_tx: Sender<RequestServer>,
-    ) {
+    /// Routing event and adding block and transaction
+    fn server_runtime(&mut self, finder: u64, event_channels: (Sender<Event>, Receiver<Event>)) {
         info!("Runtime server start");
 
         let actual_top_block = Arc::new(Mutex::new(self.blockchain.last_block()));
@@ -115,18 +97,14 @@ impl Server {
             .unwrap();
 
         loop {
-            // let new_block: Block = match new_block_rx.recv().unwrap(){
-            //     BlockFrom::Mined(block) => {
-            //         //network send
-            //         block
-            // }
-            //     BlockFrom::Network(block) => block,
-            // };
+            //Routing Event
             match event_channels.1.recv().unwrap() {
                 Event::HashReq((hash, dest)) => {
                     if let Some(block) = self.blockchain.get_block(hash) {
                         self.network
                             .send_packet(&Packet::Block(TypeBlock::Block(block.clone())), &dest)
+                    }else {
+                        warn!("hash not found in database {}",hash);
                     }
                 }
                 Event::NewBlock(new_block) => {
@@ -138,10 +116,14 @@ impl Server {
                         }
                         NewBlock::Network(b) => b,
                     };
-                    println!("New block");
+                    debug!("New block");
                     let (new_top_block, block_need) = self.blockchain.append(&new_block);
 
+                    /// when blockain accept new block
                     if let Some(top_block) = new_top_block {
+                        //inform transaction runner that a new block was accepted a
+                        //ned to check if parent are same
+                        //need to resync db
                         let mut lock_actual_top_block = actual_top_block.lock().unwrap();
                         *lock_actual_top_block = top_block;
                     }

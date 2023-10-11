@@ -1,18 +1,17 @@
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::Receiver;
 use std::collections::HashMap;
-use std::sync::mpsc::{self, Sender};
-use std::sync::{Arc, Barrier, Mutex, RwLock};
+use std::sync::Arc;
 use std::{
     collections::{hash_map::DefaultHasher, HashSet},
     default, fmt,
     hash::{Hash, Hasher},
-    sync::mpsc::Receiver,
 };
-use std::{hash, thread};
-use tracing::{info, warn};
 
 use super::blockchain::{self, Blockchain};
 
+use tokio::sync::{mpsc, RwLock};
+use tokio::select;
 /// can be used iside smart contract
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 struct TxUtxo {
@@ -93,73 +92,45 @@ impl fmt::Display for Transaction {
 /// Make the split of the coin
 
 impl Transaction {
-    fn runer(
-        from_network: Receiver<Transaction>,
-        from_block: Receiver<Transaction>,
-        valid_transa: Arc<RwLock<Vec<Transaction>>>,
-        fucktard: Arc<Barrier>,
-    ) -> Arc<Barrier> {
-        let register = Arc::new(Mutex::new(HashMap::new()));
 
-        let hashmap = register.clone();
-
-        let (tx, rx) = mpsc::channel();
-
-        let ttx = tx.clone();
-
-
-        let phisicalpain = fucktard.clone();
-        thread::spawn(move || {
-            loop {
-                //blockaine valide destruction of it
-                phisicalpain.wait();
-                let transa_from_block = from_block.recv().unwrap();
-
-                let mut hashlocked = hashmap.lock().unwrap();
-
-                hashlocked.insert(transa_from_block, false);
-
-                let new_trans_block: Vec<Transaction> = hashlocked
-                    .iter()
-                    .filter_map(|(k, v)| if !*v { Some(k.clone()) } else { None })
-                    .collect();
-                ttx.send(new_trans_block).unwrap();
+    /// Invalidate Transaction from blockaine
+    /// Import new transa from network
+    /// write a RwLock the updated vec transa
+    async fn runner(
+        mut from_network: Receiver<Transaction>,
+        mut from_block: Receiver<Transaction>,
+        shared_var: Arc<RwLock<Vec<Transaction>>>,
+    ) {
+        let mut transaction_register: HashMap<Transaction, bool> = HashMap::new();
+    
+        loop {
+            select! {
+                transa_from_net = from_network.recv() => {
+                    if let Some(transaction) = transa_from_net {
+                        transaction_register.entry(transaction).or_insert(true);
+                    } else {
+                        break; // Network channel closed
+                    }
+                },
+                transa_from_block = from_block.recv() => {
+                    if let Some(transaction) = transa_from_block {
+                        transaction_register.insert(transaction, false);
+                    } else {
+                        break; // Block channel closed
+                    }
+                }
             }
-        });
-        let phisicalpain = fucktard.clone();
-        thread::spawn(move || {
-            ///////pa la
-            loop {
-                //if not exist add new transa
-                phisicalpain.wait(); ///////////////LA
-                let transa_from_net = from_network.recv().unwrap();
-
-                let mut hashlock = register.lock().unwrap();
-
-                hashlock.entry(transa_from_net).or_insert(true);
-
-                let new_trans_block: Vec<Transaction> = hashlock
-                    .iter()
-                    .filter_map(|(k, v)| if !*v { Some(k.clone()) } else { None })
-                    .collect();
-                tx.send(new_trans_block).unwrap();
-            }
-        });
-
-        let phisicalpain = fucktard.clone();
-        let ffkingdying = Arc::new(Barrier::new(2));
-        let cursed_cloon = ffkingdying.clone();
-        thread::spawn(move || {
-            loop {
-                phisicalpain.wait();
-                let lock_transa = rx.recv().unwrap();
-                let mut lock_out = valid_transa.write().unwrap();
-                *lock_out = lock_transa;
-                // ffkingdying.wait();
-            }
-        });
-        return cursed_cloon;
+    
+            let valid_transactions: Vec<Transaction> = transaction_register
+                .iter()
+                .filter_map(|(k, v)| if *v { Some(k.clone()) } else { None })
+                .collect();
+    
+            let mut shared_data = shared_var.write().await;
+            *shared_data = valid_transactions;
+        }
     }
+    
 
     pub fn check(&self) -> bool {
         !self.rx.is_empty()
@@ -250,8 +221,10 @@ impl Transaction {
 mod tests {
     use std::{
         default,
-        sync::{mpsc, Arc, Barrier, RwLock}, thread, time::Duration,
+        sync::{ Arc, Barrier}, thread, time::Duration,
     };
+
+    use tokio::sync::{mpsc::channel, RwLock};
 
     use crate::block_chain::transaction::{RxUtxo, Transaction};
 
@@ -288,35 +261,33 @@ mod tests {
         assert_eq!(total_cost, 7)
     }
 
-    #[test]
-    fn runner_lunch() {
-        let (from_network_tx, from_network_rx) = mpsc::channel();
-        let (from_block_tx, from_block_rx) = mpsc::channel();
-        let valid = Arc::new(RwLock::new(vec![]));
+    #[tokio::test]
+    async fn runner_lunch() {
 
-        let fucktard = Arc::new(Barrier::new(4));
+        let (from_network_tx, from_network_rx) = channel(10);
+        let (from_block_tx, from_block_rx) = channel(10);
+        let valid = Arc::new(RwLock::new(vec![Transaction::default()]));
+
+
+        tokio::task::spawn(Transaction::runner(from_network_rx, from_block_rx, valid.clone()));
         
-        let t1 = Transaction::new_offline(&vec![], 0, 1);
+        let t1 = Transaction::new_offline(&Default::default(), 0, 1);
         let t2 = Transaction::new_offline(&Default::default(), 0, 2);
-
-        from_network_tx.send(t1.clone()).unwrap();
-        from_network_tx.send(t2.clone()).unwrap();
-
-        from_block_tx.send(t1.clone()).unwrap();
+        let t3 = Transaction::new_offline(&Default::default(), 0, 3);
+        let t4 = Transaction::new_offline(&Default::default(), 0, 4);
         
-        let let_me_end_pain = Transaction::runer(from_network_rx, from_block_rx, valid.clone(), fucktard.clone());
-
-        let stor = valid.read().unwrap();
-        // println!("{}",stor.first().unwrap());
-        fucktard.wait();
-        // let_me_end_pain.wait();
-        thread::sleep(Duration::from_millis(800));
-        let a = stor.iter().any(|f| f.target_pubkey == 1);
-        println!("{:?}",stor);
-
-        // assert!(valid_rx.recv().unwrap().iter().any(|f|*f==t2));
-
-        assert!(a);
+        from_network_tx.send(t1.clone()).await.unwrap();
+        from_network_tx.send(t2.clone()).await.unwrap();
+        from_network_tx.send(t4.clone()).await.unwrap();
+        
+        from_block_tx.send(t1.clone()).await.unwrap();
+        
+        // tokio::time::sleep(Duration::from_millis(100)).await;
+        let stor = valid.read().await;
+        assert!(!stor.contains(&t1));
+        assert!(stor.contains(&t2));
+        assert!(!stor.contains(&t3));
+        assert!(stor.contains(&t4));
     }
 
     // #[test]

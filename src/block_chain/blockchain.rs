@@ -112,10 +112,16 @@ impl Blockchain {
             return (None, None);
         }
 
+        //add the block to the DB
         self.hash_map_block.insert(block.block_id, block.clone());
 
+        //get the current block from the db
         let cur_block = self.hash_map_block.get(&self.top_block_hash).unwrap();
+
+        // the block is superior than my actual progress ?
         if block.block_height > cur_block.block_height {
+
+            //does have same direct ancestor
             if block.parent_hash == cur_block.block_id
                 && block.block_height == cur_block.block_height + 1
                 && !self.potentials_top_block.needed(block.block_id)
@@ -146,7 +152,7 @@ impl Blockchain {
                     }
                 }
             }
-
+            //drop the search cache
             self.potentials_top_block.erease_old(self.top_block_hash);
 
             return (Some(self.last_block()), None);
