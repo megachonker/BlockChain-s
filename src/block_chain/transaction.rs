@@ -264,47 +264,34 @@ mod tests {
     #[tokio::test]
     async fn runner_lunch() {
 
+        //setup
         let (from_network_tx, from_network_rx) = channel(10);
         let (from_block_tx, from_block_rx) = channel(10);
         let valid = Arc::new(RwLock::new(vec![Transaction::default()]));
 
-
+        //put the runner spawned to the Futures of the async
         tokio::task::spawn(Transaction::runner(from_network_rx, from_block_rx, valid.clone()));
         
+        //create fake transaction
         let t1 = Transaction::new_offline(&Default::default(), 0, 1);
         let t2 = Transaction::new_offline(&Default::default(), 0, 2);
         let t3 = Transaction::new_offline(&Default::default(), 0, 3);
         let t4 = Transaction::new_offline(&Default::default(), 0, 4);
         
+        //adding transaction from the network
         from_network_tx.send(t1.clone()).await.unwrap();
         from_network_tx.send(t2.clone()).await.unwrap();
         from_network_tx.send(t4.clone()).await.unwrap();
         
-        from_block_tx.send(t1.clone()).await.unwrap();
+        //invalidate the t1 transaction
+        from_block_tx.send(t1.clone()).await.unwrap(); 
         
-        // tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(1)).await;// wait that runner process transaction
         let stor = valid.read().await;
         assert!(!stor.contains(&t1));
         assert!(stor.contains(&t2));
         assert!(!stor.contains(&t3));
-        assert!(stor.contains(&t4));
+        assert!(stor.contains(&t4))
     }
 
-    // #[test]
-    // fn test_new_offline(){
-    //     let rx_7 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:5};
-    //     let rx_3 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:4};
-    //     let rx_2 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:8};
-    //     let rx_9 = RxUtxo{block_location:0,transa_id:0,moula_id:0,value:9};
-
-    //     let wallet = vec![rx_7,rx_3,rx_2,rx_9];
-
-    //     let (transa,sendback) = Transaction::select_utxo_from_vec(&wallet,10);
-    //     transa.iter().for_each(|transa|print!("{}",transa));
-    //     let full:u128 = transa.iter().map(|f|f.value).into_iter().sum();
-    //     let total_cost = full-10;
-    //     println!("\nneed to send back:{}, total spend with fee:{}",sendback,total_cost);
-    //     assert_eq!(sendback,6);
-    //     assert_eq!(total_cost,7)
-    // }
 }
