@@ -1,11 +1,7 @@
 use std::{
     collections::HashSet,
-    default,
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
-    sync::{
-        mpsc::{Receiver, Sender},
-        Arc, Barrier, Mutex,
-    },
+    sync::{mpsc::Sender, Arc, Mutex},
     thread,
 };
 
@@ -99,14 +95,15 @@ impl Network {
                 /*test peers befort pls */
                 warn!("Network LIST peers recus");
                 self.peers.lock().unwrap().extend(new_peers);
-                debug!("apres {:?}",self.peers.lock().unwrap());
+                debug!("apres {:?}", self.peers.lock().unwrap());
             }
             TypePeer::Request(sizer) => {
                 warn!("Network Request Peers");
                 self.send_packet(
-                &Packet::Peer(TypePeer::List(self.peers.lock().unwrap().clone())),
-                &source,
-            )},
+                    &Packet::Peer(TypePeer::List(self.peers.lock().unwrap().clone())),
+                    &source,
+                )
+            }
         }
         //on add aussi le remote dans la liste
     }
@@ -165,12 +162,13 @@ impl Network {
             })
             .unwrap();
 
-        if self.bootstrap != SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 6021)
-        //ask for last block
-        {
-            self.send_packet(&Packet::Peer(TypePeer::Request(100)), &self.bootstrap); //to register and get peers
-            self.send_packet(&Packet::Block(TypeBlock::Lastblock), &self.bootstrap);
-        }
+        // if self.bootstrap != SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 6021)
+
+        // ////////////// need to be removed
+        // {
+        self.send_packet(&Packet::Peer(TypePeer::Request(100)), &self.bootstrap); //to register and get peers
+        self.send_packet(&Packet::Block(TypeBlock::Lastblock), &self.bootstrap);
+        // }
     }
 
     /// Constructor of network
@@ -190,7 +188,7 @@ impl Network {
         let server_ip = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 1))).unwrap();
 
         let client_bootstrap = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 1))).unwrap();
-        let server_bootstrap = Some(IpAddr::V4(Ipv4Addr::new(0, 1, 0, 0))).unwrap();
+        let server_bootstrap = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 1, 1))).unwrap();
 
         let client = Network::new(client_bootstrap, client_ip);
         let server = Network::new(server_bootstrap, server_ip);
@@ -233,20 +231,49 @@ impl Network {
 
 #[cfg(test)]
 mod tests {
-    use crate::block_chain::node::{network::Network, server::Event};
-    use std::sync::mpsc::{self, Receiver};
+    use crate::block_chain::node::{
+        network::{Network, Packet, TypeBlock},
+        server::{Event, NewBlock},
+    };
+    use std::{
+        net::{IpAddr, Ipv4Addr, SocketAddr},
+        sync::mpsc,
+    };
     #[test]
+    /// test client asking block
+    /// test client recieved the block
+    /// Test server added client
     fn create_blockchain() {
+        let client_addr =
+            SocketAddr::new(Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 2))).unwrap(), 6021);
+
         let (client, server) = Network::new_pair();
-        // let (server_tx,server_rx) = mpsc::channel();
-        
-        std::thread::spawn(|| {
-            // server.start(tx);:
-            // client.start(event_tx)
+        let (server_tx, server_rx) = mpsc::channel();
+        let (client_tx, client_rx) = mpsc::channel();
+
+        let tserver = server.clone();
+        std::thread::spawn(move || {
+            tserver.start(server_tx.clone());
+            client.start(client_tx);
         });
 
-        // client.send_packet(packet, dest)
+        let s1 = server_rx.recv().unwrap();
 
-        assert!(true)
+        assert_eq!(s1, Event::HashReq((-1, client_addr)));
+        println!("{:?}", s1);
+
+        server.send_packet(
+            &Packet::Block(TypeBlock::Block(Default::default())),
+            &client_addr,
+        );
+
+        let c1 = client_rx.recv().unwrap();
+        assert_eq!(c1, Event::NewBlock(NewBlock::Network(Default::default())));
+        println!("{:?}", c1);
+
+        assert_eq!(
+            *server.peers.lock().unwrap().get(&client_addr).unwrap(),
+            client_addr
+        );
     }
 }

@@ -26,11 +26,15 @@ pub enum RequestServer {
     AskHash(u64),
 }
 
+
+#[derive(Debug,PartialEq, Eq)]
+
 pub enum NewBlock {
     Mined(Block),
     Network(Block),
 }
 
+#[derive(Debug,PartialEq, Eq)]
 pub enum Event {
     NewBlock(NewBlock),
     HashReq((i128, SocketAddr)),
@@ -100,13 +104,16 @@ impl Server {
             //Routing Event
             match event_channels.1.recv().unwrap() {
                 Event::HashReq((hash, dest)) => {
+                    // remplace -1 par un enum top block
                     if hash == -1{
                         self.network
                             .send_packet(&Packet::Block(TypeBlock::Block(self.blockchain.last_block())), &dest)
                     }
+                    //ça partira ducoup
                     else if hash.is_negative(){
                         warn!("Reciv negative hash != -1 : {}",hash);
                     }
+                    //ça sera le enum hash
                     else if let Some(block) = self.blockchain.get_block(hash as u64) {
                         self.network
                             .send_packet(&Packet::Block(TypeBlock::Block(block.clone())), &dest)

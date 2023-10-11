@@ -13,7 +13,7 @@ use super::transaction::{RxUtxo, Transaction};
 
 const HASH_MAX: u64 = 1000000000000;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
     /////////////////rendre private quand on aura imported mine extern du serveur
     pub block_id: u64,                  //the hash of whole block
