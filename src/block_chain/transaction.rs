@@ -45,20 +45,17 @@ pub struct Transaction {
 
 impl fmt::Display for Transaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "╔════════════════RX═════════════════════╗").unwrap();
         for transrx in &self.rx {
             writeln!(f, "║{}", transrx).unwrap();
         }
-        writeln!(f, "╠════════════════TX═════════════════════╣").unwrap();
+        write!(f,"║Tx[").unwrap();
         for transtx in &self.tx {
-            writeln!(f, "║{}", transtx).unwrap();
+            write!(f, "{},", transtx).unwrap();
         }
         write!(
             f,
-            "\
-╠═══════════════════════════════════════╣
-║Sender PubKey: {}
-╚═══════════════════════════════════════╝",
+            "]\n\
+║dst: {}",
             self.target_pubkey,
         )
     }
@@ -313,26 +310,27 @@ mod tests {
         // let mut blockchain = Blockchain::new();
         // let miner_self_transa = Transaction::new(Default::default(), vec![100], 1);
 
-
-
+        // //forge teh fist block
         // let org_block = Block::new().find_next_block(1, vec![miner_self_transa],Profile::INFINIT).unwrap();
+
+        // //append fist block with original money
         // let (block,nhsh) = blockchain.append(&org_block);
-        // // assert!(nhsh!=None);
 
-
+        // // create random transaction
         // let transactions = vec![
         //     Transaction::new_online(&blockchain, 1, 25, 10).unwrap(),
         //     Transaction::new_online(&blockchain, 1, 25, 10).unwrap(),
         //     Transaction::new_online(&blockchain, 1, 25, 11).unwrap(),
         // ];
 
-        // println!("{}",block);
+
+        // //mine the next block with the new transaction
         // let block = block.unwrap().find_next_block(1, transactions,Profile::INFINIT).unwrap();
 
-        // blockchain.append(&block);
-        // let (block,nhsh) = blockchain.append(&org_block);
+        // //add it to the blockaine
+        // let (block,nhsh) = blockchain.append(&block);
 
-        // println!("{:?} {:?}", block,nhsh);
+        // println!("{} {:?}", block.unwrap(),nhsh);
         // assert!(true)
     }
 }

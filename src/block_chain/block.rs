@@ -41,16 +41,27 @@ impl Default for Block {
 
 impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let transa_str = if self.transactions.len() > 3 {
+        let transa_str = if self.transactions.len() > 6 {
             format!(
-                "<{}> : [ {:?} {:?} {:?} ... ]",
+                "<{}> :\n{}\n{}\n{}\n...\n{}\n{}\n{}",
                 self.transactions.len(),
                 self.transactions[0],
                 self.transactions[1],
-                self.transactions[3]
+                self.transactions[2],
+                self.transactions[self.transactions.len() - 3],
+                self.transactions[self.transactions.len() - 2],
+                self.transactions[self.transactions.len() - 1]
             )
         } else {
-            format!("<{}> : {:?}", self.transactions.len(), self.transactions)
+
+            format!(
+                "\n{}",
+                self.transactions.iter()
+                    .map(|transa| transa.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+
         };
 
         write!(
