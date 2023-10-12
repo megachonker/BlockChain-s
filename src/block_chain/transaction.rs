@@ -307,30 +307,30 @@ mod tests {
 
     #[test]
     fn test_new_online() {
-        // let mut blockchain = Blockchain::new();
-        // let miner_self_transa = Transaction::new(Default::default(), vec![100], 1);
+        let mut blockchain = Blockchain::new();
+        let miner_self_transa = Transaction::new(Default::default(), vec![100], 1);
 
-        // //forge teh fist block
-        // let org_block = Block::new().find_next_block(1, vec![miner_self_transa],Profile::INFINIT).unwrap();
+        //forge teh fist block
+        let org_block = Block::new().find_next_block(1, vec![miner_self_transa],Profile::INFINIT).unwrap();
 
-        // //append fist block with original money
-        // let (block,nhsh) = blockchain.append(&org_block);
+        //append fist block with original money
+        let (block,nhsh) = blockchain.append(&org_block);
 
-        // // create random transaction
-        // let transactions = vec![
-        //     Transaction::new_online(&blockchain, 1, 25, 10).unwrap(),
-        //     Transaction::new_online(&blockchain, 1, 25, 10).unwrap(),
-        //     Transaction::new_online(&blockchain, 1, 25, 11).unwrap(),
-        // ];
+        // create random transaction
+        let transactions = vec![
+            Transaction::new_online(&blockchain, 1, 25, 10).unwrap(),
+            Transaction::new_online(&blockchain, 1, 25, 10).unwrap(),
+            Transaction::new_online(&blockchain, 1, 25, 11).unwrap(),
+        ];
 
 
-        // //mine the next block with the new transaction
-        // let block = block.unwrap().find_next_block(1, transactions,Profile::INFINIT).unwrap();
+        //mine the next block with the new transaction
+        let block = block.unwrap().find_next_block(1, transactions,Profile::INFINIT).unwrap();
 
-        // //add it to the blockaine
-        // let (block,nhsh) = blockchain.append(&block);
+        //add it to the blockaine
+        let (block,nhsh) = blockchain.append(&block);
 
-        // println!("{} {:?}", block.unwrap(),nhsh);
-        // assert!(true)
+        println!("{}", blockchain);
+        assert!(true)
     }
 }

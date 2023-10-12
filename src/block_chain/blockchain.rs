@@ -1,6 +1,7 @@
+use core::fmt;
 use std::collections::{HashMap, HashSet};
 
-use tracing::{warn, info};
+use tracing::{info, warn};
 
 use super::{block::Block, transaction::Utxo};
 
@@ -67,34 +68,34 @@ impl PotentialsTopBlock {
 /// Keep track of transaction and utxo
 #[derive(Default)]
 struct Balance {
-    utxo:HashSet<Utxo>
+    utxo: HashSet<Utxo>,
 }
 
 impl Balance {
-    
     /// Revert change until src with sub
     /// Replay change until dst with add
-    pub fn calculation<'a,'b>(&mut self,src: Vec<&'a Block>, dst: Vec<&'b Block>) -> &'b Block {
+    pub fn calculation<'a, 'b>(&mut self, src: Vec<&'a Block>, dst: Vec<&'b Block>) -> &'b Block {
         src.iter().for_each(|p| self.sub(p));
-        dst.iter().find(|p| !self.add(p)).unwrap_or(dst.last().unwrap())
+        dst.iter()
+            .find(|p| !self.add(p))
+            .unwrap_or(dst.last().unwrap())
     }
-
 
     /// # Undo add
     /// when we want to drill downside
     /// we need to cancel transaction
-    fn sub(&mut self, block: &Block){
+    fn sub(&mut self, block: &Block) {
         //get utxo to append
         let to_remove = block.find_new_utxo();
 
         //get utxo to remove
-        let  to_append= block.find_used_utxo();
-    
-        if !to_append.iter().all(|t| self.utxo.insert(t.clone())){
+        let to_append = block.find_used_utxo();
+
+        if !to_append.iter().all(|t| self.utxo.insert(t.clone())) {
             warn!("sub: adding new transa double entry")
         }
 
-        if !to_remove.iter().all(|t| self.utxo.remove(t)){
+        if !to_remove.iter().all(|t| self.utxo.remove(t)) {
             warn!("sub: removing transa double delet => Using unknow transaction!")
         }
     }
@@ -102,19 +103,18 @@ impl Balance {
     /// # Drill up
     /// normal whay to update the Balance with one block
     /// when we need to append a new block we run that
-    fn add(&mut self, block: &Block) -> bool{
+    fn add(&mut self, block: &Block) -> bool {
         //get utxo to append
         let to_append = block.find_new_utxo();
 
         //get utxo to remove
         let to_remove = block.find_used_utxo();
-    
 
-        if !to_append.iter().all(|t| self.utxo.insert(t.clone())){
+        if !to_append.iter().all(|t| self.utxo.insert(t.clone())) {
             panic!("add: adding new transa double entry")
         }
 
-        if !to_remove.iter().all(|t| self.utxo.remove(t)){
+        if !to_remove.iter().all(|t| self.utxo.remove(t)) {
             info!("add: removing transa double delet => Using unknow transaction!");
             return false;
         }
@@ -127,6 +127,20 @@ pub struct Blockchain {
     top_block_hash: u64,
     potentials_top_block: PotentialsTopBlock, // block need to finish the chain)
     balance: Balance,
+}
+
+impl fmt::Display for Blockchain {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Block actuel: {}", self.top_block_hash).unwrap();
+        let block = self
+            .search_chain(self.hash_map_block.get(&self.top_block_hash).unwrap())
+            .unwrap().into_iter().map(|b| self.get_block(b).unwrap());
+
+        for b in block {
+            writeln!(f, "{}", b).unwrap();
+        }
+        write!(f, "")
+    }
 }
 
 impl Default for Blockchain {
@@ -154,7 +168,7 @@ impl Blockchain {
             hash_map_block: hash_map,
             top_block_hash: hash_first_block,
             potentials_top_block: PotentialsTopBlock::new(),
-            balance:Default::default(),
+            balance: Default::default(),
         }
     }
 
@@ -211,26 +225,26 @@ impl Blockchain {
 
                         let last_top_ok = new_top_b; //for the moment supr when balence.try_brance implmented
 
-                        if (last_top_ok == new_top_b){
+                        if (last_top_ok == new_top_b) {
                             //all it is ok
                             info!("New branche better branches founds, blockchain update");
                             //sel.balence = new_balence
                             self.top_block_hash = last_top_ok;
-                        }
-                        else if self.last_block().block_height < self.get_block(last_top_ok).unwrap().block_height
+                        } else if self.last_block().block_height
+                            < self.get_block(last_top_ok).unwrap().block_height
                         {
-                            info!("New branche not complete right, wrong after {}",last_top_ok);
-                            //also ok maybe 
+                            info!(
+                                "New branche not complete right, wrong after {}",
+                                last_top_ok
+                            );
+                            //also ok maybe
                             //sel.balence = new_balence
                             self.top_block_hash = last_top_ok;
 
                             //need maybe to earse wrong block which transa is not good with the chain (last_top_ok + 1 +2 ...)
-                        }
-                        else {
+                        } else {
                             info!("Branch is not wrong ");
                         }
-
-                        
                     }
                     Err(needed) => {
                         //the block can not be chained into the initial block : needed is missing
@@ -534,7 +548,6 @@ mod tests {
         // let mut blockchain = Blockchain::new();
         // let block = Block::new();
         // let transaction : Transaction::new
-
 
         // block.find_next_block(621, transactions)
         // blockchain.append(block)
