@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::Receiver;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::{
@@ -7,19 +6,16 @@ use std::{
     default, fmt,
     hash::{Hash, Hasher},
 };
+use tokio::sync::mpsc::Receiver;
 
+use super::block::Block;
 use super::blockchain::{self, Blockchain};
 
-use tokio::sync::{mpsc, RwLock};
 use tokio::select;
-/// can be used iside smart contract
-#[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
-struct TxUtxo {
-    pub value: u128, //wider + simpler + undivisible + optimisation + reusing common acronyme M K
-}
+use tokio::sync::{mpsc, RwLock};
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
-pub struct RxUtxo {
+pub struct Utxo {
     block_location: u64, //dans quelle block est la transa
     transa_id: u64,      //hash de Transaction
     moula_id: usize,     //id mola not refering value but position in the vec
@@ -28,7 +24,7 @@ pub struct RxUtxo {
     value: u128, //can work without but Simplify the challenge NOT NEED TO SERIALIZED
 }
 
-impl fmt::Display for RxUtxo {
+impl fmt::Display for Utxo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -39,31 +35,10 @@ impl fmt::Display for RxUtxo {
     }
 }
 
-impl RxUtxo {
-    /// find the value of a utcxo for a given RxMoula
-    fn get_utcxo<'a>(&self, blockchain: &'a Blockchain) -> Option<&'a TxUtxo> {
-        let mut s = DefaultHasher::new();
-        blockchain
-            .get_chain()
-            .iter()
-            .find(|block| block.block_id == self.block_location)
-            .and_then(|block| {
-                block
-                    .transactions
-                    .iter()
-                    .find(|transa| {
-                        transa.hash(&mut s);
-                        s.finish() == self.transa_id
-                    })
-                    .and_then(|good_transa| good_transa.tx.get(self.moula_id))
-            })
-    }
-}
-
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Transaction {
-    rx: Vec<RxUtxo>,
-    tx: Vec<TxUtxo>, //fist is what is send back
+    rx: Vec<Utxo>,
+    tx: Vec<u128>, //fist is what is send back
     pub target_pubkey: u64,
     //add signature of the sender
 }
@@ -76,7 +51,7 @@ impl fmt::Display for Transaction {
         }
         writeln!(f, "╠════════════════TX═════════════════════╣").unwrap();
         for transtx in &self.tx {
-            writeln!(f, "║{}", transtx.value).unwrap();
+            writeln!(f, "║{}", transtx).unwrap();
         }
         write!(
             f,
@@ -92,6 +67,41 @@ impl fmt::Display for Transaction {
 /// Make the split of the coin
 
 impl Transaction {
+    /// create a Utxo from a know output transaction in the transa
+    /// we Create a utxo from it and we need the block hash
+    /// transaction don't know where it is in blockain it need to ask
+    /// then create the "fake" utxo
+    /// it important to remember that the value is PASTED HERE
+    /// BUT NO NEEDED
+    /// in reality we need to ask blockain about the amount every time we
+    /// face a utxo it take time
+    /// 
+    /// because utxo gen here cannot be a & (i think need box)
+    pub fn find_new_utxo(&self, block_location: u64) -> Vec<Utxo> {
+        let mut s = DefaultHasher::new();
+        let mut no = 0;
+        self.tx
+            .iter()
+            .map(|tx| {
+                no += 1;
+                self.hash(&mut s);
+
+                Utxo {
+                    block_location,
+                    transa_id: s.finish(),
+                    moula_id: no,
+                    value: tx.clone(),
+                }
+            })
+            .collect()
+    }
+
+    /// fin utxo taken at input in the block
+    /// 
+    /// it better to use & but it simplify to no
+    pub fn find_used_utxo(&self) -> Vec<Utxo> {
+        self.rx.clone()
+    }
 
     /// Invalidate Transaction from blockaine
     /// Import new transa from network
@@ -102,7 +112,7 @@ impl Transaction {
         shared_var: Arc<RwLock<Vec<Transaction>>>,
     ) {
         let mut transaction_register: HashMap<Transaction, bool> = HashMap::new();
-    
+
         loop {
             select! {
                 transa_from_net = from_network.recv() => {
@@ -120,17 +130,16 @@ impl Transaction {
                     }
                 }
             }
-    
+
             let valid_transactions: Vec<Transaction> = transaction_register
                 .iter()
                 .filter_map(|(k, v)| if *v { Some(k.clone()) } else { None })
                 .collect();
-    
+
             let mut shared_data = shared_var.write().await;
             *shared_data = valid_transactions;
         }
     }
-    
 
     pub fn check(&self) -> bool {
         !self.rx.is_empty()
@@ -150,18 +159,18 @@ impl Transaction {
 
         Self {
             rx,
-            tx: vec![TxUtxo { value: resend }, TxUtxo { value: amount }],
+            tx: vec![resend, amount],
             target_pubkey: destination,
         }
     }
 
     /// ofline use actual wallet and create transa
-    pub fn new_offline(input: &Vec<RxUtxo>, amount: u128, destination: u64) -> Transaction {
+    pub fn new_offline(input: &Vec<Utxo>, amount: u128, destination: u64) -> Transaction {
         let (rx, resend) = Self::select_utxo_from_vec(input, amount).unwrap();
 
         Self {
             rx,
-            tx: vec![TxUtxo { value: resend }, TxUtxo { value: amount }],
+            tx: vec![resend, amount],
             target_pubkey: destination,
         }
     }
@@ -178,10 +187,10 @@ impl Transaction {
     /// it select 7 3 2
     ///
     /// it need to give 1 to miner give implicitly, 10 to the user and send back 1
-    fn select_utxo_from_vec(avaible: &Vec<RxUtxo>, amount: u128) -> Option<(Vec<RxUtxo>, u128)> {
+    fn select_utxo_from_vec(avaible: &Vec<Utxo>, amount: u128) -> Option<(Vec<Utxo>, u128)> {
         let fee = amount / 10;
         let mut sum = 0;
-        let r: Vec<RxUtxo> = avaible
+        let r: Vec<Utxo> = avaible
             .iter()
             .take_while(|utxo| {
                 if sum <= amount + fee {
@@ -197,52 +206,42 @@ impl Transaction {
         to_send_back.map(|val| (r, val))
     }
 
-    pub fn get_utxos(&self, block_location: u64) -> Vec<RxUtxo> {
-        let mut s = DefaultHasher::new();
-        let mut no = 0;
-        self.tx
-            .iter()
-            .map(|tx| {
-                no += 1;
-                self.hash(&mut s);
+    //generate transaction
+    // fn  fuzzy_transa(number:u32,){
 
-                RxUtxo {
-                    block_location,
-                    transa_id: s.finish(),
-                    moula_id: no,
-                    value: tx.value,
-                }
-            })
-            .collect()
-    }
+    // }
+    //input number of transaction
+    //output
 }
 
 #[cfg(test)]
 mod tests {
     use std::{
         default,
-        sync::{ Arc, Barrier}, thread, time::Duration,
+        sync::{Arc, Barrier},
+        thread,
+        time::Duration,
     };
 
     use tokio::sync::{mpsc::channel, RwLock};
 
-    use crate::block_chain::transaction::{RxUtxo, Transaction};
+    use crate::block_chain::transaction::{Transaction, Utxo};
 
     #[test]
     fn test_select_utxo_from_vec() {
-        let rx_7 = RxUtxo {
+        let rx_7 = Utxo {
             value: 5,
             ..Default::default()
         };
-        let rx_3 = RxUtxo {
+        let rx_3 = Utxo {
             value: 4,
             ..Default::default()
         };
-        let rx_2 = RxUtxo {
+        let rx_2 = Utxo {
             value: 8,
             ..Default::default()
         };
-        let rx_9 = RxUtxo {
+        let rx_9 = Utxo {
             value: 9,
             ..Default::default()
         };
@@ -263,35 +262,37 @@ mod tests {
 
     #[tokio::test]
     async fn runner_lunch() {
-
         //setup
         let (from_network_tx, from_network_rx) = channel(10);
         let (from_block_tx, from_block_rx) = channel(10);
         let valid = Arc::new(RwLock::new(vec![Transaction::default()]));
 
         //put the runner spawned to the Futures of the async
-        tokio::task::spawn(Transaction::runner(from_network_rx, from_block_rx, valid.clone()));
-        
+        tokio::task::spawn(Transaction::runner(
+            from_network_rx,
+            from_block_rx,
+            valid.clone(),
+        ));
+
         //create fake transaction
         let t1 = Transaction::new_offline(&Default::default(), 0, 1);
         let t2 = Transaction::new_offline(&Default::default(), 0, 2);
         let t3 = Transaction::new_offline(&Default::default(), 0, 3);
         let t4 = Transaction::new_offline(&Default::default(), 0, 4);
-        
+
         //adding transaction from the network
         from_network_tx.send(t1.clone()).await.unwrap();
         from_network_tx.send(t2.clone()).await.unwrap();
         from_network_tx.send(t4.clone()).await.unwrap();
-        
+
         //invalidate the t1 transaction
-        from_block_tx.send(t1.clone()).await.unwrap(); 
-        
-        tokio::time::sleep(Duration::from_millis(1)).await;// wait that runner process transaction
+        from_block_tx.send(t1.clone()).await.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(1)).await; // wait that runner process transaction
         let stor = valid.read().await;
         assert!(!stor.contains(&t1));
         assert!(stor.contains(&t2));
         assert!(!stor.contains(&t3));
         assert!(stor.contains(&t4))
     }
-
 }

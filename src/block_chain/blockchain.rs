@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use tracing::{warn, info};
 
-use super::{block::Block, transaction::RxUtxo};
+use super::{block::Block, transaction::Utxo};
 
 #[derive(Default)]
 struct PotentialsTopBlock {
@@ -64,10 +64,47 @@ impl PotentialsTopBlock {
     }
 }
 
+/// Keep track of transaction and utxo
+#[derive(Default)]
+struct Balance {
+    utxo:HashSet<Utxo>
+}
+
+impl Balance {
+    pub fn calculation<'a,'b>(src: Vec<&'a Block>, dst: Vec<&'b Block>) -> &'b Block {
+        dst[0]
+    }
+
+
+    /// # Undo add
+    /// when we want to drill downside
+    /// we need to cancel transaction
+    fn sub(&mut self, block: &Block){
+        //get utxo to append
+        let to_append = block.find_new_utxo();
+
+        //get utxo to remove
+        let to_remove = block.find_used_utxo();
+    
+
+        if !to_append.iter().all(|t| self.utxo.insert(t.clone())){
+            panic!("sub: adding new transa double entry")
+        }
+
+        if !to_remove.iter().all(|t| self.utxo.remove(t)){
+            panic!("sub: removing transa double delet => Using unknow transaction!")
+        }
+
+    }
+
+    fn add(&mut self, block: &Block) {}
+}
+
 pub struct Blockchain {
     hash_map_block: HashMap<u64, Block>,
     top_block_hash: u64,
     potentials_top_block: PotentialsTopBlock, // block need to finish the chain)
+    balance: Balance,
 }
 
 impl Default for Blockchain {
@@ -77,7 +114,7 @@ impl Default for Blockchain {
 }
 
 impl Blockchain {
-    pub fn filter_utxo(&self, addr: u64) -> Vec<RxUtxo> {
+    pub fn filter_utxo(&self, addr: u64) -> Vec<Utxo> {
         self.get_chain()
             .iter()
             .map(|block| block.get_utxos(addr))
@@ -95,6 +132,7 @@ impl Blockchain {
             hash_map_block: hash_map,
             top_block_hash: hash_first_block,
             potentials_top_block: PotentialsTopBlock::new(),
+            balance:Default::default(),
         }
     }
 
@@ -257,7 +295,6 @@ impl Blockchain {
 
 #[cfg(test)]
 mod tests {
-    use crate::block_chain;
 
     use super::*;
 

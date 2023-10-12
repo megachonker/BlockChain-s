@@ -11,7 +11,7 @@ use tracing::{debug, info, warn};
 
 use crate::block_chain::{
     block::Block,
-    transaction::{RxUtxo, Transaction},
+    transaction::{ Transaction, Utxo},
 };
 
 use super::server::{Event, NewBlock};
@@ -50,7 +50,7 @@ pub enum TypeBlock {
 pub enum TypeTransa {
     Push(Transaction),
     Req(u64),
-    Ans(Vec<RxUtxo>),
+    Ans(Vec<Utxo>),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -6,10 +6,10 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
-use super::node::server::{Event,NewBlock};
-use super::transaction::{RxUtxo, Transaction};
+use super::node::server::{Event, NewBlock};
+use super::transaction::{Transaction, Utxo};
 
 const HASH_MAX: u64 = 1000000000000;
 
@@ -148,12 +148,29 @@ impl Block {
         }
     }
 
+    /// find unspend transaction
+    /// need to convert u128 to utxo
+    pub fn find_new_utxo(&self) -> Vec<Utxo> {
+        self.transactions
+            .iter()
+            .flat_map(|t| t.find_new_utxo(self.block_id))
+            .collect()
+    }
+
+    /// Find inside block all spended operation
+    pub fn find_used_utxo(&self) -> Vec<Utxo> {
+        self.transactions
+            .iter()
+            .flat_map(|t| t.find_used_utxo())
+            .collect()
+    }
+
     /// return a list of all utxo for a address
-    pub fn get_utxos(&self, addr: u64) -> Vec<RxUtxo> {
+    pub fn get_utxos(&self, addr: u64) -> Vec<Utxo> {
         self.transactions
             .iter()
             .filter(|transa| transa.target_pubkey == addr)
-            .flat_map(|transa| transa.get_utxos(self.block_id))
+            .flat_map(|transa| transa.find_new_utxo(self.block_id))
             .collect()
     }
 }
@@ -194,7 +211,9 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
         //     .unwrap();
 
         if let Some(mined_block) = block.find_next_block(finder, transaction) {
-            sender.send(Event::NewBlock(NewBlock::Mined(mined_block))).unwrap();
+            sender
+                .send(Event::NewBlock(NewBlock::Mined(mined_block)))
+                .unwrap();
         }
     }
 }
@@ -230,15 +249,13 @@ mod tests {
             let b = rx.recv().unwrap();
 
             match b {
-                Event::NewBlock(b) => {match b {
+                Event::NewBlock(b) => match b {
                     NewBlock::Mined(b) => assert!(b.check()),
                     NewBlock::Network(_) => assert!(false),
-                }}
+                },
                 Event::HashReq(_) => assert!(false),
                 Event::Transaction(_) => assert!(false),
             }
-
-            
         }
     }
 
