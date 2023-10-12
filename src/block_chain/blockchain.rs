@@ -71,8 +71,12 @@ struct Balance {
 }
 
 impl Balance {
-    pub fn calculation<'a,'b>(src: Vec<&'a Block>, dst: Vec<&'b Block>) -> &'b Block {
-        dst[0]
+    
+    /// Revert change until src with sub
+    /// Replay change until dst with add
+    pub fn calculation<'a,'b>(&mut self,src: Vec<&'a Block>, dst: Vec<&'b Block>) -> &'b Block {
+        src.iter().for_each(|p| self.sub(p));
+        dst.iter().find(|p| !self.add(p)).unwrap_or(dst.last().unwrap())
     }
 
 
@@ -81,6 +85,25 @@ impl Balance {
     /// we need to cancel transaction
     fn sub(&mut self, block: &Block){
         //get utxo to append
+        let to_remove = block.find_new_utxo();
+
+        //get utxo to remove
+        let  to_append= block.find_used_utxo();
+    
+        if !to_append.iter().all(|t| self.utxo.insert(t.clone())){
+            warn!("sub: adding new transa double entry")
+        }
+
+        if !to_remove.iter().all(|t| self.utxo.remove(t)){
+            warn!("sub: removing transa double delet => Using unknow transaction!")
+        }
+    }
+
+    /// # Drill up
+    /// normal whay to update the Balance with one block
+    /// when we need to append a new block we run that
+    fn add(&mut self, block: &Block) -> bool{
+        //get utxo to append
         let to_append = block.find_new_utxo();
 
         //get utxo to remove
@@ -88,16 +111,15 @@ impl Balance {
     
 
         if !to_append.iter().all(|t| self.utxo.insert(t.clone())){
-            panic!("sub: adding new transa double entry")
+            panic!("add: adding new transa double entry")
         }
 
         if !to_remove.iter().all(|t| self.utxo.remove(t)){
-            panic!("sub: removing transa double delet => Using unknow transaction!")
+            info!("add: removing transa double delet => Using unknow transaction!");
+            return false;
         }
-
+        return true;
     }
-
-    fn add(&mut self, block: &Block) {}
 }
 
 pub struct Blockchain {
