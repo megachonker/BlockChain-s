@@ -28,12 +28,12 @@ let b2 = Block {
 
 let b2_bis = Block {
             block_height: 2,
-            block_id: 32479786738,
-            parent_hash: 29090761102,
+            block_id: 190296940020,
+            parent_hash: 84739656938,
             transactions: vec![],
-            nonce: 16060077928867923892,
+            nonce: 11832120156767897387,
             miner_hash: 17904917467964170301,
-            quote: String::from("bi"),
+            quote: String::from(""),
         };
 
                   

@@ -71,14 +71,18 @@ pub struct Blockchain {
 }
 
 impl Default for Blockchain {
-    fn default() -> Self { Blockchain::new() }
+    fn default() -> Self {
+        Blockchain::new()
+    }
 }
 
 impl Blockchain {
-
-
     pub fn filter_utxo(&self, addr: u64) -> Vec<RxUtxo> {
-        self.get_chain().iter().map(|block| block.get_utxos(addr)).flatten().collect()
+        self.get_chain()
+            .iter()
+            .map(|block| block.get_utxos(addr))
+            .flatten()
+            .collect()
     }
 
     pub fn new() -> Blockchain {
@@ -86,15 +90,15 @@ impl Blockchain {
         let first_block = Block::new();
         let hash_first_block = first_block.block_id;
         hash_map.insert(hash_first_block, first_block);
-        
-            Blockchain {
-                hash_map_block: hash_map,
-                top_block_hash: hash_first_block,
-                potentials_top_block: PotentialsTopBlock::new(),
-            }        
+
+        Blockchain {
+            hash_map_block: hash_map,
+            top_block_hash: hash_first_block,
+            potentials_top_block: PotentialsTopBlock::new(),
+        }
     }
 
-    pub fn get_block<'a>(& 'a self, hash : u64) -> Option<&'a Block>{
+    pub fn get_block<'a>(&'a self, hash: u64) -> Option<&'a Block> {
         self.hash_map_block.get(&hash)
     }
 
@@ -120,7 +124,6 @@ impl Blockchain {
 
         // the block is superior than my actual progress ?
         if block.block_height > cur_block.block_height {
-
             //does have same direct ancestor
             if block.parent_hash == cur_block.block_id
                 && block.block_height == cur_block.block_height + 1
@@ -133,17 +136,17 @@ impl Blockchain {
                 match self.search_chain(block) {
                     Ok(_) => {
                         //the block can be chained into the initial block
-                        match self
+                        let new_top_b = match self
                             .potentials_top_block
                             .found_potential_from_need(block.block_id)
                         {
-                            Some(new_top_block) => {
-                                self.top_block_hash = new_top_block;
-                            }
-                            None => {
-                                self.top_block_hash = block.block_id;
-                            }
-                        }
+                            Some(new_top_block) => new_top_block,
+                            None => block.block_id,
+                        };
+
+                        //chack transa and udpate balence
+                        let two_chain = self.get_path_2_block(self.top_block_hash, new_top_b);
+                        //balence.try_branche(two_chain);
                     }
                     Err(needed) => {
                         //the block can not be chained into the initial block : needed is missing
@@ -159,6 +162,34 @@ impl Blockchain {
         }
 
         (None, None)
+    }
+
+    fn get_path_2_block(&self, last_top: u64, new_top: u64) -> (Vec<Block>, Vec<Block>) {
+        let mut vec1: Vec<Block> = vec![];
+        let mut vec2: Vec<Block> = vec![];
+
+        let mut last = self.get_block(last_top).unwrap();
+        let mut new = self.get_block(new_top).unwrap();
+
+        while last.block_height < new.block_height {
+            println!("Ici");
+            vec2.push(new.clone());
+            new = self.get_block(new.parent_hash).unwrap();
+        }
+
+        while new.block_id != last.block_id {
+            println!("La");
+
+            vec1.push(last.clone());
+            vec2.push(new.clone());
+            new = self.get_block(new.parent_hash).unwrap();
+            last = self.get_block(last.parent_hash).unwrap();
+        }
+
+        vec1.push(last.clone());
+        vec2.push(new.clone());
+
+        (vec1, vec2)
     }
 
     pub fn last_block(&self) -> Block {
@@ -192,13 +223,12 @@ impl Blockchain {
 
             hash = b.parent_hash;
 
-
             if hash == 0 {
                 vec.push(self.hash_map_block.get(&0).unwrap());
                 break;
             }
         }
-        return  vec;
+        return vec;
     }
 }
 
@@ -213,8 +243,6 @@ mod tests {
         let block_chain = Blockchain::new();
 
         assert_eq!(block_chain.last_block(), Block::new());
-
-
     }
 
     #[test]
@@ -338,9 +366,8 @@ mod tests {
         }
     }
 
-
     #[test]
-    fn get_chain(){
+    fn get_chain() {
         let mut blockchain = Blockchain::new();
 
         let block = Block {
@@ -356,6 +383,64 @@ mod tests {
 
         blockchain.append(&block);
 
-        assert_eq!(blockchain.get_chain(), vec![&block,& Block::new()]);
+        assert_eq!(blockchain.get_chain(), vec![&block, &Block::new()]);
+    }
+
+    #[test]
+    fn get_path_2_block() {
+        let mut blockchain = Blockchain::new();
+
+        let b1 = Block {
+            block_height: 1,
+            block_id: 84739656938,
+            parent_hash: 0,
+            transactions: vec![],
+            answer: 8308871350387475192,
+            finder: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+        let b2 = Block {
+            block_height: 2,
+            block_id: 32147335136,
+            parent_hash: 84739656938,
+            transactions: vec![],
+            answer: 9377674440955505,
+            finder: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+        let b2_bis = Block {
+            block_height: 2,
+            block_id: 190296940020,
+            parent_hash: 84739656938,
+            transactions: vec![],
+            answer: 11832120156767897387,
+            finder: 0,
+            quote: String::from(""),
+        };
+
+        let b3 = Block {
+            block_height: 3,
+            block_id: 44263391524,
+            parent_hash: 32147335136,
+            transactions: vec![],
+            answer: 13893443482872540816,
+            finder: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+
+        assert!(b1.check());
+
+        blockchain.append(&b1);
+        blockchain.append(&b2_bis);
+        blockchain.append(&b3);
+        blockchain.append(&b2);
+
+        let res = blockchain.get_path_2_block(b2_bis.block_id, b3.block_id);
+
+        let must = (vec![b2_bis, b1.clone()], vec![b3, b2, b1]);
+
+        assert_eq!(res, must);
     }
 }

@@ -254,4 +254,25 @@ mod tests {
             }
         }
     }
+
+
+
+    #[test]
+    fn qlksdn(){
+        let b1 = Block {
+            block_height: 1,
+            block_id: 84739656938,
+            parent_hash: 0,
+            transactions: vec![],
+            answer: 8308871350387475192,
+            finder: 17904917467964170301,
+            quote: String::from("bi"),
+        };
+        let mut a = b1.find_next_block(0, vec![]);
+        while None == a {
+            a = b1.find_next_block(0, vec![]);
+        }
+        println!("{}",a.unwrap());
+
+    }
 }
