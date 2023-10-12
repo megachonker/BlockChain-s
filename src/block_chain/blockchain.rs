@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use tracing::warn;
+use tracing::{warn, info};
 
 use super::{block::Block, transaction::RxUtxo};
 
@@ -146,7 +146,30 @@ impl Blockchain {
 
                         //chack transa and udpate balence
                         let two_chain = self.get_path_2_block(self.top_block_hash, new_top_b);
-                        //balence.try_branche(two_chain);
+                        //let (new_balence, last_top_ok) = balence.try_branche(two_chain);
+
+                        let last_top_ok = new_top_b; //for the moment supr when balence.try_brance implmented
+
+                        if (last_top_ok == new_top_b){
+                            //all it is ok
+                            info!("New branche better branches founds, blockchain update");
+                            //sel.balence = new_balence
+                            self.top_block_hash = last_top_ok;
+                        }
+                        else if self.last_block().block_height < self.get_block(last_top_ok).unwrap().block_height
+                        {
+                            info!("New branche not complete right, wrong after {}",last_top_ok);
+                            //also ok maybe 
+                            //sel.balence = new_balence
+                            self.top_block_hash = last_top_ok;
+
+                            //need maybe to earse wrong block which transa is not good with the chain (last_top_ok + 1 +2 ...)
+                        }
+                        else {
+                            info!("Branch is not wrong ");
+                        }
+
+                        
                     }
                     Err(needed) => {
                         //the block can not be chained into the initial block : needed is missing
