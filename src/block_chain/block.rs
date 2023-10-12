@@ -27,7 +27,15 @@ pub struct Block {
 
 impl Default for Block {
     fn default() -> Self {
-        Block::new()
+        Block {
+            block_height: 0,
+            block_id: 0,
+            parent_hash: 0,
+            transactions: vec![],
+            answer: 0,
+            finder: 0,
+            quote: String::from(""),
+        }
     }
 }
 
@@ -69,28 +77,32 @@ impl fmt::Display for Block {
     }
 }
 
+
+/// # Hasher comportement
+/// Define how manny hash to try
+/// beffort reseting 
+/// 
+/// INFINI never ending
+/// Reactive try to show how ipc are bad
+/// Slow optimise perf but should create more branch
+/// Normal default beavior
+pub enum Profile {
+    INFINIT,
+    Reactive,
+    Slow,
+    Normal,
+}
+
 impl Block {
     /// create the first block full empty
     pub fn new() -> Block {
-        let block = Block {
-            block_height: 0,
-            block_id: 0,
-            parent_hash: 0,
-            transactions: vec![],
-            answer: 0,
-            finder: 0,
-            quote: String::from(""),
-        };
-        block
+        Default::default()
     }
 
     pub fn get_height_nonce(&self) -> (u64, u64) {
         (self.block_height, self.answer)
     }
 
-    //la structure transaction peut faire un check sur le block donc pourait être un trait requi d'une transaction  --> une transaction est verifier surtout par les mineurs, pas vraiment duarnt la creation mais plutot dans l'interegration dans un bloc
-    //une transaction peut utiliser le trait check pour check si le node est correct (last version blockaine)       --> comment ca un node correct, pas un block plutot ?
-    //la transaction peut check check si le compte est bon si on fait une structure compte on peut metre le trait check  --> Une struct compte peut être une bonne idée mais elle serait pour quoi ? Parce que si on tien a jour tout les compte ca peut faire beaucoup (en gros en soit a chaque transa un regarde si c'est valid ou alors on tiens les comptes a jours)
     pub fn check(&self) -> bool {
         let mut hasher = DefaultHasher::new(); //why don't use hash fun ? hash(self) ?? like in last commit  -> je pense faut refaire un peu les hash (nottament il faut que le hash prennent en compte plus de chose comme l'id du hasheur pour la securité)
 
@@ -106,13 +118,23 @@ impl Block {
         answer < HASH_MAX && answer == self.block_id && self.quote.len() < 100
     }
 
-    fn find_next_block(&self, finder: u64, transactions: Vec<Transaction>) -> Option<Block> {
+    /// Lunch every time need to change transaction content or block
+    /// using profile infinit can be use to not create a loop calling find next for test
+    pub fn find_next_block(&self, finder: u64, transactions: Vec<Transaction>,profile:Profile) -> Option<Block> {
         let mut new_block: Block = Block {
             block_height: self.block_height + 1,
             parent_hash: self.block_id,
             finder,
             transactions,
             ..Default::default() //styler
+        };
+
+        // how many turn to do
+        let number_iter = match profile {
+            Profile::INFINIT => u64::MAX,
+            Profile::Normal => 50000000,
+            Profile::Reactive => u64::MIN,
+            Profile::Slow => 500000000,
         };
 
         let mut rng = rand::thread_rng(); //to pick random value
@@ -139,7 +161,7 @@ impl Block {
                 return Some(new_block);
             }
 
-            if nonce_to_test % 50000000 == 0 {
+            if nonce_to_test % number_iter == 0 {
                 debug!("Refersh");
                 return None;
             }
@@ -202,7 +224,7 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
         let block_locked = cur_block.lock().unwrap();
         let block = block_locked.clone(); //presque toujour blocker
         drop(block_locked);
-        let transaction = vec![];
+        let transaction = vec![Transaction::new(Default::default(),vec![100],finder)];
 
         // do the same things
         // block
@@ -210,7 +232,7 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
         //     .map(|block| sender.send(block))
         //     .unwrap();
 
-        if let Some(mined_block) = block.find_next_block(finder, transaction) {
+        if let Some(mined_block) = block.find_next_block(finder, transaction,Profile::Normal) {
             sender
                 .send(Event::NewBlock(NewBlock::Mined(mined_block)))
                 .unwrap();
@@ -264,7 +286,7 @@ mod tests {
         let block = Block::default();
         loop {
             if let Some(block_to_test) =
-                block.find_next_block(Default::default(), Default::default())
+                block.find_next_block(Default::default(), Default::default(),Profile::Normal)
             {
                 assert!(block_to_test.check());
                 break;

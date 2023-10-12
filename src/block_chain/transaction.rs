@@ -67,6 +67,14 @@ impl fmt::Display for Transaction {
 /// Make the split of the coin
 
 impl Transaction {
+    pub fn new(rx: Vec<Utxo>, tx: Vec<u128>, target_pubkey: u64) -> Transaction {
+        Transaction {
+            rx,
+            tx,
+            target_pubkey,
+        }
+    }
+
     /// create a Utxo from a know output transaction in the transa
     /// we Create a utxo from it and we need the block hash
     /// transaction don't know where it is in blockain it need to ask
@@ -75,7 +83,7 @@ impl Transaction {
     /// BUT NO NEEDED
     /// in reality we need to ask blockain about the amount every time we
     /// face a utxo it take time
-    /// 
+    ///
     /// because utxo gen here cannot be a & (i think need box)
     pub fn find_new_utxo(&self, block_location: u64) -> Vec<Utxo> {
         let mut s = DefaultHasher::new();
@@ -97,7 +105,7 @@ impl Transaction {
     }
 
     /// fin utxo taken at input in the block
-    /// 
+    ///
     /// it better to use & but it simplify to no
     pub fn find_used_utxo(&self) -> Vec<Utxo> {
         self.rx.clone()
@@ -151,28 +159,28 @@ impl Transaction {
         source: u64,
         amount: u128,
         destination: u64,
-    ) -> Self {
+    ) -> Option<Self> {
         let utxos = blockchain.filter_utxo(source);
 
         //not optimal but i is a NP problem see bag problem
-        let (rx, resend) = Self::select_utxo_from_vec(&utxos, amount).unwrap();
+        let (rx, resend) = Self::select_utxo_from_vec(&utxos, amount)?;
 
-        Self {
+        Some(Self {
             rx,
             tx: vec![resend, amount],
             target_pubkey: destination,
-        }
+        })
     }
 
     /// ofline use actual wallet and create transa
-    pub fn new_offline(input: &Vec<Utxo>, amount: u128, destination: u64) -> Transaction {
-        let (rx, resend) = Self::select_utxo_from_vec(input, amount).unwrap();
+    pub fn new_offline(input: &Vec<Utxo>, amount: u128, destination: u64) -> Option<Self> {
+        let (rx, resend) = Self::select_utxo_from_vec(input, amount)?;
 
-        Self {
+        Some(Self {
             rx,
             tx: vec![resend, amount],
             target_pubkey: destination,
-        }
+        })
     }
 
     /// ## find a combinaison
@@ -225,7 +233,11 @@ mod tests {
 
     use tokio::sync::{mpsc::channel, RwLock};
 
-    use crate::block_chain::transaction::{Transaction, Utxo};
+    use crate::block_chain::{
+        block::{Block, Profile},
+        blockchain::Blockchain,
+        transaction::{Transaction, Utxo},
+    };
 
     #[test]
     fn test_select_utxo_from_vec() {
@@ -275,10 +287,10 @@ mod tests {
         ));
 
         //create fake transaction
-        let t1 = Transaction::new_offline(&Default::default(), 0, 1);
-        let t2 = Transaction::new_offline(&Default::default(), 0, 2);
-        let t3 = Transaction::new_offline(&Default::default(), 0, 3);
-        let t4 = Transaction::new_offline(&Default::default(), 0, 4);
+        let t1 = Transaction::new_offline(&Default::default(), 0, 1).unwrap();
+        let t2 = Transaction::new_offline(&Default::default(), 0, 2).unwrap();
+        let t3 = Transaction::new_offline(&Default::default(), 0, 3).unwrap();
+        let t4 = Transaction::new_offline(&Default::default(), 0, 4).unwrap();
 
         //adding transaction from the network
         from_network_tx.send(t1.clone()).await.unwrap();
@@ -294,5 +306,33 @@ mod tests {
         assert!(stor.contains(&t2));
         assert!(!stor.contains(&t3));
         assert!(stor.contains(&t4))
+    }
+
+    #[test]
+    fn test_new_online() {
+        // let mut blockchain = Blockchain::new();
+        // let miner_self_transa = Transaction::new(Default::default(), vec![100], 1);
+
+
+
+        // let org_block = Block::new().find_next_block(1, vec![miner_self_transa],Profile::INFINIT).unwrap();
+        // let (block,nhsh) = blockchain.append(&org_block);
+        // // assert!(nhsh!=None);
+
+
+        // let transactions = vec![
+        //     Transaction::new_online(&blockchain, 1, 25, 10).unwrap(),
+        //     Transaction::new_online(&blockchain, 1, 25, 10).unwrap(),
+        //     Transaction::new_online(&blockchain, 1, 25, 11).unwrap(),
+        // ];
+
+        // println!("{}",block);
+        // let block = block.unwrap().find_next_block(1, transactions,Profile::INFINIT).unwrap();
+
+        // blockchain.append(&block);
+        // let (block,nhsh) = blockchain.append(&org_block);
+
+        // println!("{:?} {:?}", block,nhsh);
+        // assert!(true)
     }
 }

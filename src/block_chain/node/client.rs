@@ -34,6 +34,6 @@ impl Client {
 
         let transactionb = Transaction::new_offline(&vec![], 10, 555);
 
-        println!("vs\n{}",transactionb);
+        println!("vs\n{}",transactionb.unwrap());
     }
 }

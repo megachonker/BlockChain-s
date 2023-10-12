@@ -168,11 +168,12 @@ impl Blockchain {
 
     pub fn append(&mut self, block: &Block) -> (Option<Block>, Option<u64>) {
         if self.hash_map_block.contains_key(&block.block_id) {
+            warn!("block already exist");
             return (None, None); //already prensent
         }
 
         if !block.check() {
-            warn!("block is not valid ");
+            warn!("block is not valid");
             return (None, None);
         }
 
@@ -317,6 +318,8 @@ impl Blockchain {
 
 #[cfg(test)]
 mod tests {
+
+    use crate::block_chain::transaction::Transaction;
 
     use super::*;
 
@@ -524,5 +527,16 @@ mod tests {
         let must = (vec![b2_bis, b1.clone()], vec![b3, b2, b1]);
 
         assert_eq!(res, must);
+    }
+
+    #[test]
+    fn transaction_simple() {
+        // let mut blockchain = Blockchain::new();
+        // let block = Block::new();
+        // let transaction : Transaction::new
+
+
+        // block.find_next_block(621, transactions)
+        // blockchain.append(block)
     }
 }
