@@ -276,7 +276,7 @@ impl Blockchain {
 
                         let last_top_ok = new_top_b; //for the moment supr when balence.try_brance implmented
 
-                        if (last_top_ok == new_top_b) {
+                        if last_top_ok == new_top_b {
                             //all it is ok
                             info!("New branche better branches founds, blockchain update");
                             //sel.balence = new_balence
