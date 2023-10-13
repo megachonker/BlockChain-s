@@ -1,5 +1,5 @@
 use core::fmt;
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, str::CharIndices};
 
 use tracing::{info, warn};
 
@@ -160,13 +160,10 @@ pub struct Blockchain {
 impl fmt::Display for Blockchain {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Block actuel: {}", self.top_block_hash).unwrap();
-        let block = self
-            .search_chain(self.hash_map_block.get(&self.top_block_hash).unwrap())
-            .unwrap()
-            .into_iter()
-            .map(|b| self.get_block(b).unwrap());
+        
+        let chain = self.get_chain().into_iter();
 
-        for b in block {
+        for b in chain {
             writeln!(f, "{}", b).unwrap();
         }
         write!(f, "")

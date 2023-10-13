@@ -43,14 +43,14 @@ impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let transa_str = if self.transactions.len() > 6 {
             format!(
-                "<{}> :\n{}\n{}\n{}\n...\n{}\n{}\n{}",
+                "<{}>:\n║   {}\n║   {}\n║   {}\n║...\n║   {}\n║   {}\n║   {}",
                 self.transactions.len(),
-                self.transactions[0],
-                self.transactions[1],
-                self.transactions[2],
-                self.transactions[self.transactions.len() - 3],
-                self.transactions[self.transactions.len() - 2],
-                self.transactions[self.transactions.len() - 1]
+                self.transactions[0].display_for_bock(),
+                self.transactions[1].display_for_bock(),
+                self.transactions[2].display_for_bock(),
+                self.transactions[self.transactions.len() - 3].display_for_bock(),
+                self.transactions[self.transactions.len() - 2].display_for_bock(),
+                self.transactions[self.transactions.len() - 1].display_for_bock()
             )
         } else {
             format!(
@@ -105,10 +105,10 @@ pub enum Profile {
 impl From<Profile> for u64 {
     fn from(prof: Profile) -> Self {
         match prof {
-            Profile::INFINIT => return  u64::MAX,
-            Profile::Normal => return  50000000,
-            Profile::Reactive => return  u64::MIN,
-            Profile::Slow => return  500000000,
+            Profile::INFINIT => return u64::MAX,
+            Profile::Normal => return 50000000,
+            Profile::Reactive => return u64::MIN,
+            Profile::Slow => return 500000000,
         }
     }
 }
@@ -178,7 +178,7 @@ impl Block {
             Profile::Slow => 500000000,
         };
 
-        let _number_iter2 : u64 = profile.into();       //tell me if it is better or superflue 
+        let _number_iter2: u64 = profile.into(); //tell me if it is better or superflue
 
         let mut rng = rand::thread_rng(); //to pick random value
         let mut hasher = DefaultHasher::new();
