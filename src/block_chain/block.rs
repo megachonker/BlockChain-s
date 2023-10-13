@@ -114,6 +114,26 @@ impl From<Profile> for u64 {
 }
 
 impl Block {
+    /// auto hash block by init hasher
+    pub fn get_block_id(&self) -> u64 {
+        //ini hasher
+        let mut hasher = DefaultHasher::new();
+
+        //playload of block to hash
+        self.block_height.hash(&mut hasher);
+        self.parent_hash.hash(&mut hasher);
+        self.transactions.hash(&mut hasher);
+        self.finder.hash(&mut hasher);
+        self.quote.hash(&mut hasher);
+        self.answer.hash(&mut hasher);
+
+        //calculate answer
+        let answer = hasher.finish();
+
+        //returning answer
+        answer
+    }
+
     /// create the first block full empty
     pub fn new() -> Block {
         Default::default()
@@ -124,17 +144,10 @@ impl Block {
     }
 
     pub fn check(&self) -> bool {
-        let mut hasher = DefaultHasher::new(); //why don't use hash fun ? hash(self) ?? like in last commit  -> je pense faut refaire un peu les hash (nottament il faut que le hash prennent en compte plus de chose comme l'id du hasheur pour la securité)
+        let answer = self.get_block_id();
 
-        //playload of block to hash
-        self.block_height.hash(&mut hasher);
-        self.parent_hash.hash(&mut hasher);
-        self.transactions.hash(&mut hasher);
-        self.finder.hash(&mut hasher);
-        self.quote.hash(&mut hasher);
-        self.answer.hash(&mut hasher);
-
-        let answer = hasher.finish();
+        //check block_id
+        //check answer
         answer < HASH_MAX && answer == self.block_id && self.quote.len() < 100
     }
 
@@ -218,7 +231,7 @@ impl Block {
     }
 
     /// return a list of all utxo for a address
-    pub fn get_utxos(&self, addr: u64) -> Vec<Utxo> {
+    pub fn search_utxos(&self, addr: u64) -> Vec<Utxo> {
         self.transactions
             .iter()
             .filter(|transa| transa.target_pubkey == addr)
