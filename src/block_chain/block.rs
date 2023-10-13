@@ -54,23 +54,23 @@ impl fmt::Display for Block {
             )
         } else {
             format!(
-                "\n{}",
+                "\n║   {}",
                 self.transactions
                     .iter()
-                    .map(|transa| transa.to_string())
+                    .map(|transa| transa.display_for_bock())
                     .collect::<Vec<_>>()
-                    .join("\n")
+                    .join("\n║   ")
             )
         };
 
         write!(
             f,
-            "\n
+            "
 ╔═══════════════════════════════════════╗
 ║Id block: {}
 ║block_height : {}
 ║parent_block : {}
-║transactions {}       
+║transactions {}:       
 ║miner_id : {}                           
 ║nonce : {}
 ║quote : {}

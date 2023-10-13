@@ -28,8 +28,7 @@ impl fmt::Display for Utxo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "
-║Rx: [{}=>{}=>{}] {}",
+            "Rx: [{}=>{}=>{}] {}",
             self.block_location, self.transa_id, self.moula_id, self.value,
         )
     }
@@ -64,6 +63,24 @@ impl fmt::Display for Transaction {
 /// Make the split of the coin
 
 impl Transaction {
+
+    pub fn display_for_bock(& self) -> String{
+        let mut str= String::from("");
+        for transrx in &self.rx {
+            str+=format!("{}", transrx).as_str(); 
+        }
+        str+=format!(" Tx[").as_str();
+        for transtx in &self.tx {
+            str+=format!("{},", transtx).as_str();
+        }
+        str+=format!("] -> {}",
+            self.target_pubkey,
+        ).as_str();
+
+        str
+    }
+    
+
     /// Sum(Rx) > Sum(Tx)
     /// don't check if transa already used
     /// check value is right
