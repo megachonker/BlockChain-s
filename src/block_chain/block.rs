@@ -53,15 +53,14 @@ impl fmt::Display for Block {
                 self.transactions[self.transactions.len() - 1]
             )
         } else {
-
             format!(
                 "\n{}",
-                self.transactions.iter()
+                self.transactions
+                    .iter()
                     .map(|transa| transa.to_string())
                     .collect::<Vec<_>>()
                     .join("\n")
             )
-
         };
 
         write!(
@@ -88,11 +87,10 @@ impl fmt::Display for Block {
     }
 }
 
-
 /// # Hasher comportement
 /// Define how manny hash to try
-/// beffort reseting 
-/// 
+/// beffort reseting
+///
 /// INFINI never ending
 /// Reactive try to show how ipc are bad
 /// Slow optimise perf but should create more branch
@@ -102,6 +100,17 @@ pub enum Profile {
     Reactive,
     Slow,
     Normal,
+}
+
+impl From<Profile> for u64 {
+    fn from(prof: Profile) -> Self {
+        match prof {
+            Profile::INFINIT => return  u64::MAX,
+            Profile::Normal => return  50000000,
+            Profile::Reactive => return  u64::MIN,
+            Profile::Slow => return  500000000,
+        }
+    }
 }
 
 impl Block {
@@ -131,7 +140,12 @@ impl Block {
 
     /// Lunch every time need to change transaction content or block
     /// using profile infinit can be use to not create a loop calling find next for test
-    pub fn find_next_block(&self, finder: u64,mut transactions: Vec<Transaction>,profile:Profile) -> Option<Block> {
+    pub fn find_next_block(
+        &self,
+        finder: u64,
+        mut transactions: Vec<Transaction>,
+        profile: Profile,
+    ) -> Option<Block> {
         // ad the self revenue explicite
         transactions.push(Transaction::new(Default::default(), vec![100], finder));
 
@@ -143,13 +157,15 @@ impl Block {
             ..Default::default() //styler
         };
 
-        // how many turn to do
+        // how many turn to do          //function into ?
         let number_iter = match profile {
             Profile::INFINIT => u64::MAX,
             Profile::Normal => 50000000,
             Profile::Reactive => u64::MIN,
             Profile::Slow => 500000000,
         };
+
+        let _number_iter2 : u64 = profile.into();       //tell me if it is better or superflue 
 
         let mut rng = rand::thread_rng(); //to pick random value
         let mut hasher = DefaultHasher::new();
@@ -238,7 +254,7 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
         let block_locked = cur_block.lock().unwrap();
         let block = block_locked.clone(); //presque toujour blocker
         drop(block_locked);
-        let transaction = vec![Transaction::new(Default::default(),vec![100],finder)];
+        let transaction = vec![Transaction::new(Default::default(), vec![100], finder)];
 
         // do the same things
         // block
@@ -246,7 +262,7 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
         //     .map(|block| sender.send(block))
         //     .unwrap();
 
-        if let Some(mined_block) = block.find_next_block(finder, transaction,Profile::Normal) {
+        if let Some(mined_block) = block.find_next_block(finder, transaction, Profile::Normal) {
             sender
                 .send(Event::NewBlock(NewBlock::Mined(mined_block)))
                 .unwrap();
@@ -300,15 +316,11 @@ mod tests {
         let block = Block::default();
         loop {
             if let Some(block_to_test) =
-                block.find_next_block(Default::default(), Default::default(),Profile::Normal)
+                block.find_next_block(Default::default(), Default::default(), Profile::Normal)
             {
                 assert!(block_to_test.check());
                 break;
             }
         }
     }
-
-
-
-
 }
