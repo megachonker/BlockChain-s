@@ -208,15 +208,15 @@ impl Transaction {
     }
 
     /// ## find a combinaison
-    /// whant send 10
+    /// want send 10
     ///
     /// with fee it need to search for 11 for give 1 to miner
     ///
-    /// at input there 7 3 2 9
+    /// at input there are 7 3 2 9
     ///
     /// stop at 12  
     ///
-    /// it select 7 3 2
+    /// 7 3 2 was selected
     ///
     /// it need to give 1 to miner give implicitly, 10 to the user and send back 1
     fn select_utxo_from_vec(avaible: &Vec<Utxo>, amount: u128) -> Option<(Vec<Utxo>, u128)> {
@@ -235,7 +235,7 @@ impl Transaction {
             .cloned()
             .collect();
         let to_send_back = sum.checked_sub(amount + fee);
-        to_send_back.map(|val| (r, val))
+        to_send_back.map(|val| (r, val))   
     }
 
     //generate transaction
