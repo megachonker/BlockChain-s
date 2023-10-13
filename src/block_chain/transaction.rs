@@ -335,7 +335,7 @@ mod tests {
     #[test]
     fn test_check() {
         let mut blockchain = Blockchain::new();
-        let mut block_org = Block::new();
+        let block_org = Block::new();
 
         //+ 100 for 1
         let block_org = block_org
@@ -350,7 +350,7 @@ mod tests {
         //we use latest ustxo generate by miner for the actual transaction
         //59 for 10
 
-        //chould work
+        //should work
         let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8], 10);
         assert!(new_transa.check(&blockchain));
 
