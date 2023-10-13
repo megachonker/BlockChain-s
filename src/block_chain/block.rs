@@ -131,7 +131,10 @@ impl Block {
 
     /// Lunch every time need to change transaction content or block
     /// using profile infinit can be use to not create a loop calling find next for test
-    pub fn find_next_block(&self, finder: u64, transactions: Vec<Transaction>,profile:Profile) -> Option<Block> {
+    pub fn find_next_block(&self, finder: u64,mut transactions: Vec<Transaction>,profile:Profile) -> Option<Block> {
+        // ad the self revenue explicite
+        transactions.push(Transaction::new(Default::default(), vec![100], finder));
+
         let mut new_block: Block = Block {
             block_height: self.block_height + 1,
             parent_hash: self.block_id,

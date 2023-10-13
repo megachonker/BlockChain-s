@@ -71,11 +71,11 @@ impl Network {
         match transa {
             TypeTransa::Ans(utxos) => { /* array of all utxo append */ }
             TypeTransa::Push(transaction) => {
-                if !transaction.check() {
-                    return;
-                } else {
+                // if !transaction.check() {
+                //     return;
+                // } else {
                     net_transa_tx.send(Event::Transaction(transaction)).unwrap();
-                }
+                // }
             }
             TypeTransa::Req(userid) => { /* get all transa and filter by user id*/ }
         }

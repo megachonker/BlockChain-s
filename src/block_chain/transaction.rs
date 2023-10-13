@@ -16,9 +16,9 @@ use tokio::sync::{mpsc, RwLock};
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Utxo {
-    block_location: u64, //dans quelle block est la transa
-    transa_id: u64,      //hash de Transaction
-    moula_id: usize,     //id mola not refering value but position in the vec
+    pub block_location: u64, //dans quelle block est la transa
+    transa_id: u64,          //hash de Transaction
+    moula_id: usize,         //id mola not refering value but position in the vec
     // no value !
     // it can seem verry cringe but there only refering to actual transaction
     value: u128, //can work without but Simplify the challenge NOT NEED TO SERIALIZED
@@ -48,7 +48,7 @@ impl fmt::Display for Transaction {
         for transrx in &self.rx {
             writeln!(f, "║{}", transrx).unwrap();
         }
-        write!(f,"║Tx[").unwrap();
+        write!(f, "║Tx[").unwrap();
         for transtx in &self.tx {
             write!(f, "{},", transtx).unwrap();
         }
@@ -64,6 +64,29 @@ impl fmt::Display for Transaction {
 /// Make the split of the coin
 
 impl Transaction {
+    /// Sum(Rx) > Sum(Tx)
+    /// don't check if transa already used
+    /// check value is right
+    /// check all utxo exist
+    pub fn check(&self, blockaine: &Blockchain) -> bool {
+        //check all utxo is accesible
+        if !self.rx.iter().all(|utxo| {
+            blockaine.get_block(utxo.block_location).is_some_and(|h| {
+                h.transactions
+                    .iter()
+                    .find(|transa| transa.hash_id() == utxo.transa_id)
+                    .is_some_and(|h| h.tx.get(utxo.moula_id).is_some())
+            })
+        }) {
+            return false;
+        }
+
+        //need to be change by using get utxo because rx no need to store value
+        let sum_in: u128 = self.rx.iter().map(|utxo| utxo.value).sum();
+        let sum_out: u128 = self.tx.iter().sum();
+        sum_in > sum_out
+    }
+
     pub fn new(rx: Vec<Utxo>, tx: Vec<u128>, target_pubkey: u64) -> Transaction {
         Transaction {
             rx,
@@ -72,6 +95,16 @@ impl Transaction {
         }
     }
 
+    /// get the hash id of the transaction
+    /// it used inside utxo to refer correct transa in block
+    /// auto self hash
+    /// not efficient because init the hasher manualy
+    /// tradoff is that it getting simpler
+    fn hash_id(&self) -> u64 {
+        let mut s = DefaultHasher::new();
+        self.hash(&mut s);
+        s.finish()
+    }
     /// create a Utxo from a know output transaction in the transa
     /// we Create a utxo from it and we need the block hash
     /// transaction don't know where it is in blockain it need to ask
@@ -83,20 +116,18 @@ impl Transaction {
     ///
     /// because utxo gen here cannot be a & (i think need box)
     pub fn find_new_utxo(&self, block_location: u64) -> Vec<Utxo> {
-        let mut s = DefaultHasher::new();
         let mut no = 0;
         self.tx
             .iter()
             .map(|tx| {
-                no += 1;
-                self.hash(&mut s);
-
-                Utxo {
+                let tmp = Utxo {
                     block_location,
-                    transa_id: s.finish(),
+                    transa_id: self.hash_id(),
                     moula_id: no,
                     value: tx.clone(),
-                }
+                };
+                no += 1;
+                tmp
             })
             .collect()
     }
@@ -144,10 +175,6 @@ impl Transaction {
             let mut shared_data = shared_var.write().await;
             *shared_data = valid_transactions;
         }
-    }
-
-    pub fn check(&self) -> bool {
-        !self.rx.is_empty()
     }
 
     /// Use the blockaine to find money and send it
@@ -306,29 +333,70 @@ mod tests {
     }
 
     #[test]
+    fn test_check() {
+        let mut blockchain = Blockchain::new();
+        let mut block_org = Block::new();
+
+        //+ 100 for 1
+        let block_org = block_org
+            .find_next_block(1, vec![], Profile::INFINIT)
+            .unwrap();
+        blockchain.append(&block_org); //we assume its ok
+
+        //need to take last utxo
+        let utxo_s = blockchain.filter_utxo(1);
+        utxo_s.iter().for_each(|f| println!("utxo for 1 is {}", f));
+
+        //we use latest ustxo generate by miner for the actual transaction
+        //59 for 10
+
+        //chould work
+        let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8], 10);
+        assert!(new_transa.check(&blockchain));
+
+        //bad source
+        let utxo_s = blockchain.filter_utxo(5);
+        let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8], 10);
+        assert!(!new_transa.check(&blockchain));
+
+        // not enought  money in utxo
+        let new_transa = Transaction::new(utxo_s, vec![80, 70, 8], 10);
+        assert!(!new_transa.check(&blockchain));
+
+        // utxo do not exist
+        let new_transa = Transaction::new(Default::default(), vec![70, 8], 10);
+        assert!(!new_transa.check(&blockchain))
+
+        // println!("NEW TRANSA {}", new_transa);
+        // println!("Block {}", blockchain);
+
+        // assert!(r)
+    }
+
+    #[test]
+    //// need to be finished
     fn test_new_online() {
         let mut blockchain = Blockchain::new();
-        let miner_self_transa = Transaction::new(Default::default(), vec![100], 1);
 
         //forge teh fist block
-        let org_block = Block::new().find_next_block(1, vec![miner_self_transa],Profile::INFINIT).unwrap();
+        let org_block = Block::new()
+            .find_next_block(1, vec![], Profile::INFINIT)
+            .unwrap();
 
         //append fist block with original money
-        let (block,nhsh) = blockchain.append(&org_block);
+        let (block, nhsh) = blockchain.append(&org_block);
 
         // create random transaction
-        let transactions = vec![
-            Transaction::new_online(&blockchain, 1, 25, 10).unwrap(),
-            Transaction::new_online(&blockchain, 1, 25, 10).unwrap(),
-            Transaction::new_online(&blockchain, 1, 25, 11).unwrap(),
-        ];
-
+        let transa = vec![Transaction::new_online(&blockchain, 1, 25, 10).unwrap()];
 
         //mine the next block with the new transaction
-        let block = block.unwrap().find_next_block(1, transactions,Profile::INFINIT).unwrap();
+        let block = block
+            .unwrap()
+            .find_next_block(1, transa, Profile::INFINIT)
+            .unwrap();
 
         //add it to the blockaine
-        let (block,nhsh) = blockchain.append(&block);
+        let (block, nhsh) = blockchain.append(&block);
 
         println!("{}", blockchain);
         assert!(true)

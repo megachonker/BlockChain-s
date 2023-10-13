@@ -107,8 +107,14 @@ impl Balance {
         //get utxo to append
         let to_append = block.find_new_utxo();
 
+        //need to check if it aleready used !
+
+
         //get utxo to remove
         let to_remove = block.find_used_utxo();
+
+        //need to check validity in hashmap
+
 
         if !to_append.iter().all(|t| self.utxo.insert(t.clone())) {
             panic!("add: adding new transa double entry")
@@ -150,11 +156,20 @@ impl Default for Blockchain {
 }
 
 impl Blockchain {
+
+    // /// check if a utxo in the current blockaine
+    // pub fn check_utxo(&self,utxo:&Utxo) -> bool{
+    //     if let Some(block) = self.get_block(utxo.block_location){
+    //         utxo.check(block)
+    //     }
+    //     false
+    // }
+
     pub fn filter_utxo(&self, addr: u64) -> Vec<Utxo> {
         self.get_chain()
             .iter()
-            .map(|block| block.get_utxos(addr))
-            .flatten()
+            .flat_map(|block| block.get_utxos(addr))
+            .filter(|utxo| self.balance.utxo.contains(utxo))
             .collect()
     }
 
@@ -180,6 +195,9 @@ impl Blockchain {
         self.potentials_top_block.get_needed_block()
     }
 
+    //retourd de fonction Imbuvable
+    //option pour les 2 ? 
+    //qui fait cquoi ?
     pub fn append(&mut self, block: &Block) -> (Option<Block>, Option<u64>) {
         if self.hash_map_block.contains_key(&block.block_id) {
             warn!("block already exist");
@@ -206,6 +224,10 @@ impl Blockchain {
             {
                 //basic case
                 self.top_block_hash = block.block_id;
+
+                //inform the balance that the block is accepted
+                self.balance.add(block);
+
             } else {
                 //block to high
                 match self.search_chain(block) {
