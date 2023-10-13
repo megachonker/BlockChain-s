@@ -44,6 +44,7 @@ pub struct Transaction {
 
 impl fmt::Display for Transaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f,"║ transa id: {}",self.hash_id()).unwrap();
         for transrx in &self.rx {
             writeln!(f, "║{}", transrx).unwrap();
         }
