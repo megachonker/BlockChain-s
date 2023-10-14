@@ -281,6 +281,10 @@ impl Blockchain {
                     //valid and ellect block to top pos
                     self.top_block_hash = block_to_append.block_id;
                 }
+                else {
+                    debug!("Transaction is false");
+                    return (None,None);
+                }
             } else {
                 //block to high
                 match self.search_chain(block_to_append) {
@@ -324,8 +328,8 @@ impl Blockchain {
 
                             //need maybe to earse wrong block which transa is not good with the chain (last_top_ok + 1 +2 ...) <= you need to flush potendial block ?
                         } else {
-                            info!("Branch is not wrong "); //???
-                            println!("Branch is not wrong "); //???
+                            info!("Branch is not wrong "); 
+                            println!("Branch is not wrong "); 
                             return (None, None);
                         }
                     }

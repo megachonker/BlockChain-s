@@ -163,13 +163,12 @@ impl Network {
             })
             .unwrap();
 
-        // if self.bootstrap != SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 6021)
-
-        // ////////////// need to be removed
-        // {
-        self.send_packet(&Packet::Peer(TypePeer::Request(100)), &self.bootstrap); //to register and get peers
-        self.send_packet(&Packet::Block(TypeBlock::Lastblock), &self.bootstrap);
-        // }
+        if self.bootstrap != SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 6021)
+        ////////////// need to be removed
+        {
+            self.send_packet(&Packet::Peer(TypePeer::Request(100)), &self.bootstrap); //to register and get peers
+            self.send_packet(&Packet::Block(TypeBlock::Lastblock), &self.bootstrap);
+        }
     }
 
     /// Constructor of network
@@ -204,7 +203,6 @@ impl Network {
 
     /// verry cool send a packet
     pub fn send_packet(&self, packet: &Packet, dest: &SocketAddr) {
-        
         let packet_serialized = serialize(&packet).expect("Can not serialize AswerKA");
         self.binding
             .send_to(&packet_serialized, dest)

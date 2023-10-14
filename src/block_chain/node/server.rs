@@ -144,6 +144,8 @@ impl Server {
                         //need to resync db
                         let mut lock_actual_top_block = actual_top_block.lock().unwrap();
                         *lock_actual_top_block = top_block;
+
+                        debug!("Salut");
                     }
 
                     if let Some(needed_block) = block_need {

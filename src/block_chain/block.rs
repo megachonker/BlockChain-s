@@ -11,7 +11,7 @@ use tracing::{debug, info, warn};
 use super::node::server::{Event, NewBlock};
 use super::transaction::{Transaction, Utxo};
 
-const HASH_MAX: u64 = 10000000000000;
+const HASH_MAX: u64 = 1000000000000000;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
@@ -107,7 +107,7 @@ impl From<Profile> for u64 {
         match prof {
             Profile::INFINIT => return u64::MAX,
             Profile::Normal => return 50000000,
-            Profile::Reactive => return u64::MIN,
+            Profile::Reactive => return u64::MIN+1,
             Profile::Slow => return 500000000,
         }
     }
@@ -259,8 +259,8 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
     loop {
         let block_locked = cur_block.lock().unwrap();
         let block = block_locked.clone(); //presque toujour blocker
+        println!("qskdgkjsqdh{}",block);
         drop(block_locked);
-        let transaction = vec![Transaction::new(Default::default(), vec![100], finder)];
 
         // do the same things
         // block
@@ -268,7 +268,7 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
         //     .map(|block| sender.send(block))
         //     .unwrap();
 
-        if let Some(mined_block) = block.find_next_block(finder, transaction, Profile::Normal) {
+        if let Some(mined_block) = block.find_next_block(finder, vec![], Profile::Normal) {
             sender
                 .send(Event::NewBlock(NewBlock::Mined(mined_block)))
                 .unwrap();
@@ -316,6 +316,19 @@ mod tests {
                 Event::Transaction(_) => assert!(false),
             }
         }
+    }
+
+    #[test]
+    fn mine2block(){
+        let b0 = Block::default();
+
+        let b1 = b0.find_next_block(0, vec![], Profile::INFINIT).unwrap();
+        let b2 = b1.find_next_block(0, vec![], Profile::INFINIT).unwrap();
+
+        println!("{}\n{}",b1,b2);
+
+        assert_eq!(b2.parent_hash,b1.block_id);
+        assert_eq!(b2.block_height,b1.block_height+1);
     }
 
     #[test]
