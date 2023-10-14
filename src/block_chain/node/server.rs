@@ -143,7 +143,10 @@ impl Server {
                         //ned to check if parent are same
                         //need to resync db
                         let mut lock_actual_top_block = actual_top_block.lock().unwrap();
-                        *lock_actual_top_block = top_block;
+                        *lock_actual_top_block = top_block.clone();
+
+                        self.network
+                                .broadcast(Packet::Block(TypeBlock::Block(top_block.clone())));
 
                         // debug!("Salut");
                     }
