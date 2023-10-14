@@ -102,7 +102,7 @@ impl Server {
             .unwrap();
 
         loop {
-            debug!("main loop");
+            // debug!("main loop");
             //Routing Event
             match event_channels.1.recv().unwrap() {
                 Event::HashReq((hash, dest)) => {
@@ -145,7 +145,7 @@ impl Server {
                         let mut lock_actual_top_block = actual_top_block.lock().unwrap();
                         *lock_actual_top_block = top_block;
 
-                        debug!("Salut");
+                        // debug!("Salut");
                     }
 
                     if let Some(needed_block) = block_need {

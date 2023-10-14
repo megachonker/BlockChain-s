@@ -77,7 +77,7 @@ impl Transaction {
     pub fn check(&self, blockaine: &Blockchain) -> bool {
         // need to be done inside the block level
         // to change <================================
-        self.tx.contains(&100).then(||println!("TRIGUERRRRRRRRRRR")); // we considere that 100 number tx is directly 
+        // self.tx.contains(&100).then(||println!("TRIGUERRRRRRRRRRR")); // we considere that 100 number tx is directly 
         self.tx.contains(&100).then(||return true); // we considere that 100 number tx is directly 
         //the reward of the miner
 

@@ -11,7 +11,7 @@ use tracing::{debug, info, warn};
 use super::node::server::{Event, NewBlock};
 use super::transaction::{Transaction, Utxo};
 
-const HASH_MAX: u64 = 1000000000000000;
+const HASH_MAX: u64 = 10000000000;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
@@ -259,7 +259,7 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
     loop {
         let block_locked = cur_block.lock().unwrap();
         let block = block_locked.clone(); //presque toujour blocker
-        println!("qskdgkjsqdh{}",block);
+        // println!("qskdgkjsqdh{}",block);
         drop(block_locked);
 
         // do the same things
@@ -268,7 +268,7 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
         //     .map(|block| sender.send(block))
         //     .unwrap();
 
-        if let Some(mined_block) = block.find_next_block(finder, vec![], Profile::Normal) {
+        if let Some(mined_block) = block.find_next_block(finder, vec![], Profile::Slow) {
             sender
                 .send(Event::NewBlock(NewBlock::Mined(mined_block)))
                 .unwrap();
