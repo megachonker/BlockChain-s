@@ -75,6 +75,13 @@ impl Transaction {
     /// check value is right
     /// check all utxo exist
     pub fn check(&self, blockaine: &Blockchain) -> bool {
+        // need to be done inside the block level
+        // to change <================================
+        self.tx.contains(&100).then(||println!("TRIGUERRRRRRRRRRR")); // we considere that 100 number tx is directly 
+        self.tx.contains(&100).then(||return true); // we considere that 100 number tx is directly 
+        //the reward of the miner
+
+
         //check all utxo is accesible
         if !self.rx.iter().all(|utxo| {
             blockaine.get_block(utxo.block_location).is_some_and(|h| {
@@ -256,7 +263,7 @@ mod tests {
         let block_org = block_org
             .find_next_block(1, vec![], Profile::INFINIT)
             .unwrap();
-        blockchain.append(&block_org); //we assume its ok
+        blockchain.try_append(&block_org); //we assume its ok
 
         //need to take last utxo
         let utxo_s = blockchain.filter_utxo(1);
@@ -299,7 +306,7 @@ mod tests {
             .unwrap();
 
         //append fist block with original money
-        let (block, _) = blockchain.append(&org_block);
+        let (block, _) = blockchain.try_append(&org_block);
 
         // create random transaction
         let transa = vec![Transaction::new_online(&blockchain, 1, 25, 10).unwrap()];
@@ -311,7 +318,7 @@ mod tests {
             .unwrap();
 
         //add it to the blockaine
-        let (block, _) = blockchain.append(&block);
+        let (block, _) = blockchain.try_append(&block);
 
         println!("{}", blockchain);
         assert!(true)

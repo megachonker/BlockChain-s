@@ -11,7 +11,7 @@ use tracing::{debug, info, warn};
 use super::node::server::{Event, NewBlock};
 use super::transaction::{Transaction, Utxo};
 
-const HASH_MAX: u64 = 1000000000000;
+const HASH_MAX: u64 = 10000000000000;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
@@ -325,7 +325,7 @@ mod tests {
     }
 
     #[test]
-    fn test_find_next_block() {
+    fn find_next_block() {
         let block = Block::default();
         loop {
             if let Some(block_to_test) =

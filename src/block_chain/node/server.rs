@@ -131,7 +131,7 @@ impl Server {
                         NewBlock::Network(b) => b,
                     };
                     debug!("New block h:{}",new_block.block_height);
-                    let (new_top_block, block_need) = self.blockchain.append(&new_block);
+                    let (new_top_block, block_need) = self.blockchain.try_append(&new_block);
 
                     /// when blockain accept new block
                     if let Some(top_block) = new_top_block {
