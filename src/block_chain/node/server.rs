@@ -6,6 +6,7 @@ use std::{
 };
 
 use tracing::{debug, info, warn};
+use tracing_subscriber::field::debug;
 
 use crate::block_chain::{
     block::{self, mine, Block},
@@ -101,9 +102,11 @@ impl Server {
             .unwrap();
 
         loop {
+            debug!("main loop");
             //Routing Event
             match event_channels.1.recv().unwrap() {
                 Event::HashReq((hash, dest)) => {
+                    debug!("Recieved Hash resquest");
                     // remplace -1 par un enum top block
                     if hash == -1{
                         self.network
@@ -126,6 +129,7 @@ impl Server {
                         NewBlock::Mined(b) => {
                             self.network
                                 .broadcast(Packet::Block(TypeBlock::Block(b.clone())));
+                            debug!("Broadcast mined block");
                             b
                         }
                         NewBlock::Network(b) => b,

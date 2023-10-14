@@ -11,7 +11,7 @@ use tracing::{debug, info, warn};
 
 use crate::block_chain::{
     block::Block,
-    transaction::{ Transaction, Utxo},
+    transaction::{Transaction, Utxo},
 };
 
 use super::server::{Event, NewBlock};
@@ -74,7 +74,7 @@ impl Network {
                 // if !transaction.check() {
                 //     return;
                 // } else {
-                    net_transa_tx.send(Event::Transaction(transaction)).unwrap();
+                net_transa_tx.send(Event::Transaction(transaction)).unwrap();
                 // }
             }
             TypeTransa::Req(userid) => { /* get all transa and filter by user id*/ }
@@ -129,6 +129,7 @@ impl Network {
             }
             TypeBlock::Block(block) => {
                 // debug!("Block get:{}", block);
+
                 network_server_tx
                     .send(Event::NewBlock(NewBlock::Network(block)))
                     .unwrap();
@@ -203,6 +204,7 @@ impl Network {
 
     /// verry cool send a packet
     pub fn send_packet(&self, packet: &Packet, dest: &SocketAddr) {
+        
         let packet_serialized = serialize(&packet).expect("Can not serialize AswerKA");
         self.binding
             .send_to(&packet_serialized, dest)

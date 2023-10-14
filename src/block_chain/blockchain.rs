@@ -52,14 +52,14 @@ impl PotentialsTopBlock {
         }
         self.hmap.insert(
             last_needed_block.block_id,
-            (new_needed_block, last_needed_block.block_id),
+            (new_needed_block, last_needed_block.block_height),
         ); //create
     }
 
     fn found_potential_from_need(&self, need: u64) -> Option<u64> {
         self.hmap
             .iter()
-            .find_map(|(&k, v)| (v.1 == need).then(|| k))
+            .find_map(|(&k, v)| (v.0 == need).then(|| k))
     }
 
     fn erease_old(&mut self, height_top_block: u64) {
@@ -245,7 +245,7 @@ impl Blockchain {
     //qui fait cquoi ?           return Option ?
     pub fn try_append(&mut self, block_to_append: &Block) -> (Option<Block>, Option<u64>) {
         if self.hash_map_block.contains_key(&block_to_append.block_id) {
-            warn!("block already exist");
+            warn!("block already exist {}", block_to_append.block_id);
             return (None, None); //already prensent
         }
 
@@ -290,7 +290,10 @@ impl Blockchain {
                             .potentials_top_block
                             .found_potential_from_need(block_to_append.block_id)
                         {
-                            Some(new_top_block) => new_top_block,
+                            Some(new_top_block) => {
+                                println!("lkqjdopqkhfpm");
+                                new_top_block
+                            }
                             None => block_to_append.block_id,
                         };
 
@@ -298,8 +301,10 @@ impl Blockchain {
                         let two_chain = self.get_path_2_block(self.top_block_hash, new_top_b);
                         //sale
                         let mut new_balence = self.balance.clone();
-                        let last_top_ok =
-                            new_balence.calculation(two_chain.0, two_chain.1).block_id;
+                        let last_top_ok = new_balence
+                            .calculation(two_chain.0, two_chain.1.iter().rev().cloned().collect())
+                            .block_id;
+                        println!("last_top_ok ={}", last_top_ok);
 
                         if last_top_ok == new_top_b {
                             //all it is ok
@@ -320,6 +325,8 @@ impl Blockchain {
                             //need maybe to earse wrong block which transa is not good with the chain (last_top_ok + 1 +2 ...) <= you need to flush potendial block ?
                         } else {
                             info!("Branch is not wrong "); //???
+                            println!("Branch is not wrong "); //???
+                            return (None, None);
                         }
                     }
                     Err(needed) => {
@@ -471,30 +478,45 @@ mod tests {
         let (new, need) = blockchain.try_append(&b1);
         // println!("[B1{}b2{}]{}", b1, b2, blockchain);
         let new = new.unwrap();
-        assert_eq!(new, b1);
+        assert_eq!(new, b2);
         assert_eq!(need, None);
     }
 
     #[test]
     fn remove_old_potential_top() {
-        let mut blockchain = Blockchain::new();
+        
+        for _ in 1..100
+        {
+            let mut blockchain = Blockchain::new();
 
-        let b1 = Block::default();
-        let b2 = b1.clone().find_next_block(0, vec![], Profile::INFINIT).unwrap();
-        let b2_bis = b1.clone().find_next_block(10, vec![Default::default()], Profile::INFINIT).unwrap();
+            let b0 = Block::default();
+            let b1: Block = b0
+                .clone()
+                .find_next_block(0, vec![], Profile::INFINIT)
+                .unwrap();
+            let b1_bis: Block = b0
+                .clone()
+                .find_next_block(0, vec![], Profile::INFINIT)
+                .unwrap();
+            let b2 = b1
+                .clone()
+                .find_next_block(10, vec![Default::default()], Profile::INFINIT)
+                .unwrap();
+            let b2_bis = b1_bis
+                .clone()
+                .find_next_block(10, vec![Default::default()], Profile::INFINIT)
+                .unwrap();
 
-        let (_, _) = blockchain.try_append(&b2_bis);
-        if blockchain.potentials_top_block.hmap.get(&b2_bis.block_id) == None { //le get ne marche pas
-            //present here
-            assert!(false);
-        }
+            blockchain.try_append(&b2_bis);
+            assert_ne!(
+                blockchain.potentials_top_block.hmap.get(&b2_bis.block_id),
+                None
+            );
 
-        let (_, _) = blockchain.try_append(&b1);
-        let (_, _) = blockchain.try_append(&b2);
+            blockchain.try_append(&b1);
+            blockchain.try_append(&b2);
 
-        if blockchain.potentials_top_block.hmap.get(&b2_bis.block_id) != None {
-            //erease here
-            assert!(false);
+            assert_eq!(blockchain.potentials_top_block.hmap.get(&b2_bis.block_id),None);
         }
     }
 

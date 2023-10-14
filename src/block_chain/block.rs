@@ -170,15 +170,8 @@ impl Block {
             ..Default::default() //styler
         };
 
-        // how many turn to do          //function into ?
-        let number_iter = match profile {
-            Profile::INFINIT => u64::MAX,
-            Profile::Normal => 50000000,
-            Profile::Reactive => u64::MIN,
-            Profile::Slow => 500000000,
-        };
 
-        let _number_iter2: u64 = profile.into(); //tell me if it is better or superflue
+        let number_iter: u64 = profile.into(); //tell me if it is better or superflue
 
         let mut rng = rand::thread_rng(); //to pick random value
         let mut hasher = DefaultHasher::new();
@@ -279,6 +272,7 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
             sender
                 .send(Event::NewBlock(NewBlock::Mined(mined_block)))
                 .unwrap();
+
         }
     }
 }
