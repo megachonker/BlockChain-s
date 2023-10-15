@@ -40,6 +40,7 @@ pub enum Event {
     NewBlock(NewBlock),
     HashReq((i128, SocketAddr)),
     Transaction(Transaction),
+    ClientEvent,    //event of client : e.g ask all utxo of a client 
 }
 
 pub struct Server {
@@ -157,6 +158,7 @@ impl Server {
                     }
                 }
                 Event::Transaction(_) => todo!(),
+                Event::ClientEvent => todo!(),
             }
         }
     }

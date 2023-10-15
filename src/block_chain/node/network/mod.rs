@@ -55,8 +55,9 @@ pub enum TypeTransa {
 
 
 #[derive(Deserialize,Serialize,Debug)]
-enum ClientPackect{
-    ReqUtxo(u64),
+pub enum ClientPackect{
+    ReqUtxo(u64),       //Request for the UTXO of u64
+    RespUtxo(Vec<Utxo>),    //the response of RqUtxo
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -165,7 +166,7 @@ impl Network {
                         Packet::Peer(peers) => self_cpy.peers(peers, sender),
                         Packet::Keepalive => self_cpy.keepalive(sender),
                         Packet::Block(typeblock) => self_cpy.block(typeblock, sender, &event_tx),
-                        Packet::Client(_) => todo!(),
+                        Packet::Client(client_packet) => self_cpy.client(client_packet,sender,&event_tx),
                     }
                 }
             })
@@ -234,6 +235,26 @@ impl Network {
         let (_, sender) = selff.recv_from(&mut buf).expect("Error recv block");
         let des = deserialize(&mut buf).expect("Can not deserilize block");
         (des, sender)
+    }
+
+    pub fn recv_packet_true_function(& self) -> (Packet, SocketAddr) {
+        //faudrait éliminer les vecteur dans les structure pour avoir une taille prédictible
+        let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
+        let (_, sender) = self.binding.recv_from(&mut buf).expect("Error recv block");
+        let des = deserialize(&mut buf).expect("Can not deserilize block");
+        (des, sender)
+    }
+
+    fn client(&self, client_packet: ClientPackect, sender: SocketAddr, event_tx: & Sender<Event>) {
+
+        match client_packet {
+            ClientPackect::ReqUtxo(_) => {
+                info!("Reciv client request UTXO");
+                event_tx.send(Event::ClientEvent).unwrap();
+                self.send_packet(&Packet::Client(ClientPackect::RespUtxo(vec![])), &sender);
+            }
+            ClientPackect::RespUtxo(_) => info!("Receive a response client packet but it is a server"),
+        }
     }
 }
 
