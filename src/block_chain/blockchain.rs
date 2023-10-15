@@ -240,9 +240,15 @@ impl Blockchain {
         self.potentials_top_block.get_needed_block()
     }
 
-    //retourd de fonction Imbuvable
-    //option pour les 2 ?
-    //qui fait cquoi ?           return Option ?
+    /// # Appand bloc to blockchain struct 
+    /// block_to_append will be included in the struct this block can be :
+    ///     -ignored if wrong or to old 
+    ///     -the new top block (block_height +1)
+    ///     -a potential new top bloc but other block are needed (to complete the chain to block 0)
+    ///     -complete a chain a for a potential top block
+    /// This function return a (Option<Block>, Option<u64>).
+    /// The first Option is conataint the new top block if a new top block is found (not necessary the block_to_append).
+    /// The second Option is containt the hash of a block which are needed to complete a chain.
     pub fn try_append(&mut self, block_to_append: &Block) -> (Option<Block>, Option<u64>) {
         if self.hash_map_block.contains_key(&block_to_append.block_id) {
             warn!("block already exist {}", block_to_append.block_id);
@@ -255,11 +261,11 @@ impl Blockchain {
             return (None, None);
         }
 
-        //add the block to the DB
+        //add the block to the HashMap
         self.hash_map_block
             .insert(block_to_append.block_id, block_to_append.clone());
 
-        //get the current block from the db
+        //get the current block from the db to compare to the new one
         let cur_block = self.hash_map_block.get(&self.top_block_hash).unwrap();
 
         // the block is superior than my actual progress ?
@@ -269,7 +275,7 @@ impl Blockchain {
                 && block_to_append.block_height == cur_block.block_height + 1
                 && !self
                     .potentials_top_block
-                    .is_block_needed(block_to_append.block_id) //<= quand un 
+                    .is_block_needed(block_to_append.block_id) // these block is needed from a higher block 
                 && !block_to_append.transactions.iter().all(|t| t.check(&self))
             //<= need to move to the
             {
@@ -287,7 +293,7 @@ impl Blockchain {
                 }
             } else {
                 //block to high
-                match self.search_chain(block_to_append) {
+                match self.search_chain(block_to_append) { //do we have chain from block 0
                     Ok(_) => {
                         //the block can be chained into the initial block
                         let new_top_b = match self
@@ -305,31 +311,30 @@ impl Blockchain {
                         let two_chain = self.get_path_2_block(self.top_block_hash, new_top_b);
                         //sale
                         let mut new_balence = self.balance.clone();
-                        let last_top_ok = new_balence
+                        let last_top_transa_ok = new_balence
                             .calculation(two_chain.0, two_chain.1.iter().rev().cloned().collect())
                             .block_id;
-                        println!("last_top_ok ={}", last_top_ok);
+                        //last_top_transa_ok : bloc where is transa is valid to the chain
 
-                        if last_top_ok == new_top_b {
+                        if last_top_transa_ok == new_top_b {       
                             //all it is ok
                             info!("New branche better branches founds, blockchain update");
                             self.balance = new_balence;
-                            self.top_block_hash = last_top_ok;
-                        } else if self.last_block().block_height
-                            < self.get_block(last_top_ok).unwrap().block_height
+                            self.top_block_hash = last_top_transa_ok;
+                        } else if cur_block.block_height
+                            < self.get_block(last_top_transa_ok).unwrap().block_height
                         {
                             info!(
                                 "New branche not complete right, wrong after {}",
-                                last_top_ok
+                                last_top_transa_ok
                             );
                             //also ok maybe
                             self.balance = new_balence;
-                            self.top_block_hash = last_top_ok;
+                            self.top_block_hash = last_top_transa_ok;
 
                             //need maybe to earse wrong block which transa is not good with the chain (last_top_ok + 1 +2 ...) <= you need to flush potendial block ?
                         } else {
                             info!("Branch is not wrong "); 
-                            println!("Branch is not wrong "); 
                             return (None, None);
                         }
                     }

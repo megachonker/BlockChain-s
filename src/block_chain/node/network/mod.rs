@@ -53,12 +53,19 @@ pub enum TypeTransa {
     Ans(Vec<Utxo>),
 }
 
+
+#[derive(Deserialize,Serialize,Debug)]
+enum ClientPackect{
+    ReqUtxo(u64),
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Packet {
     Keepalive,
     Transaction(TypeTransa),
     Block(TypeBlock),
     Peer(TypePeer),
+    Client(ClientPackect),
 }
 
 // whole network function inside it
@@ -158,6 +165,7 @@ impl Network {
                         Packet::Peer(peers) => self_cpy.peers(peers, sender),
                         Packet::Keepalive => self_cpy.keepalive(sender),
                         Packet::Block(typeblock) => self_cpy.block(typeblock, sender, &event_tx),
+                        Packet::Client(_) => todo!(),
                     }
                 }
             })
