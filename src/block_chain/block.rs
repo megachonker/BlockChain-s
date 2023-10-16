@@ -107,7 +107,7 @@ impl From<Profile> for u64 {
         match prof {
             Profile::INFINIT => return u64::MAX,
             Profile::Normal => return 50000000,
-            Profile::Reactive => return u64::MIN+1,
+            Profile::Reactive => return 5000000,
             Profile::Slow => return 500000000,
         }
     }
