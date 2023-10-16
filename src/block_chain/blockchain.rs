@@ -244,13 +244,16 @@ impl Blockchain {
 
     /// # Appand bloc to blockchain struct
     /// block_to_append will be included in the struct this block can be :
-    ///     -ignored if wrong or to old
-    ///     -the new top block (block_height +1)
-    ///     -a potential new top bloc but other block are needed (to complete the chain to block 0)
-    ///     -complete a chain a for a potential top block
+    /// - ignored if wrong or to old 
+    /// - the new top block (block_height +1)
+    /// - a potential new top bloc but other block are needed (to complete the chain to block 0)
+    /// - complete a chain a for a potential top block
     /// This function return a (Option<Block>, Option<u64>).
+    /// 
     /// The first Option is conataint the new top block if a new top block is found (not necessary the block_to_append).
+    /// 
     /// The second Option is containt the hash of a block which are needed to complete a chain.
+    /// 
     pub fn try_append(&mut self, block_to_append: &Block) -> (Option<Block>, Option<u64>) {
         if self.hash_map_block.contains_key(&block_to_append.block_id) {
             return (None, None); //already prensent
