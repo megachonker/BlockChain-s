@@ -11,7 +11,7 @@ use tracing::{debug, info, warn};
 
 use crate::block_chain::{
     block::Block,
-    transaction::{Transaction, Utxo},
+    transaction::{Transaction, Utxo}, node::server::ClientEvent,
 };
 
 use super::server::{Event, NewBlock};
@@ -248,10 +248,9 @@ impl Network {
     fn client(&self, client_packet: ClientPackect, sender: SocketAddr, event_tx: & Sender<Event>) {
 
         match client_packet {
-            ClientPackect::ReqUtxo(_) => {
+            ClientPackect::ReqUtxo(id_client) => {
                 info!("Reciv client request UTXO");
-                event_tx.send(Event::ClientEvent).unwrap();
-                self.send_packet(&Packet::Client(ClientPackect::RespUtxo(vec![])), &sender);
+                event_tx.send(Event::ClientEvent(ClientEvent::ReqUtxo(id_client),sender)).unwrap();
             }
             ClientPackect::RespUtxo(_) => info!("Receive a response client packet but it is a server"),
         }

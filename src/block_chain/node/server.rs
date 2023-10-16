@@ -1,5 +1,5 @@
 use std::{
-    net::SocketAddr,
+    net::{SocketAddr, UdpSocket},
     sync::mpsc::{self, Receiver, Sender},
     sync::{Arc, Mutex},
     thread,
@@ -17,8 +17,10 @@ use crate::block_chain::{
 };
 use crate::friendly_name::*;
 
+use super::network::ClientPackect;
+
 pub enum RequestNetwork {
-    SendHash((u64, SocketAddr)),
+    SendHash(u64,SocketAddr),
     NewBlock(Block),
 }
 
@@ -35,13 +37,22 @@ pub enum NewBlock {
     Network(Block),
 }
 
-#[derive(Debug,PartialEq, Eq)]
+#[derive(Debug,PartialEq,Eq)]
+pub enum ClientEvent{
+    ReqUtxo(u64),
+}
+
+
+
+
+#[derive(Debug,PartialEq,Eq)]
 pub enum Event {
     NewBlock(NewBlock),
     HashReq((i128, SocketAddr)),
     Transaction(Transaction),
-    ClientEvent,    //event of client : e.g ask all utxo of a client 
+    ClientEvent(ClientEvent,SocketAddr),    //event of client : e.g ask all utxo of a client 
 }
+
 
 pub struct Server {
     name: String,
@@ -158,7 +169,13 @@ impl Server {
                     }
                 }
                 Event::Transaction(_) => todo!(),
-                Event::ClientEvent => todo!(),
+                Event::ClientEvent(event,addr_client) => {
+                    match event {
+                        ClientEvent::ReqUtxo(id_client) => {
+                            self.network.send_packet(&Packet::Client(ClientPackect::RespUtxo(self.blockchain.get_utxo(id_client))), &addr_client)
+                        }
+                    }
+                }
             }
         }
     }

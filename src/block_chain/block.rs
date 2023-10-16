@@ -315,7 +315,8 @@ mod tests {
                 },
                 Event::HashReq(_) => assert!(false),
                 Event::Transaction(_) => assert!(false),
-                Event::ClientEvent => assert!(false),
+                Event::ClientEvent(_, _) => todo!(),
+                
             }
         }
     }

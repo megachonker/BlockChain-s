@@ -421,6 +421,10 @@ impl Blockchain {
         }
         return vec;
     }
+
+    pub(crate) fn get_utxo(&self, id_client: u64) -> Vec<Utxo> {
+        vec![]
+    }
 }
 
 #[cfg(test)]
