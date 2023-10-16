@@ -11,7 +11,8 @@ use tracing::{debug, info, warn};
 use super::node::server::{Event, NewBlock};
 use super::transaction::{Transaction, Utxo};
 
-const HASH_MAX: u64 = 10000000000;
+const HASH_MAX: u64 = 100000000000000;           //for test
+// const HASH_MAX: u64 = 1000000000;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
@@ -314,6 +315,7 @@ mod tests {
                 },
                 Event::HashReq(_) => assert!(false),
                 Event::Transaction(_) => assert!(false),
+                Event::ClientEvent => assert!(false),
             }
         }
     }

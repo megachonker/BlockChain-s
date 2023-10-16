@@ -40,6 +40,7 @@ pub enum Event {
     NewBlock(NewBlock),
     HashReq((i128, SocketAddr)),
     Transaction(Transaction),
+    ClientEvent,    //event of client : e.g ask all utxo of a client 
 }
 
 pub struct Server {
@@ -143,7 +144,10 @@ impl Server {
                         //ned to check if parent are same
                         //need to resync db
                         let mut lock_actual_top_block = actual_top_block.lock().unwrap();
-                        *lock_actual_top_block = top_block;
+                        *lock_actual_top_block = top_block.clone();
+
+                        self.network
+                                .broadcast(Packet::Block(TypeBlock::Block(top_block.clone())));
 
                         // debug!("Salut");
                     }
@@ -154,6 +158,7 @@ impl Server {
                     }
                 }
                 Event::Transaction(_) => todo!(),
+                Event::ClientEvent => todo!(),
             }
         }
     }

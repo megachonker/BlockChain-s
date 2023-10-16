@@ -24,8 +24,8 @@ struct Cli {
     destination: u64,
 
     /// Montant: nombre de crédit a donner
-    #[arg(short, long, default_value_t = f64::NAN)]
-    ammount: f64,
+    #[arg(short, long, default_value_t = 0)]
+    ammount: u64,
 
     /// Key file: fichier contenant la clef privée
     #[arg(short, long,default_value_t = String::new())]
@@ -76,9 +76,9 @@ fn parse_args(cli: Cli) -> NewNode {
     let networking = Network::new(bootstrap.unwrap(), binding.unwrap());
 
     // si doit send
-    if cli.ammount.is_normal() || !cli.secret.is_empty() || cli.destination != 0 {
+    if  !cli.secret.is_empty() || cli.destination != 0 {
         // si manque un arg pour send
-        if !(cli.ammount.is_normal() && !cli.secret.is_empty() && cli.destination != 0) {
+        if !(!cli.secret.is_empty() && cli.destination != 0) {
             panic!("missing amount, secret or destination")
         }
         //create client worker
@@ -110,7 +110,7 @@ mod tests {
         let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
         let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)));
         let cli = Cli {
-            ammount: f64::NAN,
+            ammount: 0,
             bind,
             bootstrap,
             destination: u64::MIN,
@@ -123,7 +123,7 @@ mod tests {
         let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)));
         let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
         let cli = Cli {
-            ammount: f64::NAN,
+            ammount: 0,
             bind,
             bootstrap,
             destination: u64::MIN,
