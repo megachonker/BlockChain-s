@@ -440,10 +440,10 @@ impl Blockchain {
         res
     }
 
-    pub fn transa_is_present(&self, transa: &super::transaction::Transaction, miner_stuff : &MinerStuff) -> bool {
-        //check all
-        //NEED TO FIX
-        true
+    pub fn transa_is_valid(&self, transa: &super::transaction::Transaction, miner_stuff : &MinerStuff) -> bool {
+        //check all 
+        //NEED TO FIX : check in balence if present, check in miner_stuff.transa to see if utxo is already use or not
+        !miner_stuff.transa.contains(transa)
     }
 }
 

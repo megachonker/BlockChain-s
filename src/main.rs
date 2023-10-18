@@ -48,7 +48,7 @@ fn main() {
     let arg = Cli::parse();
 
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::from_str(&arg.verbose).unwrap_or(tracing::Level::TRACE))
+        .with_max_level(tracing::Level::from_str(&arg.verbose).unwrap_or(tracing::Level::DEBUG))
         .init();
 
     //check error of logique

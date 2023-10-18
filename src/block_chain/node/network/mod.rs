@@ -76,6 +76,7 @@ impl Network {
 
     /// append transaction when enought transa send it to miner to create a new block
     fn transaction(transa: TypeTransa, net_transa_tx: &Sender<Event>) {
+        debug!("Recv transa");
         match transa {
             TypeTransa::Ans(utxos) => { /* array of all utxo append */ }
             TypeTransa::Push(transaction) => {

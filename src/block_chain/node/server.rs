@@ -12,7 +12,7 @@ use crate::block_chain::{
     block::{self, mine, Block},
     blockchain::Blockchain,
     // shared::Shared,
-    node::network::{Network, Packet, TypeBlock},
+    node::network::{Network, Packet, TypeBlock, TypeTransa},
     transaction::Transaction,
 };
 use crate::friendly_name::*;
@@ -155,7 +155,7 @@ impl Server {
                     debug!("New block h:{}", new_block.block_height);
                     let (new_top_block, block_need) = self.blockchain.try_append(&new_block);
 
-                    /// when blockain accept new block
+                    // when blockain accept new block
                     if let Some(top_block) = new_top_block {
                         //inform transaction runner that a new block was accepted a
                         //ned to check if parent are same
@@ -180,8 +180,9 @@ impl Server {
                 Event::Transaction(transa) => {
                     //check if is valid 
                     let mut  minner_stuff_lock = miner_stuff.lock().unwrap();
-                    if self.blockchain.transa_is_present(&transa,& minner_stuff_lock){
-                        minner_stuff_lock.transa.push(transa);
+                    if self.blockchain.transa_is_valid(&transa,& minner_stuff_lock){
+                        minner_stuff_lock.transa.push(transa.clone());
+                        self.network.broadcast(Packet::Transaction(TypeTransa::Push(transa)));
                     }
                 }
                 Event::ClientEvent(event, addr_client) => match event {
