@@ -20,7 +20,7 @@ use crate::friendly_name::*;
 use super::network::ClientPackect;
 
 pub enum RequestNetwork {
-    SendHash(u64,SocketAddr),
+    SendHash(u64, SocketAddr),
     NewBlock(Block),
 }
 
@@ -29,30 +29,25 @@ pub enum RequestServer {
     AskHash(u64),
 }
 
-
-#[derive(Debug,PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 
 pub enum NewBlock {
     Mined(Block),
     Network(Block),
 }
 
-#[derive(Debug,PartialEq,Eq)]
-pub enum ClientEvent{
+#[derive(Debug, PartialEq, Eq)]
+pub enum ClientEvent {
     ReqUtxo(u64),
 }
 
-
-
-
-#[derive(Debug,PartialEq,Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Event {
     NewBlock(NewBlock),
     HashReq((i128, SocketAddr)),
     Transaction(Transaction),
-    ClientEvent(ClientEvent,SocketAddr),    //event of client : e.g ask all utxo of a client 
+    ClientEvent(ClientEvent, SocketAddr), //event of client : e.g ask all utxo of a client
 }
-
 
 pub struct Server {
     name: String,
@@ -102,16 +97,19 @@ impl Server {
     fn server_runtime(&mut self, finder: u64, event_channels: (Sender<Event>, Receiver<Event>)) {
         info!("Runtime server start");
 
+        
         let actual_top_block = Arc::new(Mutex::new(self.blockchain.last_block()));
-        let actual_top_block_cpy = actual_top_block.clone();
-
-        thread::Builder::new()
-            .name("Miner".to_string())
-            .spawn(move || {
-                info!("start Miner");
-                mine(finder, &actual_top_block_cpy, event_channels.0);
-            })
-            .unwrap();
+        for _ in 1..2 {
+            let actual_top_block_cpy = actual_top_block.clone();
+            let event_cpy = event_channels.0.clone();
+            thread::Builder::new()
+                .name("Miner {}".to_string())
+                .spawn(move || {
+                    info!("start Miner");
+                    mine(finder, &actual_top_block_cpy, event_cpy);
+                })
+                .unwrap();
+        }
 
         loop {
             // debug!("main loop");
@@ -120,20 +118,22 @@ impl Server {
                 Event::HashReq((hash, dest)) => {
                     debug!("Recieved Hash resquest");
                     // remplace -1 par un enum top block
-                    if hash == -1{
-                        self.network
-                            .send_packet(&Packet::Block(TypeBlock::Block(self.blockchain.last_block())), &dest)
+                    if hash == -1 {
+                        self.network.send_packet(
+                            &Packet::Block(TypeBlock::Block(self.blockchain.last_block())),
+                            &dest,
+                        )
                     }
                     //ça partira ducoup
-                    else if hash.is_negative(){
-                        warn!("Reciv negative hash != -1 : {}",hash);
+                    else if hash.is_negative() {
+                        warn!("Reciv negative hash != -1 : {}", hash);
                     }
                     //ça sera le enum hash
                     else if let Some(block) = self.blockchain.get_block(hash as u64) {
                         self.network
                             .send_packet(&Packet::Block(TypeBlock::Block(block.clone())), &dest)
-                    }else {
-                        warn!("hash not found in database :{}",hash);
+                    } else {
+                        warn!("hash not found in database :{}", hash);
                     }
                 }
                 Event::NewBlock(new_block) => {
@@ -146,7 +146,7 @@ impl Server {
                         }
                         NewBlock::Network(b) => b,
                     };
-                    debug!("New block h:{}",new_block.block_height);
+                    debug!("New block h:{}", new_block.block_height);
                     let (new_top_block, block_need) = self.blockchain.try_append(&new_block);
 
                     /// when blockain accept new block
@@ -158,7 +158,7 @@ impl Server {
                         *lock_actual_top_block = top_block.clone();
 
                         self.network
-                                .broadcast(Packet::Block(TypeBlock::Block(top_block.clone())));
+                            .broadcast(Packet::Block(TypeBlock::Block(top_block.clone())));
 
                         // debug!("Salut");
                     }
@@ -168,14 +168,15 @@ impl Server {
                             .broadcast(Packet::Block(TypeBlock::Hash(needed_block as i128)));
                     }
                 }
-                Event::Transaction(_) => todo!(),
-                Event::ClientEvent(event,addr_client) => {
-                    match event {
-                        ClientEvent::ReqUtxo(id_client) => {
-                            self.network.send_packet(&Packet::Client(ClientPackect::RespUtxo(self.blockchain.get_utxo(id_client))), &addr_client)
-                        }
-                    }
-                }
+                Event::Transaction(transa) => todo!(),
+                Event::ClientEvent(event, addr_client) => match event {
+                    ClientEvent::ReqUtxo(id_client) => self.network.send_packet(
+                        &Packet::Client(ClientPackect::RespUtxo(
+                            self.blockchain.get_utxo(id_client),            //need to be parralizesd
+                        )),
+                        &addr_client,
+                    ),
+                },
             }
         }
     }

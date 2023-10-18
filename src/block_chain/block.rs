@@ -12,7 +12,8 @@ use super::node::server::{Event, NewBlock};
 use super::transaction::{Transaction, Utxo};
 
 const HASH_MAX: u64 = 100000000000000;           //for test
-// const HASH_MAX: u64 = 1000000000;
+// const HASH_MAX: u64 = 1000000000;                //long
+// const HASH_MAX: u64 = 1000000000000;                //fast
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
@@ -231,6 +232,15 @@ impl Block {
             .filter(|transa| transa.target_pubkey == addr)
             .flat_map(|transa| transa.find_new_utxo(self.block_id))
             .collect()
+    }
+
+    pub fn utxo_owned(&self, utxo: &Utxo) -> u64 {
+
+        
+        let transa = self.transactions.iter().find(|&transa| transa.hash_id()== utxo.transa_id()).expect("the block do not contains the transa");
+
+        transa.owner()
+
     }
 }
 

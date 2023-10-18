@@ -249,7 +249,7 @@ impl Network {
 
         match client_packet {
             ClientPackect::ReqUtxo(id_client) => {
-                info!("Reciv client request UTXO");
+                info!("Reciv client ({}) request UTXO ",id_client);
                 event_tx.send(Event::ClientEvent(ClientEvent::ReqUtxo(id_client),sender)).unwrap();
             }
             ClientPackect::RespUtxo(_) => info!("Receive a response client packet but it is a server"),

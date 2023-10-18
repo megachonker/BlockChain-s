@@ -3,13 +3,16 @@ mod friendly_name;
 mod block_chain {
     // pub mod shared;
     pub mod block;
-    pub mod node;
     pub mod blockchain;
+    pub mod node;
     pub mod transaction;
 }
 
 use block_chain::node::{client::Client, network::Network, server::Server, NewNode};
-use std::{net::{IpAddr, Ipv4Addr}, str::FromStr};
+use std::{
+    net::{IpAddr, Ipv4Addr},
+    str::FromStr,
+};
 
 #[derive(Parser)]
 struct Cli {
@@ -31,22 +34,23 @@ struct Cli {
     #[arg(short, long,default_value_t = String::new())]
     secret: String,
 
+    #[arg(short, long,default_value_t = 0)]
+    from: u64,
 
-    #[arg(short, long,default_value_t =String::from("TRACE") )]         //a changer a terme
-    verbose: String
+    #[arg(short, long,default_value_t =String::from("TRACE") )] //a changer a terme
+    verbose: String,
 }
 
 use clap::Parser;
 
 fn main() {
-    
     //get argument
     let arg = Cli::parse();
-    
+
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::from_str(&arg.verbose).unwrap_or(tracing::Level::TRACE))
         .init();
-    
+
     //check error of logique
     let node = parse_args(arg);
 
@@ -76,7 +80,7 @@ fn parse_args(cli: Cli) -> NewNode {
     let networking = Network::new(bootstrap.unwrap(), binding.unwrap());
 
     // si doit send
-    if  !cli.secret.is_empty() || cli.destination != 0 {
+    if !cli.secret.is_empty() || cli.destination != 0 {
         // si manque un arg pour send
         if !(!cli.secret.is_empty() && cli.destination != 0) {
             panic!("missing amount, secret or destination")
@@ -89,6 +93,7 @@ fn parse_args(cli: Cli) -> NewNode {
             cli.destination,
             cli.secret,
             cli.ammount,
+            cli.from,
         ));
     } else {
         //create server worker
@@ -101,8 +106,8 @@ fn parse_args(cli: Cli) -> NewNode {
 #[cfg(test)]
 mod tests {
     // use futures::{future::join, join, pin_mut, select, FutureExt};
-    use std::{net::Ipv4Addr};
     use crate::{parse_args, Cli};
+    use std::net::Ipv4Addr;
 
     #[test]
     fn argument_lunch_server_init() {
@@ -115,7 +120,8 @@ mod tests {
             bootstrap,
             destination: u64::MIN,
             secret: String::new(),
-            verbose : String::new(),
+            verbose: String::new(),
+            from : 0,
         };
         parse_args(cli);
 
@@ -128,7 +134,8 @@ mod tests {
             bootstrap,
             destination: u64::MIN,
             secret: String::new(),
-            verbose : String::new(),
+            verbose: String::new(),
+            from : 0,
 
         };
         parse_args(cli);

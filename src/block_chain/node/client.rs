@@ -1,7 +1,9 @@
 // use crate::block_chain::node::{network::Network,NewTransaction};
 
+use tracing::info;
+
 use crate::{
-    block_chain::{transaction::Transaction, blockchain::Blockchain, node::network::{Packet, ClientPackect}},
+    block_chain::{transaction::Transaction, blockchain::Blockchain, node::network::{Packet, ClientPackect, TypeTransa}},
     friendly_name::{get_fake_id, get_friendly_name},
 };
 
@@ -10,11 +12,12 @@ use super::network::Network;
 pub struct TransaInfo{
     ammount : u64,
     destination : u64,
+    from : u64
 }
 
 impl TransaInfo{
-    pub fn new(ammount : u64, destination : u64) -> Self{
-        TransaInfo { ammount: ammount, destination: destination }
+    pub fn new(ammount : u64, destination : u64,from : u64) -> Self{
+        TransaInfo { ammount: ammount, destination: destination, from : from }
     }
 }
 
@@ -26,23 +29,22 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(networking: Network, destination: u64, secret: String, ammount: u64) -> Self {
+    pub fn new(networking: Network, destination: u64, secret: String, ammount: u64,from : u64) -> Self {
         let name =
             get_friendly_name(networking.get_socket()).expect("generation name from ip imposble");
 
-        Self { name, networking, transa_info : TransaInfo::new(ammount, destination) }
+        Self { name, networking, transa_info : TransaInfo::new(ammount, destination,from) }
     }
     pub fn start(self) {
-        let ip = self.networking.get_socket();
-        let id = get_fake_id(&self.name);
 
         // let blockaine = Blockchain::default();
         // let transaction = Transaction::new_online(&blockaine, 10, 10, 10);
 
-        self.networking.send_packet(&Packet::Client(ClientPackect::ReqUtxo(id)), &self.networking.bootstrap);
+        self.networking.send_packet(&Packet::Client(ClientPackect::ReqUtxo(self.transa_info.from)), &self.networking.bootstrap);
 
 
-        let mut myutxo; 
+
+        let myutxo; 
         loop {
             match self.networking.recv_packet_true_function().0 {
                 Packet::Client(ClientPackect::RespUtxo(utxo)) => {myutxo = utxo;break;}
@@ -52,6 +54,13 @@ impl Client {
 
         let transactionb = Transaction::new_offline(&myutxo, 10, 555);
 
+        if transactionb == None{
+            println!("You not have enought money");
+            return;
+        }
+        let transactionb = transactionb.unwrap();
         println!("Transaction created : {:?}",transactionb);
+
+        self.networking.send_packet(&Packet::Transaction(TypeTransa::Push(transactionb)), &self.networking.bootstrap);
     }
 }

@@ -75,7 +75,7 @@ impl PotentialsTopBlock {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug,PartialEq)]
 enum Status {
     Consumed,
     Avaible,
@@ -422,8 +422,17 @@ impl Blockchain {
         return vec;
     }
 
-    pub(crate) fn get_utxo(&self, id_client: u64) -> Vec<Utxo> {
-        vec![]
+    pub fn get_utxo(&self, id_client: u64) -> Vec<Utxo> {
+        let mut res = vec![];
+        for (u,a) in & self.balance.utxo{
+            if a == &Status::Avaible{
+                if self.get_block(u.block_location).expect("Error utxo present in balence, his block is not present").utxo_owned(u) == id_client {
+                    res.push(u.clone());
+                }
+            }
+        }
+
+        res
     }
 }
 

@@ -17,6 +17,14 @@ pub struct Utxo {
     value: u128, //can work without but Simplify the challenge NOT NEED TO SERIALIZED
 }
 
+impl Utxo {
+    pub fn transa_id(&self) -> u64 {
+        self.transa_id
+    }
+}
+
+
+
 impl fmt::Display for Utxo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -113,7 +121,7 @@ impl Transaction {
     /// auto self hash
     /// not efficient because init the hasher manualy
     /// tradoff is that it getting simpler
-    fn hash_id(&self) -> u64 {
+    pub fn hash_id(&self) -> u64 {
         let mut s = DefaultHasher::new();
         self.hash(&mut s);
         s.finish()
@@ -209,6 +217,10 @@ impl Transaction {
             .collect();
         let to_send_back = sum.checked_sub(amount + fee);
         to_send_back.map(|val| (r, val))
+    }
+
+    pub fn owner(&self) -> u64 {
+       self.target_pubkey 
     }
 }
 
