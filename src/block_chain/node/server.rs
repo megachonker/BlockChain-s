@@ -57,6 +57,12 @@ pub struct Server {
     blockchain: Blockchain,
 }
 
+
+pub struct MinerStuff{
+    pub cur_block : Block,
+    pub transa : Vec<Transaction>,
+} 
+
 impl Server {
     pub fn new(network: Network) -> Self {
         let name =
@@ -98,15 +104,15 @@ impl Server {
         info!("Runtime server start");
 
         
-        let actual_top_block = Arc::new(Mutex::new(self.blockchain.last_block()));
+        let miner_stuff = Arc::new(Mutex::new(MinerStuff{cur_block: self.blockchain.last_block(), transa :vec![]}));
         for _ in 1..2 {
-            let actual_top_block_cpy = actual_top_block.clone();
+            let miner_stuff_cpy = miner_stuff.clone();
             let event_cpy = event_channels.0.clone();
             thread::Builder::new()
                 .name("Miner {}".to_string())
                 .spawn(move || {
                     info!("start Miner");
-                    mine(finder, &actual_top_block_cpy, event_cpy);
+                    mine(finder, &miner_stuff_cpy, event_cpy);
                 })
                 .unwrap();
         }
@@ -154,8 +160,11 @@ impl Server {
                         //inform transaction runner that a new block was accepted a
                         //ned to check if parent are same
                         //need to resync db
-                        let mut lock_actual_top_block = actual_top_block.lock().unwrap();
-                        *lock_actual_top_block = top_block.clone();
+                        let mut lock_miner_stuff = miner_stuff.lock().unwrap();
+                        (*lock_miner_stuff).cur_block = top_block.clone();
+                        (*lock_miner_stuff).transa = vec![];       //for the moment reset transa not taken     //maybe check transa not accpted and already available
+
+                        drop(lock_miner_stuff);
 
                         self.network
                             .broadcast(Packet::Block(TypeBlock::Block(top_block.clone())));
@@ -168,7 +177,13 @@ impl Server {
                             .broadcast(Packet::Block(TypeBlock::Hash(needed_block as i128)));
                     }
                 }
-                Event::Transaction(transa) => todo!(),
+                Event::Transaction(transa) => {
+                    //check if is valid 
+                    let mut  minner_stuff_lock = miner_stuff.lock().unwrap();
+                    if self.blockchain.transa_is_present(&transa,& minner_stuff_lock){
+                        minner_stuff_lock.transa.push(transa);
+                    }
+                }
                 Event::ClientEvent(event, addr_client) => match event {
                     ClientEvent::ReqUtxo(id_client) => self.network.send_packet(
                         &Packet::Client(ClientPackect::RespUtxo(

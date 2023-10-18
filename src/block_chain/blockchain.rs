@@ -6,7 +6,7 @@ use std::{
 
 use tracing::{debug, info, warn};
 
-use super::{block::Block, transaction::Utxo};
+use super::{block::Block, transaction::Utxo, node::server::MinerStuff};
 
 #[derive(Default)]
 
@@ -75,7 +75,7 @@ impl PotentialsTopBlock {
     }
 }
 
-#[derive(Clone, Debug,PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 enum Status {
     Consumed,
     Avaible,
@@ -240,9 +240,9 @@ impl Blockchain {
         self.potentials_top_block.get_needed_block()
     }
 
-    /// # Appand bloc to blockchain struct 
+    /// # Appand bloc to blockchain struct
     /// block_to_append will be included in the struct this block can be :
-    ///     -ignored if wrong or to old 
+    ///     -ignored if wrong or to old
     ///     -the new top block (block_height +1)
     ///     -a potential new top bloc but other block are needed (to complete the chain to block 0)
     ///     -complete a chain a for a potential top block
@@ -286,14 +286,14 @@ impl Blockchain {
                     self.balance = backup;
                     //valid and ellect block to top pos
                     self.top_block_hash = block_to_append.block_id;
-                }
-                else {
+                } else {
                     debug!("Transaction is false");
-                    return (None,None);
+                    return (None, None);
                 }
             } else {
                 //block to high
-                match self.search_chain(block_to_append) { //do we have chain from block 0
+                match self.search_chain(block_to_append) {
+                    //do we have chain from block 0
                     Ok(_) => {
                         //the block can be chained into the initial block
                         let new_top_b = match self
@@ -316,7 +316,7 @@ impl Blockchain {
                             .block_id;
                         //last_top_transa_ok : bloc where is transa is valid to the chain
 
-                        if last_top_transa_ok == new_top_b {       
+                        if last_top_transa_ok == new_top_b {
                             //all it is ok
                             info!("New branche better branches founds, blockchain update");
                             self.balance = new_balence;
@@ -334,7 +334,7 @@ impl Blockchain {
 
                             //need maybe to earse wrong block which transa is not good with the chain (last_top_ok + 1 +2 ...) <= you need to flush potendial block ?
                         } else {
-                            info!("Branch is not wrong "); 
+                            info!("Branch is not wrong ");
                             return (None, None);
                         }
                     }
@@ -424,15 +424,26 @@ impl Blockchain {
 
     pub fn get_utxo(&self, id_client: u64) -> Vec<Utxo> {
         let mut res = vec![];
-        for (u,a) in & self.balance.utxo{
-            if a == &Status::Avaible{
-                if self.get_block(u.block_location).expect("Error utxo present in balence, his block is not present").utxo_owned(u) == id_client {
+        for (u, a) in &self.balance.utxo {
+            if a == &Status::Avaible {
+                if self
+                    .get_block(u.block_location)
+                    .expect("Error utxo present in balence, his block is not present")
+                    .utxo_owned(u)
+                    == id_client
+                {
                     res.push(u.clone());
                 }
             }
         }
 
         res
+    }
+
+    pub fn transa_is_present(&self, transa: &super::transaction::Transaction, miner_stuff : &MinerStuff) -> bool {
+        //check all
+        //NEED TO FIX
+        true
     }
 }
 
@@ -506,9 +517,7 @@ mod tests {
 
     #[test]
     fn remove_old_potential_top() {
-        
-        for _ in 1..100
-        {
+        for _ in 1..100 {
             let mut blockchain = Blockchain::new();
 
             let b0 = Block::default();
@@ -538,7 +547,10 @@ mod tests {
             blockchain.try_append(&b1);
             blockchain.try_append(&b2);
 
-            assert_eq!(blockchain.potentials_top_block.hmap.get(&b2_bis.block_id),None);
+            assert_eq!(
+                blockchain.potentials_top_block.hmap.get(&b2_bis.block_id),
+                None
+            );
         }
     }
 

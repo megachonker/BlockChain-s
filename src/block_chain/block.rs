@@ -8,7 +8,7 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};
 
-use super::node::server::{Event, NewBlock};
+use super::node::server::{Event, NewBlock, MinerStuff};
 use super::transaction::{Transaction, Utxo};
 
 const HASH_MAX: u64 = 100000000000000;           //for test
@@ -265,13 +265,14 @@ impl PartialEq for Block {
 
 /// # Mining Runner
 /// never ending function that feeded in transaction and block;
-pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
+pub fn mine(finder: u64, miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Event>) {
     info!("Begining mining operation");
     loop {
-        let block_locked = cur_block.lock().unwrap();
-        let block = block_locked.clone(); //presque toujour blocker
+        let miner_stuff_lock = miner_stuff.lock().unwrap();
+        let block = miner_stuff_lock.cur_block.clone(); //presque toujour blocker
+        let transa = miner_stuff_lock.transa.clone();
         // println!("qskdgkjsqdh{}",block);
-        drop(block_locked);
+        drop(miner_stuff_lock);
 
         // do the same things
         // block
@@ -279,7 +280,7 @@ pub fn mine(finder: u64, cur_block: &Arc<Mutex<Block>>, sender: Sender<Event>) {
         //     .map(|block| sender.send(block))
         //     .unwrap();
 
-        if let Some(mined_block) = block.find_next_block(finder, vec![], Profile::Slow) {
+        if let Some(mined_block) = block.find_next_block(finder, transa, Profile::Normal) {
             sender
                 .send(Event::NewBlock(NewBlock::Mined(mined_block)))
                 .unwrap();
@@ -309,10 +310,10 @@ mod tests {
     fn test_block_mined_valid() {
         let (tx, rx) = mpsc::channel::<Event>();
 
-        let cur_block = Arc::new(Mutex::new(Block::new()));
+        let miner_stuff = Arc::new(Mutex::new(MinerStuff{cur_block: Block::default(), transa :vec![]}));
 
         thread::spawn(move || {
-            mine(1, &cur_block, tx);
+            mine(1, &miner_stuff, tx);
         });
 
         for _ in 0..2 {
