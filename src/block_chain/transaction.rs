@@ -91,6 +91,7 @@ impl Transaction {
 
 
         //check all utxo is accesible
+        //need to use balance
         if !self.rx.iter().all(|utxo| {
             blockaine.get_block(utxo.block_location).is_some_and(|h| {
                 h.transactions
@@ -330,7 +331,7 @@ mod tests {
             .unwrap();
 
         //add it to the blockaine
-        let (block, _) = blockchain.try_append(&block);
+        let (_block, _) = blockchain.try_append(&block);
 
         println!("{}", blockchain);
         assert!(true)

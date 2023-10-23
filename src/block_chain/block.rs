@@ -11,6 +11,9 @@ use tracing::{debug, info, warn};
 use super::node::server::{Event, NewBlock, MinerStuff};
 use super::transaction::{Transaction, Utxo};
 
+
+//variable d'envirnement 
+
 const HASH_MAX: u64 = 100000000000000;           //for test
 // const HASH_MAX: u64 = 1000000000;                //slow
 // const HASH_MAX: u64 = 1000000000000;                //fast

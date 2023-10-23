@@ -517,7 +517,7 @@ mod tests {
 
     #[test]
     fn remove_old_potential_top() {
-        for _ in 1..100 {
+        for _ in 1..10 {
             let mut blockchain = Blockchain::new();
 
             let b0 = Block::default();

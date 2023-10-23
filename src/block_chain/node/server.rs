@@ -49,6 +49,8 @@ pub enum Event {
     ClientEvent(ClientEvent, SocketAddr), //event of client : e.g ask all utxo of a client
 }
 
+//impl Event
+
 pub struct Server {
     name: String,
     network: Network, // blockchaine
@@ -180,6 +182,7 @@ impl Server {
                 Event::Transaction(transa) => {
                     //check if is valid 
                     let mut  minner_stuff_lock = miner_stuff.lock().unwrap();
+                    
                     if self.blockchain.transa_is_valid(&transa,& minner_stuff_lock){
                         minner_stuff_lock.transa.push(transa.clone());
                         self.network.broadcast(Packet::Transaction(TypeTransa::Push(transa)));
@@ -188,7 +191,7 @@ impl Server {
                 Event::ClientEvent(event, addr_client) => match event {
                     ClientEvent::ReqUtxo(id_client) => self.network.send_packet(
                         &Packet::Client(ClientPackect::RespUtxo(
-                            self.blockchain.get_utxo(id_client),            //need to be parralizesd
+                            self.blockchain.filter_utxo(id_client),            //need to be parralizesd
                         )),
                         &addr_client,
                     ),
