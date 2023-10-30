@@ -14,9 +14,9 @@ use super::transaction::{Transaction, Utxo};
 
 //variable d'envirnement 
 
-const HASH_MAX: u64 = 100000000000000;           //for test
+// const HASH_MAX: u64 = 100000000000000;           //for test
 // const HASH_MAX: u64 = 1000000000;                //slow
-// const HASH_MAX: u64 = 1000000000000;                //fast
+const HASH_MAX: u64 = 1000000000000;                //fast
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
@@ -203,7 +203,7 @@ impl Block {
             }
 
             if nonce_to_test % number_iter == 0 {
-                debug!("Refersh");
+                info!("Refersh");
                 return None;
             }
 

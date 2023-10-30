@@ -120,11 +120,10 @@ impl Server {
         }
 
         loop {
-            // debug!("main loop");
             //Routing Event
             match event_channels.1.recv().unwrap() {
                 Event::HashReq((hash, dest)) => {
-                    debug!("Recieved Hash resquest");
+                    info!("Recieved Hash resquest");
                     // remplace -1 par un enum top block
                     if hash == -1 {
                         self.network.send_packet(
@@ -154,7 +153,7 @@ impl Server {
                         }
                         NewBlock::Network(b) => b,
                     };
-                    debug!("New block h:{}", new_block.block_height);
+                    debug!("recv new block h:{}", new_block.block_height);
                     let (new_top_block, block_need) = self.blockchain.try_append(&new_block);
 
                     // when blockain accept new block
@@ -167,11 +166,11 @@ impl Server {
                         (*lock_miner_stuff).transa = vec![];       //for the moment reset transa not taken     //maybe check transa not accpted and already available
 
                         drop(lock_miner_stuff);
+                        println!("New Top Block : {}",top_block);
 
                         self.network
                             .broadcast(Packet::Block(TypeBlock::Block(top_block.clone())));
 
-                        // debug!("Salut");
                     }
 
                     if let Some(needed_block) = block_need {

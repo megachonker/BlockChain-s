@@ -287,7 +287,7 @@ impl Blockchain {
                     //valid and ellect block to top pos
                     self.top_block_hash = block_to_append.block_id;
                 } else {
-                    debug!("Transaction is false");
+                    info!("Transaction is false");
                     return (None, None);
                 }
             } else {
@@ -318,7 +318,7 @@ impl Blockchain {
 
                         if last_top_transa_ok == new_top_b {
                             //all it is ok
-                            info!("New branche better branches founds, blockchain update");
+                            warn!("New branche better branches founds, blockchain update");
                             self.balance = new_balence;
                             self.top_block_hash = last_top_transa_ok;
                         } else if cur_block.block_height

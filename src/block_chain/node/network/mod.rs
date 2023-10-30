@@ -76,7 +76,7 @@ impl Network {
 
     /// append transaction when enought transa send it to miner to create a new block
     fn transaction(transa: TypeTransa, net_transa_tx: &Sender<Event>) {
-        debug!("Recv transa");
+        info!("Recv transa");
         match transa {
             TypeTransa::Ans(utxos) => { /* array of all utxo append */ }
             TypeTransa::Push(transaction) => {
@@ -158,7 +158,7 @@ impl Network {
         thread::Builder::new()
             .name("Net-Router".to_string())
             .spawn(move || {
-                debug!("Net-Router");
+                info!("Net-Router");
                 loop {
                     let (message, sender) =
                         Self::recv_packet(&self_cpy.binding.try_clone().unwrap());

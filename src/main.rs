@@ -37,7 +37,7 @@ struct Cli {
     #[arg(short, long,default_value_t = 0)]
     from: u64,
 
-    #[arg(short, long,default_value_t =String::from("TRACE") )] //a changer a terme
+    #[arg(short, long,default_value_t =String::from("WARN") )] //a changer a terme
     verbose: String,
 }
 
@@ -48,7 +48,7 @@ fn main() {
     let arg = Cli::parse();
 
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::from_str(&arg.verbose).unwrap_or(tracing::Level::DEBUG))
+        .with_max_level(tracing::Level::from_str(&arg.verbose).unwrap_or(tracing::Level::WARN))
         .init();
 
     //check error of logique
