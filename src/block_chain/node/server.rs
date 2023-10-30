@@ -19,6 +19,7 @@ use crate::friendly_name::*;
 
 use super::network::ClientPackect;
 
+
 pub enum RequestNetwork {
     SendHash(u64, SocketAddr),
     NewBlock(Block),
@@ -60,9 +61,11 @@ pub struct Server {
 }
 
 
+#[derive(Debug)]
 pub struct MinerStuff{
     pub cur_block : Block,
     pub transa : Vec<Transaction>,
+    pub difficulty : u64,
 } 
 
 impl Server {
@@ -106,8 +109,8 @@ impl Server {
         info!("Runtime server start");
 
         
-        let miner_stuff = Arc::new(Mutex::new(MinerStuff{cur_block: self.blockchain.last_block(), transa :vec![]}));
-        for _ in 1..2 {
+        let miner_stuff = Arc::new(Mutex::new(MinerStuff{cur_block: self.blockchain.last_block(), transa :vec![], difficulty:self.blockchain.difficulty}));
+        for _ in 1..5 {
             let miner_stuff_cpy = miner_stuff.clone();
             let event_cpy = event_channels.0.clone();
             thread::Builder::new()
@@ -161,9 +164,13 @@ impl Server {
                         //inform transaction runner that a new block was accepted a
                         //ned to check if parent are same
                         //need to resync db
+
+                        let new_difficulty = self.blockchain.new_difficutly();
+
                         let mut lock_miner_stuff = miner_stuff.lock().unwrap();
                         (*lock_miner_stuff).cur_block = top_block.clone();
                         (*lock_miner_stuff).transa = vec![];       //for the moment reset transa not taken     //maybe check transa not accpted and already available
+                        (*lock_miner_stuff).difficulty = new_difficulty;       //for the moment reset transa not taken     //maybe check transa not accpted and already available
 
                         drop(lock_miner_stuff);
                         println!("New Top Block : {}",top_block);

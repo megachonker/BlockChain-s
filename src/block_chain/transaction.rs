@@ -230,7 +230,7 @@ mod tests {
 
     use crate::block_chain::{
         block::{Block, Profile},
-        blockchain::Blockchain,
+        blockchain::{Blockchain, FIRST_DIFFICULTY},
         transaction::{Transaction, Utxo},
     };
 
@@ -274,7 +274,7 @@ mod tests {
 
         //+ 100 for 1
         let block_org = block_org
-            .find_next_block(1, vec![], Profile::INFINIT)
+            .find_next_block(1, vec![], Profile::INFINIT,FIRST_DIFFICULTY)
             .unwrap();
         blockchain.try_append(&block_org); //we assume its ok
 
@@ -315,7 +315,7 @@ mod tests {
 
         //forge teh fist block
         let org_block = Block::new()
-            .find_next_block(1, vec![], Profile::INFINIT)
+            .find_next_block(1, vec![], Profile::INFINIT,FIRST_DIFFICULTY)
             .unwrap();
 
         //append fist block with original money
@@ -327,7 +327,7 @@ mod tests {
         //mine the next block with the new transaction
         let block = block
             .unwrap()
-            .find_next_block(1, transa, Profile::INFINIT)
+            .find_next_block(1, transa, Profile::INFINIT,FIRST_DIFFICULTY)
             .unwrap();
 
         //add it to the blockaine
