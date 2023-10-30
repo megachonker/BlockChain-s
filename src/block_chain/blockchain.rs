@@ -9,7 +9,7 @@ use tracing::{debug, info, warn};
 use super::{block::Block, node::server::MinerStuff, transaction::Utxo};
 
 const TIME_100_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
-pub const FIRST_DIFFICULTY: u64 = 1000000000000000000;
+pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
 
 #[derive(Default)]
 
