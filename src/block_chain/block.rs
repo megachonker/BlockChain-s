@@ -17,7 +17,7 @@ use super::transaction::{Transaction, Utxo};
 
 // const HASH_MAX: u64 = 100000000000000;           //for test
 // const HASH_MAX: u64 = 1000000000;                //slow
-const HASH_MAX: u64 = 1000000000000; //fast
+// const HASH_MAX: u64 = 1000000000000; //fast
 const CLOCK_DRIFT: u64 = 10; //second
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
@@ -159,10 +159,6 @@ impl Block {
         Default::default()
     }
 
-    pub fn get_height_nonce(&self) -> (u64, u64) {
-        (self.block_height, self.answer)
-    }
-
     pub fn check(&self) -> bool {
         let answer = self.get_block_hash_proof_work();
 
@@ -264,15 +260,17 @@ impl Block {
             .collect()
     }
 
-    pub fn utxo_owned(&self, utxo: &Utxo) -> u64 {
-        let transa = self
-            .transactions
-            .iter()
-            .find(|&transa| transa.hash_id() == utxo.transa_id())
-            .expect("the block do not contains the transa");
+    // Bad name what it does ?? where need to be used ?
+    // pub fn utxo_owned(&self, utxo: &Utxo) -> u64 {
+    //     let transa = self
+    //         .transactions
+    //         .iter()
+    //         .find(|&transa| transa.hash_id() == utxo.transa_id)
+    //         .expect("the block do not contains the transa");
 
-        transa.owner()
-    }
+    //     //simple why calling a function to access to a public field
+    //     transa.target_pubkey
+    // }
 }
 
 fn get_id_block(new_block: &Block, hash_proof_work: u64) -> u64 {
@@ -310,7 +308,6 @@ pub fn mine(finder: u64, miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Ev
         let block = miner_stuff_lock.cur_block.clone(); //presque toujour blocker
         let transa = miner_stuff_lock.transa.clone();
         let difficulty = miner_stuff_lock.difficulty;
-        // println!("qskdgkjsqdh{}",block);
         drop(miner_stuff_lock);
 
         // do the same things
@@ -334,14 +331,7 @@ mod tests {
     use std::{sync::mpsc, thread};
 
     use crate::block_chain::blockchain::FIRST_DIFFICULTY;
-
     use super::*;
-
-    #[test]
-    fn test_display() {
-        let block = Block::new();
-        println!("There is the block : {}", block);
-    }
 
     #[test]
     fn default() {

@@ -10,17 +10,11 @@ use super::blockchain::Blockchain;
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Utxo {
     pub block_location: u64, //dans quelle block est la transa
-    transa_id: u64,          //hash de Transaction
+    pub transa_id: u64,          //hash de Transaction
     moula_id: usize,         //id mola not refering value but position in the vec
     // no value !
     // it can seem verry cringe but there only refering to actual transaction
     value: u128, //can work without but Simplify the challenge NOT NEED TO SERIALIZED
-}
-
-impl Utxo {
-    pub fn transa_id(&self) -> u64 {
-        self.transa_id
-    }
 }
 
 impl fmt::Display for Utxo {
@@ -217,9 +211,6 @@ impl Transaction {
         to_send_back.map(|val| (r, val))
     }
 
-    pub fn owner(&self) -> u64 {
-        self.target_pubkey
-    }
 }
 
 #[cfg(test)]

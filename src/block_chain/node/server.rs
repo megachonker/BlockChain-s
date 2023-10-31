@@ -10,23 +10,12 @@ use tracing::{debug, info, warn};
 use crate::block_chain::{
     block::{mine, Block},
     blockchain::Blockchain,
-    // shared::Shared,
     node::network::{Network, Packet, TypeBlock, TypeTransa},
     transaction::Transaction,
 };
 use crate::friendly_name::*;
 
 use super::network::ClientPackect;
-
-pub enum RequestNetwork {
-    SendHash(u64, SocketAddr),
-    NewBlock(Block),
-}
-
-pub enum RequestServer {
-    AnswerHash((Block, SocketAddr)),
-    AskHash(u64),
-}
 
 #[derive(Debug, PartialEq, Eq)]
 
@@ -88,13 +77,6 @@ impl Server {
         // need to link new stack of transaction because the miner need continue to mine without aprouvale of the network
         let event_channel = mpsc::channel::<Event>();
 
-        //transaction
-        thread::spawn(move || {
-            /*
-            Mutex of
-            when receive a transaction
-             */
-        });
 
         self.network.clone().start(event_channel.0.clone());
 

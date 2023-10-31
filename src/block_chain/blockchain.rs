@@ -18,30 +18,12 @@ pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
 struct PotentialsTopBlock {
     hmap: HashMap<u64, (u64, u64)>, //k : potentail top block,  v: (needed,height_of_k)
 }
-/// ne gère pas le cas out on
-///
-///
-/// D   D' ok
-///
-/// C   C' ok
-///
-/// B on a deja
-///
-/// A
+
 impl PotentialsTopBlock {
     fn new() -> PotentialsTopBlock {
         PotentialsTopBlock {
             hmap: HashMap::new(),
         }
-    }
-
-    fn get_needed_block(self) -> Vec<u64> {
-        self.hmap.values().map(|v| v.0).collect()
-    }
-
-    fn add_new(&mut self, pot_top: &Block, needed_block: u64) {
-        self.hmap
-            .insert(pot_top.block_id, (needed_block, pot_top.block_height));
     }
 
     fn replace_or_create(&mut self, last_needed_block: &Block, new_needed_block: u64) {
@@ -53,7 +35,7 @@ impl PotentialsTopBlock {
         self.hmap.insert(
             last_needed_block.block_id,
             (new_needed_block, last_needed_block.block_height),
-        ); //create
+        );
     }
 
     fn found_potential_from_need(&self, need: u64) -> Option<u64> {
@@ -105,12 +87,6 @@ impl Balance {
 
         let to_append = block.find_used_utxo();
 
-        // debug!("to append");
-        // to_append.iter().for_each(|f| debug!("{}", f));
-        // debug!("to remove");
-        // to_remove.iter().for_each(|f| debug!("{}", f));
-        // debug!("----");
-
         for utxo in to_append {
             self.utxo.insert(utxo, Status::Avaible);
         }
@@ -136,12 +112,6 @@ impl Balance {
 
         //get utxo to remove
         let to_remove = block.find_used_utxo();
-
-        // debug!("to append");
-        // to_append.iter().for_each(|f| debug!("{}", f));
-        // debug!("to remove");
-        // to_remove.iter().for_each(|f| debug!("{}", f));
-        // debug!("----");
 
         // Append transaction
         for utxo in to_append {
@@ -198,14 +168,6 @@ impl Default for Blockchain {
 }
 
 impl Blockchain {
-    // /// check if a utxo in the current blockaine
-    // pub fn check_utxo(&self,utxo:&Utxo) -> bool{
-    //     if let Some(block) = self.get_block(utxo.block_location){
-    //         utxo.check(block)
-    //     }
-    //     false
-    // }
-
     pub fn filter_utxo(&self, addr: u64) -> Vec<Utxo> {
         self.get_chain()
             .iter()
@@ -218,6 +180,26 @@ impl Blockchain {
             })
             .collect()
     }
+
+    //TO merge with filter
+    // pub fn get_utxo(&self, id_client: u64) -> Vec<Utxo> {
+    //     let mut res = vec![];
+    //     for (u, a) in &self.balance.utxo {
+    //         if a == &Status::Avaible {
+    //             if self
+    //                 .get_block(u.block_location)
+    //                 .expect("Error utxo present in balence, his block is not present")
+    //                 .utxo_owned(u)
+    //                 == id_client
+    //             {
+    //                 res.push(u.clone());
+    //             }
+    //         }
+    //     }
+    //     res
+    // }
+
+
 
     pub fn new() -> Blockchain {
         let mut hash_map = HashMap::new();
@@ -404,7 +386,6 @@ impl Blockchain {
                 None => return Err(block.parent_hash),
             }
         }
-
         return Ok(vec);
     }
 
@@ -426,23 +407,6 @@ impl Blockchain {
         return vec;
     }
 
-    pub fn get_utxo(&self, id_client: u64) -> Vec<Utxo> {
-        let mut res = vec![];
-        for (u, a) in &self.balance.utxo {
-            if a == &Status::Avaible {
-                if self
-                    .get_block(u.block_location)
-                    .expect("Error utxo present in balence, his block is not present")
-                    .utxo_owned(u)
-                    == id_client
-                {
-                    res.push(u.clone());
-                }
-            }
-        }
-
-        res
-    }
 
     pub fn transa_is_valid(
         &self,
@@ -484,17 +448,13 @@ impl Blockchain {
 
 #[cfg(test)]
 mod tests {
-
     use std::time::{SystemTime, UNIX_EPOCH};
-
     use crate::block_chain::{block::Profile, transaction::Transaction};
-
     use super::*;
 
     #[test]
     fn create_blockchain() {
         let block_chain = Blockchain::new();
-
         assert_eq!(block_chain.last_block(), Block::new());
     }
 
@@ -527,7 +487,6 @@ mod tests {
     }
 
     #[test]
-    /// lol ça marche pas quand need block est remplis
     fn add_block_unchainned() {
         let mut blockchain = Blockchain::new();
         let b1 = Block::default()
@@ -537,17 +496,12 @@ mod tests {
             .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
 
-        ///////////////////////////////////////////////////
-        //// SI commneter ça marche
-        ///// Le fait d'ajouter un block rend imposible de marcher apres
         let (new, need) = blockchain.try_append(&b2);
 
         assert_eq!(new, None);
         assert_eq!(need.unwrap(), b1.block_id);
-        ///////////////////////////////////////////////////////////////
 
         let (new, need) = blockchain.try_append(&b1);
-        // println!("[B1{}b2{}]{}", b1, b2, blockchain);
         let new = new.unwrap();
         assert_eq!(new, b2);
         assert_eq!(need, None);

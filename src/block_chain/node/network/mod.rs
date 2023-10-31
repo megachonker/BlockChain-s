@@ -194,19 +194,7 @@ impl Network {
         }
     }
 
-    /// # gen Client Server Network runer
-    fn new_pair() -> (Network, Network) {
-        let client_ip = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 2))).unwrap();
-        let server_ip = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 1))).unwrap();
-
-        let client_bootstrap = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 1))).unwrap();
-        let server_bootstrap = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 1, 1))).unwrap();
-
-        let client = Network::new(client_bootstrap, client_ip);
-        let server = Network::new(server_bootstrap, server_ip);
-        (client, server)
-    }
-
+    /// get socket from a network
     pub fn get_socket(&self) -> SocketAddr {
         self.binding
             .local_addr()
@@ -240,6 +228,7 @@ impl Network {
         (des, sender)
     }
 
+    //ces quoi ça sert a quoi ?
     pub fn recv_packet_true_function(&self) -> (Packet, SocketAddr) {
         //faudrait éliminer les vecteur dans les structure pour avoir une taille prédictible
         let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
@@ -281,7 +270,16 @@ mod tests {
         let client_addr =
             SocketAddr::new(Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 2))).unwrap(), 6021);
 
-        let (client, server) = Network::new_pair();
+        // New pair
+        let client_ip = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 2))).unwrap();
+        let server_ip = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 1))).unwrap();
+
+        let client_bootstrap = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 1))).unwrap();
+        let server_bootstrap = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 1, 1))).unwrap();
+
+        let client = Network::new(client_bootstrap, client_ip);
+        let server = Network::new(server_bootstrap, server_ip);
+
         let (server_tx, server_rx) = mpsc::channel();
         let (client_tx, client_rx) = mpsc::channel();
 
