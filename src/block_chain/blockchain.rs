@@ -1,7 +1,6 @@
 use core::fmt;
 use std::{
-    collections::{HashMap, HashSet},
-    str::CharIndices,
+    collections::{HashMap},
 };
 
 use tracing::{debug, info, warn};

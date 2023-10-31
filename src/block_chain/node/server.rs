@@ -1,15 +1,15 @@
 use std::{
-    net::{SocketAddr, UdpSocket},
+    net::{SocketAddr},
     sync::mpsc::{self, Receiver, Sender},
     sync::{Arc, Mutex},
     thread,
 };
 
 use tracing::{debug, info, warn};
-use tracing_subscriber::field::debug;
+
 
 use crate::block_chain::{
-    block::{self, mine, Block},
+    block::{mine, Block},
     blockchain::Blockchain,
     // shared::Shared,
     node::network::{Network, Packet, TypeBlock, TypeTransa},

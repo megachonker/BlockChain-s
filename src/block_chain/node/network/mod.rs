@@ -78,7 +78,7 @@ impl Network {
     fn transaction(transa: TypeTransa, net_transa_tx: &Sender<Event>) {
         info!("Recv transa");
         match transa {
-            TypeTransa::Ans(utxos) => { /* array of all utxo append */ }
+            TypeTransa::Ans(_utxos) => { /* array of all utxo append */ }
             TypeTransa::Push(transaction) => {
                 // if !transaction.check() {
                 //     return;
@@ -86,7 +86,7 @@ impl Network {
                 net_transa_tx.send(Event::Transaction(transaction)).unwrap();
                 // }
             }
-            TypeTransa::Req(userid) => { /* get all transa and filter by user id*/ }
+            TypeTransa::Req(_userid) => { /* get all transa and filter by user id*/ }
         }
 
         //check préliminer avant d'utiliser un prim
@@ -106,7 +106,7 @@ impl Network {
                 self.peers.lock().unwrap().extend(new_peers);
                 debug!("apres {:?}", self.peers.lock().unwrap());
             }
-            TypePeer::Request(sizer) => {
+            TypePeer::Request(_sizer) => {
                 warn!("Network Request Peers");
                 self.send_packet(
                     &Packet::Peer(TypePeer::List(self.peers.lock().unwrap().clone())),

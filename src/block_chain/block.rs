@@ -1,6 +1,6 @@
 use chrono::{TimeZone, Utc};
 use rand::Rng;
-use serde::de::DeserializeOwned;
+
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
@@ -8,7 +8,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tracing::{debug, info, warn};
+use tracing::{info};
 
 use super::node::server::{Event, MinerStuff, NewBlock};
 use super::transaction::{Transaction, Utxo};

@@ -1,10 +1,10 @@
 // use crate::block_chain::node::{network::Network,NewTransaction};
 
-use tracing::info;
+
 
 use crate::{
-    block_chain::{transaction::Transaction, blockchain::Blockchain, node::network::{Packet, ClientPackect, TypeTransa}},
-    friendly_name::{get_fake_id, get_friendly_name},
+    block_chain::{transaction::Transaction, node::network::{Packet, ClientPackect, TypeTransa}},
+    friendly_name::{get_friendly_name},
 };
 
 use super::network::Network;
@@ -29,7 +29,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(networking: Network, destination: u64, secret: String, ammount: u64,from : u64) -> Self {
+    pub fn new(networking: Network, destination: u64, _secret: String, ammount: u64,from : u64) -> Self {
         let name =
             get_friendly_name(networking.get_socket()).expect("generation name from ip imposble");
 
