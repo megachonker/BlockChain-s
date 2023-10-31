@@ -27,7 +27,7 @@ pub struct Network {
 impl Clone for Network {
     fn clone(&self) -> Self {
         Self {
-            bootstrap: self.bootstrap.clone(),
+            bootstrap: self.bootstrap,
             binding: self.binding.try_clone().unwrap(),
             peers: self.peers.clone(),
         }
@@ -206,7 +206,7 @@ impl Network {
         let packet_serialized = serialize(&packet).expect("Can not serialize AswerKA");
         self.binding
             .send_to(&packet_serialized, dest)
-            .expect(&format!("Can not send packet {:?}", packet));
+            .unwrap_or_else(|_| panic!("Can not send packet {:?}", packet));
     }
 
     /// awsome send a packet broadcast
@@ -268,14 +268,14 @@ mod tests {
     /// Test server added client
     fn create_blockchain() {
         let client_addr =
-            SocketAddr::new(Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 2))).unwrap(), 6021);
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 2)), 6021);
 
         // New pair
-        let client_ip = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 2))).unwrap();
-        let server_ip = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 1))).unwrap();
+        let client_ip = IpAddr::V4(Ipv4Addr::new(127, 1, 0, 2));
+        let server_ip = IpAddr::V4(Ipv4Addr::new(127, 1, 0, 1));
 
-        let client_bootstrap = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 1))).unwrap();
-        let server_bootstrap = Some(IpAddr::V4(Ipv4Addr::new(127, 1, 1, 1))).unwrap();
+        let client_bootstrap = IpAddr::V4(Ipv4Addr::new(127, 1, 0, 1));
+        let server_bootstrap = IpAddr::V4(Ipv4Addr::new(127, 1, 1, 1));
 
         let client = Network::new(client_bootstrap, client_ip);
         let server = Network::new(server_bootstrap, server_ip);

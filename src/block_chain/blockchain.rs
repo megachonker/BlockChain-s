@@ -41,7 +41,7 @@ impl PotentialsTopBlock {
     fn found_potential_from_need(&self, need: u64) -> Option<u64> {
         self.hmap
             .iter()
-            .find_map(|(&k, v)| (v.0 == need).then(|| k))
+            .find_map(|(&k, v)| (v.0 == need).then_some(k))
     }
 
     fn erease_old(&mut self, height_top_block: u64) {
@@ -72,7 +72,7 @@ struct Balance {
 impl Balance {
     /// Revert change until src with sub
     /// Replay change until dst with add
-    pub fn calculation<'a, 'b>(&mut self, src: Vec<&'a Block>, dst: Vec<&'b Block>) -> &'b Block {
+    pub fn calculation<'b>(&mut self, src: Vec<&Block>, dst: Vec<&'b Block>) -> &'b Block {
         src.iter().all(|p| self.sub(p));
         dst.iter()
             .find(|p| !self.add(p))
@@ -92,7 +92,7 @@ impl Balance {
         }
 
         for utxo in to_remove {
-            if let Some(_) = self.utxo.remove(&utxo) {
+            if self.utxo.remove(&utxo).is_some() {
             } else {
                 warn!("sub: la transa qui a été crée n'existe pas dans la hashmap");
                 return false;
@@ -115,11 +115,11 @@ impl Balance {
 
         // Append transaction
         for utxo in to_append {
-            if self.utxo.contains_key(&utxo) {
+            if let std::collections::hash_map::Entry::Vacant(e) = self.utxo.entry(utxo) {
+                e.insert(Status::Avaible);
+            } else {
                 warn!("add: double utxo entry");
                 return false;
-            } else {
-                self.utxo.insert(utxo, Status::Avaible);
             }
         }
 
@@ -216,7 +216,7 @@ impl Blockchain {
         }
     }
 
-    pub fn get_block<'a>(&'a self, hash: u64) -> Option<&'a Block> {
+    pub fn get_block(&self, hash: u64) -> Option<&Block> {
         self.hash_map_block.get(&hash)
     }
 
@@ -262,7 +262,7 @@ impl Blockchain {
                 && !self
                     .potentials_top_block
                     .is_block_needed(block_to_append.block_id) // these block is needed from a higher block 
-                && !block_to_append.transactions.iter().all(|t| t.check(&self))
+                && !block_to_append.transactions.iter().all(|t| t.check(self))
             //<= need to move to the
             {
                 //basic case
@@ -327,7 +327,7 @@ impl Blockchain {
                     Err(needed) => {
                         //the block can not be chained into the initial block : needed is missing
                         self.potentials_top_block
-                            .replace_or_create(&block_to_append, needed);
+                            .replace_or_create(block_to_append, needed);
                         return (None, Some(needed));
                     }
                 }
@@ -386,10 +386,10 @@ impl Blockchain {
                 None => return Err(block.parent_hash),
             }
         }
-        return Ok(vec);
+        Ok(vec)
     }
 
-    pub fn get_chain<'a>(&'a self) -> Vec<&'a Block> {
+    pub fn get_chain(&self) -> Vec<&Block> {
         let mut vec = vec![];
         let mut hash = self.top_block_hash;
 
@@ -404,7 +404,7 @@ impl Blockchain {
                 break;
             }
         }
-        return vec;
+        vec
     }
 
 

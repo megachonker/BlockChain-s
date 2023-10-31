@@ -19,9 +19,9 @@ pub struct TransaInfo {
 impl TransaInfo {
     pub fn new(ammount: u64, destination: u64, from: u64) -> Self {
         TransaInfo {
-            ammount: ammount,
-            destination: destination,
-            from: from,
+            ammount,
+            destination,
+            from,
         }
     }
 }
@@ -71,7 +71,7 @@ impl Client {
 
         let transactionb = Transaction::new_offline(&myutxo, 10, 555);
 
-        if transactionb == None {
+        if transactionb.is_none() {
             println!("You not have enought money");
             return;
         }

@@ -88,16 +88,16 @@ fn parse_args(cli: Cli) -> NewNode {
         //create client worker
         //pourait être une action ici si lancer en interpréteur
         //ça serait pas un new mais client::newaction(action)
-        return NewNode::Cli(Client::new(
+        NewNode::Cli(Client::new(
             networking,
             cli.destination,
             cli.secret,
             cli.ammount,
             cli.from,
-        ));
+        ))
     } else {
         //create server worker
-        return NewNode::Srv(Server::new(networking));
+        NewNode::Srv(Server::new(networking))
     }
 }
 

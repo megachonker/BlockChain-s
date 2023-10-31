@@ -62,7 +62,7 @@ impl Server {
         Self {
             name,
             network,
-            id: id,
+            id,
             blockchain: Blockchain::new(),
         }
     }
@@ -150,9 +150,9 @@ impl Server {
                         let new_difficulty = self.blockchain.new_difficutly();
 
                         let mut lock_miner_stuff = miner_stuff.lock().unwrap();
-                        (*lock_miner_stuff).cur_block = top_block.clone();
-                        (*lock_miner_stuff).transa = vec![]; //for the moment reset transa not taken     //maybe check transa not accpted and already available
-                        (*lock_miner_stuff).difficulty = new_difficulty; //for the moment reset transa not taken     //maybe check transa not accpted and already available
+                        lock_miner_stuff.cur_block = top_block.clone();
+                        lock_miner_stuff.transa = vec![]; //for the moment reset transa not taken     //maybe check transa not accpted and already available
+                        lock_miner_stuff.difficulty = new_difficulty; //for the moment reset transa not taken     //maybe check transa not accpted and already available
 
                         drop(lock_miner_stuff);
                         println!("New Top Block : {}", top_block);

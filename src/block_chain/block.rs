@@ -124,10 +124,10 @@ pub enum Profile {
 impl From<Profile> for u64 {
     fn from(prof: Profile) -> Self {
         match prof {
-            Profile::INFINIT => return u64::MAX,
-            Profile::Normal => return 50000000,
-            Profile::Reactive => return 5000000,
-            Profile::Slow => return 500000000,
+            Profile::INFINIT => u64::MAX,
+            Profile::Normal => 50000000,
+            Profile::Reactive => 5000000,
+            Profile::Slow => 500000000,
         }
     }
 }
@@ -148,10 +148,10 @@ impl Block {
         self.answer.hash(&mut hasher);
 
         //calculate answer
-        let answer = hasher.finish();
+        
 
         //returning answer
-        answer
+        hasher.finish()
     }
 
     /// create the first block full empty
@@ -166,7 +166,7 @@ impl Block {
         //check answer
 
         answer < self.difficulty
-            && get_id_block(&self, answer) == self.block_id
+            && get_id_block(self, answer) == self.block_id
             && self.quote.len() < 100
             && self.timestamp.as_secs()
                 <= SystemTime::now()

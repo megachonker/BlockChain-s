@@ -61,7 +61,7 @@ impl Transaction {
         for transrx in &self.rx {
             str += format!("{}", transrx).as_str();
         }
-        str += format!(" Tx[").as_str();
+        str += " Tx[".to_string().as_str();
         for transtx in &self.tx {
             str += format!("{},", transtx).as_str();
         }
@@ -78,7 +78,7 @@ impl Transaction {
         // need to be done inside the block level
         // to change <================================
         // self.tx.contains(&100).then(||println!("TRIGUERRRRRRRRRRR")); // we considere that 100 number tx is directly
-        self.tx.contains(&100).then(|| return true); // we considere that 100 number tx is directly
+        self.tx.contains(&100).then_some(true); // we considere that 100 number tx is directly
                                                      //the reward of the miner
 
         //check all utxo is accesible
@@ -135,7 +135,7 @@ impl Transaction {
                     block_location,
                     transa_id: self.hash_id(),
                     moula_id: no,
-                    value: tx.clone(),
+                    value: *tx,
                 };
                 no += 1;
                 tmp
@@ -245,7 +245,7 @@ mod tests {
 
         let (transa, sendback) = Transaction::select_utxo_from_vec(&wallet, 10).unwrap();
         transa.iter().for_each(|transa| print!("{}", transa));
-        let full: u128 = transa.iter().map(|f| f.value).into_iter().sum();
+        let full: u128 = transa.iter().map(|f| f.value).sum();
         let total_cost = full - 10;
         println!(
             "\nneed to send back:{}, total spend with fee:{}",
@@ -297,7 +297,7 @@ mod tests {
     }
 
     #[test]
-    //// need to be finished
+/// need to be finished
     fn test_new_online() {
         let mut blockchain = Blockchain::new();
 
