@@ -1,12 +1,11 @@
 use std::{
-    net::{SocketAddr},
+    net::SocketAddr,
     sync::mpsc::{self, Receiver, Sender},
     sync::{Arc, Mutex},
     thread,
 };
 
 use tracing::{debug, info, warn};
-
 
 use crate::block_chain::{
     block::{mine, Block},
@@ -18,7 +17,6 @@ use crate::block_chain::{
 use crate::friendly_name::*;
 
 use super::network::ClientPackect;
-
 
 pub enum RequestNetwork {
     SendHash(u64, SocketAddr),
@@ -60,13 +58,12 @@ pub struct Server {
     blockchain: Blockchain,
 }
 
-
 #[derive(Debug)]
-pub struct MinerStuff{
-    pub cur_block : Block,
-    pub transa : Vec<Transaction>,
-    pub difficulty : u64,
-} 
+pub struct MinerStuff {
+    pub cur_block: Block,
+    pub transa: Vec<Transaction>,
+    pub difficulty: u64,
+}
 
 impl Server {
     pub fn new(network: Network) -> Self {
@@ -108,8 +105,11 @@ impl Server {
     fn server_runtime(&mut self, finder: u64, event_channels: (Sender<Event>, Receiver<Event>)) {
         info!("Runtime server start");
 
-        
-        let miner_stuff = Arc::new(Mutex::new(MinerStuff{cur_block: self.blockchain.last_block(), transa :vec![], difficulty:self.blockchain.difficulty}));
+        let miner_stuff = Arc::new(Mutex::new(MinerStuff {
+            cur_block: self.blockchain.last_block(),
+            transa: vec![],
+            difficulty: self.blockchain.difficulty,
+        }));
         for _ in 1..2 {
             let miner_stuff_cpy = miner_stuff.clone();
             let event_cpy = event_channels.0.clone();
@@ -169,36 +169,36 @@ impl Server {
 
                         let mut lock_miner_stuff = miner_stuff.lock().unwrap();
                         (*lock_miner_stuff).cur_block = top_block.clone();
-                        (*lock_miner_stuff).transa = vec![];       //for the moment reset transa not taken     //maybe check transa not accpted and already available
-                        (*lock_miner_stuff).difficulty = new_difficulty;       //for the moment reset transa not taken     //maybe check transa not accpted and already available
+                        (*lock_miner_stuff).transa = vec![]; //for the moment reset transa not taken     //maybe check transa not accpted and already available
+                        (*lock_miner_stuff).difficulty = new_difficulty; //for the moment reset transa not taken     //maybe check transa not accpted and already available
 
                         drop(lock_miner_stuff);
-                        println!("New Top Block : {}",top_block);
+                        println!("New Top Block : {}", top_block);
 
                         self.network
                             .broadcast(Packet::Block(TypeBlock::Block(top_block.clone())));
-
                     }
 
                     if let Some(needed_block) = block_need {
                         self.network
                             .broadcast(Packet::Block(TypeBlock::Hash(needed_block as i128)));
-                        println!("Ask for {}",needed_block);
+                        println!("Ask for {}", needed_block);
                     }
                 }
                 Event::Transaction(transa) => {
-                    //check if is valid 
-                    let mut  minner_stuff_lock = miner_stuff.lock().unwrap();
-                    
-                    if self.blockchain.transa_is_valid(&transa,& minner_stuff_lock){
+                    //check if is valid
+                    let mut minner_stuff_lock = miner_stuff.lock().unwrap();
+
+                    if self.blockchain.transa_is_valid(&transa, &minner_stuff_lock) {
                         minner_stuff_lock.transa.push(transa.clone());
-                        self.network.broadcast(Packet::Transaction(TypeTransa::Push(transa)));
+                        self.network
+                            .broadcast(Packet::Transaction(TypeTransa::Push(transa)));
                     }
                 }
                 Event::ClientEvent(event, addr_client) => match event {
                     ClientEvent::ReqUtxo(id_client) => self.network.send_packet(
                         &Packet::Client(ClientPackect::RespUtxo(
-                            self.blockchain.filter_utxo(id_client),            //need to be parralizesd
+                            self.blockchain.filter_utxo(id_client), //need to be parralizesd
                         )),
                         &addr_client,
                     ),

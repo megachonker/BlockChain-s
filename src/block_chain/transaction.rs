@@ -23,8 +23,6 @@ impl Utxo {
     }
 }
 
-
-
 impl fmt::Display for Utxo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -85,10 +83,9 @@ impl Transaction {
     pub fn check(&self, blockaine: &Blockchain) -> bool {
         // need to be done inside the block level
         // to change <================================
-        // self.tx.contains(&100).then(||println!("TRIGUERRRRRRRRRRR")); // we considere that 100 number tx is directly 
-        self.tx.contains(&100).then(||return true); // we considere that 100 number tx is directly 
-        //the reward of the miner
-
+        // self.tx.contains(&100).then(||println!("TRIGUERRRRRRRRRRR")); // we considere that 100 number tx is directly
+        self.tx.contains(&100).then(|| return true); // we considere that 100 number tx is directly
+                                                     //the reward of the miner
 
         //check all utxo is accesible
         //need to use balance
@@ -221,7 +218,7 @@ impl Transaction {
     }
 
     pub fn owner(&self) -> u64 {
-       self.target_pubkey 
+        self.target_pubkey
     }
 }
 
@@ -274,7 +271,7 @@ mod tests {
 
         //+ 100 for 1
         let block_org = block_org
-            .find_next_block(1, vec![], Profile::INFINIT,FIRST_DIFFICULTY)
+            .find_next_block(1, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
         blockchain.try_append(&block_org); //we assume its ok
 
@@ -315,7 +312,7 @@ mod tests {
 
         //forge teh fist block
         let org_block = Block::new()
-            .find_next_block(1, vec![], Profile::INFINIT,FIRST_DIFFICULTY)
+            .find_next_block(1, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
 
         //append fist block with original money
@@ -327,7 +324,7 @@ mod tests {
         //mine the next block with the new transaction
         let block = block
             .unwrap()
-            .find_next_block(1, transa, Profile::INFINIT,FIRST_DIFFICULTY)
+            .find_next_block(1, transa, Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
 
         //add it to the blockaine

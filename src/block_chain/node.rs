@@ -1,18 +1,14 @@
-
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::{Arc, Barrier};
 
 // use crate::
 
-
 use client::Client;
 use server::Server;
 
-
-
 pub mod client;
-pub mod server;
 pub mod network;
+pub mod server;
 
 // on est sur que quand on manipule une node on a que un des 3 mode
 pub enum NewNode {

@@ -34,7 +34,7 @@ struct Cli {
     #[arg(short, long,default_value_t = String::new())]
     secret: String,
 
-    #[arg(short, long,default_value_t = 0)]
+    #[arg(short, long, default_value_t = 0)]
     from: u64,
 
     #[arg(short, long,default_value_t =String::from("WARN") )] //a changer a terme
@@ -121,7 +121,7 @@ mod tests {
             destination: u64::MIN,
             secret: String::new(),
             verbose: String::new(),
-            from : 0,
+            from: 0,
         };
         parse_args(cli);
 
@@ -135,8 +135,7 @@ mod tests {
             destination: u64::MIN,
             secret: String::new(),
             verbose: String::new(),
-            from : 0,
-
+            from: 0,
         };
         parse_args(cli);
     }

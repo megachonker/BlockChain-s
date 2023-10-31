@@ -1,7 +1,5 @@
 use core::fmt;
-use std::{
-    collections::{HashMap},
-};
+use std::collections::HashMap;
 
 use tracing::{debug, info, warn};
 
@@ -240,19 +238,18 @@ impl Blockchain {
         self.hash_map_block.get(&hash)
     }
 
-
     /// # Appand bloc to blockchain struct
     /// block_to_append will be included in the struct this block can be :
-    /// - ignored if wrong or to old 
+    /// - ignored if wrong or to old
     /// - the new top block (block_height +1)
     /// - a potential new top bloc but other block are needed (to complete the chain to block 0)
     /// - complete a chain a for a potential top block
     /// This function return a (Option<Block>, Option<u64>).
-    /// 
+    ///
     /// The first Option is conataint the new top block if a new top block is found (not necessary the block_to_append).
-    /// 
+    ///
     /// The second Option is containt the hash of a block which are needed to complete a chain.
-    /// 
+    ///
     pub fn try_append(&mut self, block_to_append: &Block) -> (Option<Block>, Option<u64>) {
         if self.hash_map_block.contains_key(&block_to_append.block_id) {
             return (None, None); //already prensent
@@ -272,7 +269,11 @@ impl Blockchain {
         let cur_block = self.hash_map_block.get(&self.top_block_hash).unwrap();
 
         // the block is superior than my actual progress ?
-        if block_to_append.block_height > cur_block.block_height || self.potentials_top_block.is_block_needed(block_to_append.block_id) {
+        if block_to_append.block_height > cur_block.block_height
+            || self
+                .potentials_top_block
+                .is_block_needed(block_to_append.block_id)
+        {
             //does have same direct ancestor
             if block_to_append.parent_hash == cur_block.block_id
                 && block_to_append.block_height == cur_block.block_height + 1
@@ -468,8 +469,8 @@ impl Blockchain {
                     } else {
                         self.difficulty * 2
                     }; */
-                    if rate_time == f64::INFINITY{
-                        rate_time = 1000.0; 
+                    if rate_time == f64::INFINITY {
+                        rate_time = 1000.0;
                     }
                     let new_dif = (self.difficulty as f64 / rate_time) as u64;
                     self.difficulty = new_dif;
@@ -486,12 +487,7 @@ mod tests {
 
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use chrono::Duration;
-
-    use crate::block_chain::{
-        block::Profile,
-        transaction::{self, Transaction},
-    };
+    use crate::block_chain::{block::Profile, transaction::Transaction};
 
     use super::*;
 
@@ -537,7 +533,9 @@ mod tests {
         let b1 = Block::default()
             .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
-        let b2 = b1.find_next_block(0, vec![], Profile::INFINIT,FIRST_DIFFICULTY).unwrap();
+        let b2 = b1
+            .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .unwrap();
 
         ///////////////////////////////////////////////////
         //// SI commneter ça marche
@@ -563,19 +561,29 @@ mod tests {
             let b0 = Block::default();
             let b1: Block = b0
                 .clone()
-                .find_next_block(0, vec![], Profile::INFINIT,FIRST_DIFFICULTY)
+                .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
                 .unwrap();
             let b1_bis: Block = b0
                 .clone()
-                .find_next_block(0, vec![], Profile::INFINIT,FIRST_DIFFICULTY)
+                .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
                 .unwrap();
             let b2 = b1
                 .clone()
-                .find_next_block(10, vec![Default::default()], Profile::INFINIT,FIRST_DIFFICULTY)
+                .find_next_block(
+                    10,
+                    vec![Default::default()],
+                    Profile::INFINIT,
+                    FIRST_DIFFICULTY,
+                )
                 .unwrap();
             let b2_bis = b1_bis
                 .clone()
-                .find_next_block(10, vec![Default::default()], Profile::INFINIT,FIRST_DIFFICULTY)
+                .find_next_block(
+                    10,
+                    vec![Default::default()],
+                    Profile::INFINIT,
+                    FIRST_DIFFICULTY,
+                )
                 .unwrap();
 
             blockchain.try_append(&b2_bis);
@@ -598,7 +606,7 @@ mod tests {
     fn get_chain() {
         let mut blockchain = Blockchain::new();
         let block = Block::default()
-            .find_next_block(0, vec![], Profile::INFINIT,FIRST_DIFFICULTY)
+            .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
         blockchain.try_append(&block);
         assert_eq!(blockchain.get_chain(), vec![&block, &Block::new()]);

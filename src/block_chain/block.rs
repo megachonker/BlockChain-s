@@ -8,7 +8,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tracing::{info};
+use tracing::info;
 
 use super::node::server::{Event, MinerStuff, NewBlock};
 use super::transaction::{Transaction, Utxo};
@@ -18,7 +18,7 @@ use super::transaction::{Transaction, Utxo};
 // const HASH_MAX: u64 = 100000000000000;           //for test
 // const HASH_MAX: u64 = 1000000000;                //slow
 const HASH_MAX: u64 = 1000000000000; //fast
-const CLOCK_DRIFT : u64 = 10; //second
+const CLOCK_DRIFT: u64 = 10; //second
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
@@ -172,7 +172,12 @@ impl Block {
         answer < self.difficulty
             && get_id_block(&self, answer) == self.block_id
             && self.quote.len() < 100
-            && self.timestamp.as_secs() <= SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() + CLOCK_DRIFT
+            && self.timestamp.as_secs()
+                <= SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+                    + CLOCK_DRIFT
     }
 
     /// Lunch every time need to change transaction content or block
@@ -328,7 +333,7 @@ pub fn mine(finder: u64, miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Ev
 mod tests {
     use std::{sync::mpsc, thread};
 
-    use crate::block_chain::blockchain::{self, FIRST_DIFFICULTY};
+    use crate::block_chain::blockchain::FIRST_DIFFICULTY;
 
     use super::*;
 
@@ -350,7 +355,7 @@ mod tests {
         let miner_stuff = Arc::new(Mutex::new(MinerStuff {
             cur_block: Block::default(),
             transa: vec![],
-            difficulty : crate::block_chain::blockchain::FIRST_DIFFICULTY,
+            difficulty: crate::block_chain::blockchain::FIRST_DIFFICULTY,
         }));
 
         thread::spawn(move || {
@@ -376,8 +381,12 @@ mod tests {
     fn mine2block() {
         let b0 = Block::default();
 
-        let b1 = b0.find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY).unwrap();
-        let b2 = b1.find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY).unwrap();
+        let b1 = b0
+            .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .unwrap();
+        let b2 = b1
+            .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .unwrap();
 
         println!("{}\n{}", b1, b2);
 
@@ -389,9 +398,12 @@ mod tests {
     fn find_next_block() {
         let block = Block::default();
         loop {
-            if let Some(block_to_test) =
-                block.find_next_block(Default::default(), Default::default(), Profile::Normal,FIRST_DIFFICULTY)
-            {
+            if let Some(block_to_test) = block.find_next_block(
+                Default::default(),
+                Default::default(),
+                Profile::Normal,
+                FIRST_DIFFICULTY,
+            ) {
                 assert!(block_to_test.check());
                 break;
             }
