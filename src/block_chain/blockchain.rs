@@ -258,7 +258,7 @@ impl Blockchain {
 
         if !block_to_append.check() {
             //<== full check here
-            warn!("block is not valid");
+            info!("block is not valid");
             return (None, None);
         }
 
@@ -270,7 +270,7 @@ impl Blockchain {
         let cur_block = self.hash_map_block.get(&self.top_block_hash).unwrap();
 
         // the block is superior than my actual progress ?
-        if block_to_append.block_height > cur_block.block_height {
+        if block_to_append.block_height > cur_block.block_height || self.potentials_top_block.is_block_needed(block_to_append.block_id) {
             //does have same direct ancestor
             if block_to_append.parent_hash == cur_block.block_id
                 && block_to_append.block_height == cur_block.block_height + 1

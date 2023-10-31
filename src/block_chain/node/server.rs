@@ -110,7 +110,7 @@ impl Server {
 
         
         let miner_stuff = Arc::new(Mutex::new(MinerStuff{cur_block: self.blockchain.last_block(), transa :vec![], difficulty:self.blockchain.difficulty}));
-        for _ in 1..5 {
+        for _ in 1..2 {
             let miner_stuff_cpy = miner_stuff.clone();
             let event_cpy = event_channels.0.clone();
             thread::Builder::new()
@@ -183,6 +183,7 @@ impl Server {
                     if let Some(needed_block) = block_need {
                         self.network
                             .broadcast(Packet::Block(TypeBlock::Hash(needed_block as i128)));
+                        println!("Ask for {}",needed_block);
                     }
                 }
                 Event::Transaction(transa) => {

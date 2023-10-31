@@ -18,6 +18,7 @@ use super::transaction::{Transaction, Utxo};
 // const HASH_MAX: u64 = 100000000000000;           //for test
 // const HASH_MAX: u64 = 1000000000;                //slow
 const HASH_MAX: u64 = 1000000000000; //fast
+const CLOCK_DRIFT : u64 = 10; //second
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
@@ -167,10 +168,11 @@ impl Block {
 
         //check block_id
         //check answer
+
         answer < self.difficulty
             && get_id_block(&self, answer) == self.block_id
             && self.quote.len() < 100
-            && self.timestamp < SystemTime::now().duration_since(UNIX_EPOCH).unwrap()
+            && self.timestamp.as_secs() <= SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() + CLOCK_DRIFT
     }
 
     /// Lunch every time need to change transaction content or block
