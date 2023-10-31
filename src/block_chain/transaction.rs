@@ -10,7 +10,7 @@ use super::blockchain::Blockchain;
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Utxo {
     pub block_location: u64, //dans quelle block est la transa
-    pub transa_id: u64,          //hash de Transaction
+    pub transa_id: u64,      //hash de Transaction
     moula_id: usize,         //id mola not refering value but position in the vec
     // no value !
     // it can seem verry cringe but there only refering to actual transaction
@@ -79,7 +79,7 @@ impl Transaction {
         // to change <================================
         // self.tx.contains(&100).then(||println!("TRIGUERRRRRRRRRRR")); // we considere that 100 number tx is directly
         self.tx.contains(&100).then_some(true); // we considere that 100 number tx is directly
-                                                     //the reward of the miner
+                                                //the reward of the miner
 
         //check all utxo is accesible
         //need to use balance
@@ -210,7 +210,6 @@ impl Transaction {
         let to_send_back = sum.checked_sub(amount + fee);
         to_send_back.map(|val| (r, val))
     }
-
 }
 
 #[cfg(test)]
@@ -297,7 +296,7 @@ mod tests {
     }
 
     #[test]
-/// need to be finished
+    /// need to be finished
     fn test_new_online() {
         let mut blockchain = Blockchain::new();
 

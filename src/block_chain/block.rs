@@ -148,7 +148,6 @@ impl Block {
         self.answer.hash(&mut hasher);
 
         //calculate answer
-        
 
         //returning answer
         hasher.finish()
@@ -330,8 +329,8 @@ pub fn mine(finder: u64, miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Ev
 mod tests {
     use std::{sync::mpsc, thread};
 
-    use crate::block_chain::blockchain::FIRST_DIFFICULTY;
     use super::*;
+    use crate::block_chain::blockchain::FIRST_DIFFICULTY;
 
     #[test]
     fn default() {

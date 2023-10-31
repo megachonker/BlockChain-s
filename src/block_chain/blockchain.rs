@@ -8,13 +8,13 @@ use super::{block::Block, node::server::MinerStuff, transaction::Utxo};
 const TIME_100_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
 pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
 
-#[derive(Default)]
-
 /// Key of hashmap is the top block of the branch that need to be explorer
 /// Value stored is a tuple of:
 /// Hash of the the **next** block needed to validate the branch
 /// The hight of the actual block ? can be found ?
 ///
+
+#[derive(Debug, Default)]
 struct PotentialsTopBlock {
     hmap: HashMap<u64, (u64, u64)>, //k : potentail top block,  v: (needed,height_of_k)
 }
@@ -30,6 +30,7 @@ impl PotentialsTopBlock {
         for (pot, v) in self.hmap.clone() {
             if v.0 == last_needed_block.block_id {
                 self.hmap.insert(pot, (new_needed_block, v.1)); //replace
+                return;
             }
         }
         self.hmap.insert(
@@ -199,8 +200,6 @@ impl Blockchain {
     //     res
     // }
 
-
-
     pub fn new() -> Blockchain {
         let mut hash_map = HashMap::new();
         let first_block = Block::new();
@@ -286,10 +285,7 @@ impl Blockchain {
                             .potentials_top_block
                             .found_potential_from_need(block_to_append.block_id)
                         {
-                            Some(new_top_block) => {
-                                println!("lkqjdopqkhfpm");
-                                new_top_block
-                            }
+                            Some(new_top_block) => new_top_block,
                             None => block_to_append.block_id,
                         };
 
@@ -304,7 +300,10 @@ impl Blockchain {
 
                         if last_top_transa_ok == new_top_b {
                             //all it is ok
-                            warn!("New branche better branches founds, blockchain update");
+                            warn!(
+                                "New better branch found, blockchain update {} {:?}",
+                                last_top_transa_ok, self.potentials_top_block
+                            );
                             self.balance = new_balence;
                             self.top_block_hash = last_top_transa_ok;
                         } else if cur_block.block_height
@@ -349,14 +348,11 @@ impl Blockchain {
         let mut new = self.get_block(new_top).unwrap();
 
         while last.block_height < new.block_height {
-            println!("Ici");
             vec2.push(new);
             new = self.get_block(new.parent_hash).unwrap();
         }
 
         while new.block_id != last.block_id {
-            println!("La");
-
             vec1.push(last);
             vec2.push(new);
             new = self.get_block(new.parent_hash).unwrap();
@@ -407,7 +403,6 @@ impl Blockchain {
         vec
     }
 
-
     pub fn transa_is_valid(
         &self,
         transa: &super::transaction::Transaction,
@@ -448,9 +443,40 @@ impl Blockchain {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    use crate::block_chain::{block::Profile, transaction::Transaction};
     use super::*;
+    use crate::block_chain::{block::Profile, transaction::Transaction};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn test_potential_top_block() {
+        let mut pot = PotentialsTopBlock::new();
+        let mut b1 = Block::default();
+        let mut b2 = Block::default();
+        let mut b3 = Block::default();
+        let mut b4 = Block::default();
+        let mut b5 = Block::default();
+        b1.block_height = 1;
+        b1.block_id = 1;
+        b2.block_height = 2;
+        b2.block_id = 2;
+        b2.parent_hash =1;
+        b3.block_height = 3;
+        b3.block_id = 3;
+        b3.parent_hash = 2;
+        b4.block_height = 4;
+        b4.parent_hash = 3;
+        b4.block_id = 4;
+        b5.block_height = 5;
+        b5.block_id = 5;
+        b5.parent_hash = 4;
+        
+        pot.replace_or_create(&b5,b5.parent_hash );
+        pot.replace_or_create(&b4,b4.parent_hash );
+        pot.replace_or_create(&b3,b3.parent_hash );
+        
+        assert!(pot.is_block_needed(b2.block_id));
+        assert_eq!(pot.found_potential_from_need(b2.block_id).unwrap(),b5.block_id);
+    }
 
     #[test]
     fn create_blockchain() {

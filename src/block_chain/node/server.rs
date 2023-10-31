@@ -77,7 +77,6 @@ impl Server {
         // need to link new stack of transaction because the miner need continue to mine without aprouvale of the network
         let event_channel = mpsc::channel::<Event>();
 
-
         self.network.clone().start(event_channel.0.clone());
 
         self.server_runtime(self.id, event_channel);

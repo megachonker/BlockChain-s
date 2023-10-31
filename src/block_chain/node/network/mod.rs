@@ -267,8 +267,7 @@ mod tests {
     /// test client recieved the block
     /// Test server added client
     fn create_blockchain() {
-        let client_addr =
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 2)), 6021);
+        let client_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 2)), 6021);
 
         // New pair
         let client_ip = IpAddr::V4(Ipv4Addr::new(127, 1, 0, 2));

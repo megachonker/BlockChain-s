@@ -1,6 +1,3 @@
-
-
-
 use client::Client;
 use server::Server;
 
