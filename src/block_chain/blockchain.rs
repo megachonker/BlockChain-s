@@ -6,7 +6,7 @@ use tracing::{debug, info, warn};
 use super::{block::Block, node::server::MinerStuff, transaction::Utxo};
 
 const TIME_100_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
-pub const FIRST_DIFFICULTY: u64 = 1000000000000;
+pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
 
 /// Key of hashmap is the top block of the branch that need to be explorer
 /// Value stored is a tuple of:
@@ -293,11 +293,14 @@ impl Blockchain {
                         };
 
                         //chack transa and udpate balence
-                        let two_chain = self.get_path_2_block(self.top_block_hash, new_top_b);
+                        let (cur_chain, new_chain) =
+                            self.get_path_2_block(self.top_block_hash, new_top_b);
+                        //here need to check for each two elements if correctly linked
+
                         //sale
                         let mut new_balence = self.balance.clone();
                         let last_top_transa_ok = new_balence
-                            .calculation(two_chain.0, two_chain.1.iter().rev().cloned().collect())
+                            .calculation(cur_chain, new_chain.iter().rev().cloned().collect())
                             .block_id;
                         //last_top_transa_ok : bloc where is transa is valid to the chain
 
@@ -335,12 +338,10 @@ impl Blockchain {
                 }
             }
             //drop the search cache
-            self.potentials_top_block.erease_old(self.top_block_hash);
-
-            return (Some(self.last_block()), None);
         }
+        self.potentials_top_block.erease_old(self.top_block_hash);
 
-        (None, None)
+        return (Some(self.last_block()), None);
     }
 
     fn check_block_linked(&mut self, block_to_append: &Block, parent: &Block) -> bool {
