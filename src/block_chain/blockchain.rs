@@ -6,7 +6,7 @@ use tracing::{debug, info, warn};
 use super::{block::Block, node::server::MinerStuff, transaction::Utxo};
 
 const TIME_100_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
-pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
+pub const FIRST_DIFFICULTY: u64 = 1000000000000;
 
 /// Key of hashmap is the top block of the branch that need to be explorer
 /// Value stored is a tuple of:
@@ -247,35 +247,38 @@ impl Blockchain {
             .insert(block_to_append.block_id, block_to_append.clone());
 
         //get the current block from the db to compare to the new one
-        let cur_block = self.hash_map_block.get(&self.top_block_hash).unwrap();
+        let cur_block = self
+            .hash_map_block
+            .get(&self.top_block_hash)
+            .unwrap()
+            .clone();
 
-        // the block is superior than my actual progress ?
-        if block_to_append.block_height > cur_block.block_height
-            || self
-                .potentials_top_block
-                .is_block_needed(block_to_append.block_id)
+        //does have same direct ancestor
+        if self.check_block_linked(block_to_append, &cur_block)
+        //check if block can be linked to the previous one and to the blockchain
         {
-            //does have same direct ancestor
-            if block_to_append.parent_hash == cur_block.block_id
-                && block_to_append.block_height == cur_block.block_height + 1
-                && !self
-                    .potentials_top_block
-                    .is_block_needed(block_to_append.block_id) // these block is needed from a higher block 
-                && !block_to_append.transactions.iter().all(|t| t.check(self))
-            //<= need to move to the
-            {
-                //basic case
-                let mut backup = self.balance.clone();
-                if backup.add(block_to_append) {
-                    //comit modification
-                    self.balance = backup;
-                    //valid and ellect block to top pos
-                    self.top_block_hash = block_to_append.block_id;
-                } else {
-                    info!("Transaction is false");
-                    return (None, None);
-                }
+            //basic case
+            let mut backup = self.balance.clone();
+            if backup.add(block_to_append) {
+                //comit modification
+                self.balance = backup;
+                //valid and ellect block to top pos
+                self.top_block_hash = block_to_append.block_id;
             } else {
+                info!("Transaction is false");
+                return (None, None);
+            }
+        } else {
+            if cur_block.block_height < block_to_append.block_height
+                || (self
+                    .potentials_top_block
+                    .is_block_needed(block_to_append.block_id)
+                    && block_to_append.difficulty
+                        >= self
+                            .get_height_block(block_to_append.block_height)
+                            .unwrap()
+                            .difficulty)
+            {
                 //block to high
                 match self.search_chain(block_to_append) {
                     //do we have chain from block 0
@@ -338,6 +341,21 @@ impl Blockchain {
         }
 
         (None, None)
+    }
+
+    fn check_block_linked(&mut self, block_to_append: &Block, parent: &Block) -> bool {
+        self.check_parent(block_to_append, parent)
+            && !self.potentials_top_block.is_block_needed(block_to_append.block_id)     //not needed by a higher block in a queue 
+            && !block_to_append.transactions.iter().all(|t| t.check(self))
+            && block_to_append.difficulty == self.difficulty
+    }
+
+    //Check if this two block can be linked (child.parent_id = parent.block_id & time  )
+    fn check_parent(&mut self, child: &Block, parent: &Block) -> bool {
+        child.parent_hash == parent.block_id
+            && child.block_height == parent.block_height + 1
+             // these block is needed from a higher block 
+            && child.timestamp > parent.timestamp
     }
 
     fn get_path_2_block(&self, last_top: u64, new_top: u64) -> (Vec<&Block>, Vec<&Block>) {
@@ -439,6 +457,14 @@ impl Blockchain {
         }
         self.difficulty
     }
+
+    fn get_height_block(&self, block_height: u64) -> Option<&Block> {
+        let mut block = self.get_block(self.top_block_hash).unwrap();
+        while block.block_height != block_height {
+            block = self.get_block(block.parent_hash)?;
+        }
+        Some(block)
+    }
 }
 
 #[cfg(test)]
@@ -459,7 +485,7 @@ mod tests {
         b1.block_id = 1;
         b2.block_height = 2;
         b2.block_id = 2;
-        b2.parent_hash =1;
+        b2.parent_hash = 1;
         b3.block_height = 3;
         b3.block_id = 3;
         b3.parent_hash = 2;
@@ -469,13 +495,16 @@ mod tests {
         b5.block_height = 5;
         b5.block_id = 5;
         b5.parent_hash = 4;
-        
-        pot.replace_or_create(&b5,b5.parent_hash );
-        pot.replace_or_create(&b4,b4.parent_hash );
-        pot.replace_or_create(&b3,b3.parent_hash );
-        
+
+        pot.replace_or_create(&b5, b5.parent_hash);
+        pot.replace_or_create(&b4, b4.parent_hash);
+        pot.replace_or_create(&b3, b3.parent_hash);
+
         assert!(pot.is_block_needed(b2.block_id));
-        assert_eq!(pot.found_potential_from_need(b2.block_id).unwrap(),b5.block_id);
+        assert_eq!(
+            pot.found_potential_from_need(b2.block_id).unwrap(),
+            b5.block_id
+        );
     }
 
     #[test]
