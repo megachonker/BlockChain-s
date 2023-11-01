@@ -1,4 +1,3 @@
-// use crate::block_chain::node::{network::Network,NewTransaction};
 
 use crate::{
     block_chain::{
@@ -9,6 +8,7 @@ use crate::{
 };
 
 use super::network::Network;
+use super::super::user;
 
 pub struct TransaInfo {
     ammount: u64,
@@ -50,6 +50,8 @@ impl Client {
         }
     }
     pub fn start(self) {
+
+        user::User::create();
         // let blockaine = Blockchain::default();
         // let transaction = Transaction::new_online(&blockaine, 10, 10, 10);
 

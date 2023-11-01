@@ -6,6 +6,7 @@ mod block_chain {
     pub mod blockchain;
     pub mod node;
     pub mod transaction;
+    pub mod user;
 }
 
 use block_chain::node::{client::Client, network::Network, server::Server, NewNode};
