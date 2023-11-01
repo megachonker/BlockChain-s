@@ -1,12 +1,12 @@
 use core::fmt;
-use std::collections::HashMap;
+use std::{collections::HashMap, f32::consts::E};
 
 use tracing::{debug, info, warn};
 
 use super::{block::Block, node::server::MinerStuff, transaction::Utxo};
-
-const TIME_100_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
-pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
+const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
+const TIME_N_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
+pub const FIRST_DIFFICULTY: u64 = 1000000000000000000;
 
 /// Key of hashmap is the top block of the branch that need to be explorer
 /// Value stored is a tuple of:
@@ -73,7 +73,7 @@ struct Balance {
 impl Balance {
     /// Revert change until src with sub
     /// Replay change until dst with add
-    pub fn calculation<'b>(&mut self, src: Vec<&Block>, dst: Vec<&'b Block>) -> &'b Block {
+    pub fn calculation<'b>(&mut self, src: & Vec<&Block>, dst: & Vec<&'b Block>) -> &'b Block {
         src.iter().all(|p| self.sub(p));
         dst.iter()
             .find(|p| !self.add(p))
@@ -269,74 +269,82 @@ impl Blockchain {
                 return (None, None);
             }
         } else {
-            if cur_block.block_height < block_to_append.block_height
-                || (self
-                    .potentials_top_block
-                    .is_block_needed(block_to_append.block_id)
-                    && block_to_append.difficulty
-                        >= self
-                            .get_height_block(block_to_append.block_height)
-                            .unwrap()
-                            .difficulty)
-            {
-                //block to high
-                match self.search_chain(block_to_append) {
-                    //do we have chain from block 0
-                    Ok(_) => {
-                        //the block can be chained into the initial block
-                        let new_top_b = match self
-                            .potentials_top_block
-                            .found_potential_from_need(block_to_append.block_id)
-                        {
-                            Some(new_top_block) => new_top_block,
-                            None => block_to_append.block_id,
-                        };
+            /* if cur_block.block_height < block_to_append.block_height
+            || (self
+                .potentials_top_block
+                .is_block_needed(block_to_append.block_id)
+                && block_to_append.difficulty
+                    >= self
+                        .get_height_block(block_to_append.block_height)
+                        .unwrap()
+                        .difficulty)
 
-                        //chack transa and udpate balence
-                        let (cur_chain, new_chain) =
-                            self.get_path_2_block(self.top_block_hash, new_top_b);
-                        //here need to check for each two elements if correctly linked
+            //block to high */
+            match self.search_chain(block_to_append) {
+                //do we have chain from block 0
+                Ok(_) => {
+                    //the block can be chained into the initial block
+                    let potential_top = match self
+                        .potentials_top_block
+                        .found_potential_from_need(block_to_append.block_id)
+                    {
+                        Some(new_top_block) => new_top_block,
+                        None => block_to_append.block_id,
+                    };
 
-                        //sale
-                        let mut new_balence = self.balance.clone();
-                        let last_top_transa_ok = new_balence
-                            .calculation(cur_chain, new_chain.iter().rev().cloned().collect())
-                            .block_id;
-                        //last_top_transa_ok : bloc where is transa is valid to the chain
+                    //take the two chain to link cur_block and potential_top
+                    let (cur_chain, new_chain) =
+                        self.get_path_2_block(self.top_block_hash, potential_top);
 
-                        if last_top_transa_ok == new_top_b {
-                            //all it is ok
-                            warn!(
-                                "New better branch found, blockchain update {} {:?}",
-                                last_top_transa_ok, self.potentials_top_block
-                            );
-                            self.balance = new_balence;
-                            self.top_block_hash = last_top_transa_ok;
-                        } else if cur_block.block_height
-                            < self.get_block(last_top_transa_ok).unwrap().block_height
-                        {
-                            info!(
-                                "New branche not complete right, wrong after {}",
-                                last_top_transa_ok
-                            );
-                            //also ok maybe
-                            self.balance = new_balence;
-                            self.top_block_hash = last_top_transa_ok;
+                    let mut new_chain: Vec<&Block> = new_chain.iter().rev().cloned().collect();
 
-                            //need maybe to earse wrong block which transa is not good with the chain (last_top_ok + 1 +2 ...) <= you need to flush potendial block ?
-                        } else {
-                            info!("Branch is not wrong ");
-                            return (None, None);
+                    match self.check_correct_chain(&new_chain) {        
+                        //update the chain if there is the end of the new_chain is not valid
+                        Ok(_) => {}
+                        Err(last_ok) => {
+                            if last_ok == None{
+                                return (None,None);
+                            }
+                            new_chain = self.get_path_2_block(self.top_block_hash, last_ok.unwrap()).1.iter().rev().cloned().collect();
                         }
                     }
-                    Err(needed) => {
-                        //the block can not be chained into the initial block : needed is missing
-                        self.potentials_top_block
-                            .replace_or_create(block_to_append, needed);
-                        return (None, Some(needed));
+
+                    //sale
+                    let mut new_balence = self.balance.clone();
+                    let last_top_transa_ok = new_balence.calculation(& cur_chain, & new_chain).block_id;
+                    //last_top_transa_ok : bloc where is transa is valid to the chain
+
+                    if last_top_transa_ok != potential_top {
+                        //update the chain if there is the end of the new_chain is not valid
+                        info!(
+                            "New branche not complete right, wrong after {}",
+                            last_top_transa_ok
+                        );
+                        new_chain = self
+                            .get_path_2_block(self.top_block_hash, last_top_transa_ok)
+                            .1.iter().rev().cloned().collect();
                     }
+
+                    if !best_difficulty(&cur_chain, &new_chain) {
+                        //test if the new chain is better or not
+                        return (None, None);
+                    }
+                    warn!(
+                        "New better branch found, blockchain update {} {:?}",
+                        last_top_transa_ok, self.potentials_top_block
+                    );
+
+                    self.balance = new_balence;
+                    self.top_block_hash = last_top_transa_ok;
+                }
+                Err(needed) => {
+                    //the block can not be chained into the initial block : needed is missing
+                    self.potentials_top_block
+                        .replace_or_create(block_to_append, needed);
+                    return (None, Some(needed));
                 }
             }
+
             //drop the search cache
         }
         self.potentials_top_block.erease_old(self.top_block_hash);
@@ -344,7 +352,7 @@ impl Blockchain {
         return (Some(self.last_block()), None);
     }
 
-    fn check_block_linked(&mut self, block_to_append: &Block, parent: &Block) -> bool {
+    fn check_block_linked(&self, block_to_append: &Block, parent: &Block) -> bool {
         self.check_parent(block_to_append, parent)
             && !self.potentials_top_block.is_block_needed(block_to_append.block_id)     //not needed by a higher block in a queue 
             && !block_to_append.transactions.iter().all(|t| t.check(self))
@@ -352,23 +360,40 @@ impl Blockchain {
     }
 
     //Check if this two block can be linked (child.parent_id = parent.block_id & time  )
-    fn check_parent(&mut self, child: &Block, parent: &Block) -> bool {
+    fn check_parent(&self, child: &Block, parent: &Block) -> bool {
         child.parent_hash == parent.block_id
             && child.block_height == parent.block_height + 1
              // these block is needed from a higher block 
             && child.timestamp > parent.timestamp
     }
-
+    /// Return two chains which are the link between last_top and new_top.
+    /// These two chain have a common block at the end
+    ///
+    ///      chain1       chain2
+    ///
+    ///                  new_top
+    ///                     |
+    ///     last_top        b
+    ///         |           |
+    ///    common_block--------b
     fn get_path_2_block(&self, last_top: u64, new_top: u64) -> (Vec<&Block>, Vec<&Block>) {
         let mut vec1: Vec<&Block> = vec![];
         let mut vec2: Vec<&Block> = vec![];
 
         let mut last = self.get_block(last_top).unwrap();
-        let mut new = self.get_block(new_top).unwrap();
+        let mut new = self.get_block(new_top).expect(&format!("{}",new_top));
 
-        while last.block_height < new.block_height {
+        
+
+        while last.block_height != new.block_height {
+            if last.block_height < new.block_height{
             vec2.push(new);
             new = self.get_block(new.parent_hash).unwrap();
+            }
+            else {
+                vec1.push(last);
+                last = self.get_block(last.parent_hash).unwrap();
+            }
         }
 
         while new.block_id != last.block_id {
@@ -435,12 +460,15 @@ impl Blockchain {
     pub fn new_difficutly(&mut self) -> u64 {
         let top_block = self.get_block(self.top_block_hash).unwrap();
         let height: u64 = top_block.block_height;
-        if height % 100 == 0 {
+        if height % N_BLOCK_DIFFICULTY_CHANGE == 0 {
             let chain = self.get_chain();
-            if chain.len() >= 100 {
-                let time_between_100 = top_block.timestamp - chain[99].timestamp;
-                let mut rate_time = (TIME_100_BLOCK as f64) / (time_between_100.as_secs() as f64);
-                debug!("Rate time 100 blocks {}", rate_time);
+            if chain.len() >= N_BLOCK_DIFFICULTY_CHANGE as usize {
+                let time_between = top_block.timestamp - chain[99].timestamp;
+                let mut rate_time = (TIME_N_BLOCK as f64) / (time_between.as_secs() as f64);
+                debug!(
+                    "Rate time {} blocks {}",
+                    N_BLOCK_DIFFICULTY_CHANGE, rate_time
+                );
                 if rate_time < 0.90 || rate_time > 0.110 {
                     /* let new_dif = if rate_time >= 1.10 {
                         self.difficulty / 2
@@ -466,6 +494,80 @@ impl Blockchain {
         }
         Some(block)
     }
+
+    fn check_correct_chain(&self, new_chain: &Vec<&Block>) -> Result<(), Option<u64>> {
+        let mut last_ok = None;
+        for (index, b) in new_chain.iter().enumerate() {
+            if index == 0 {
+                continue;
+            }
+            if !self.check_parent(&b, new_chain[index - 1]) {
+                info!("two node can not be linked {} {}",b, new_chain[index-1]);
+                return Err(last_ok);
+            }
+            if new_chain[index - 1].block_height % N_BLOCK_DIFFICULTY_CHANGE == 0
+                && new_chain[index - 1].block_height != 0
+            {
+                if get_difficulty(
+                    self.get_n_block_from(N_BLOCK_DIFFICULTY_CHANGE, new_chain[index - 1])
+                        .unwrap(),
+                )
+                .unwrap()
+                    != b.difficulty
+                {
+                    info!("Not the correct addaptative difficulty {} ", b);
+                    return Err(last_ok);
+                }
+            } else if new_chain[index - 1].difficulty != b.difficulty &&new_chain[index-1].block_height !=0  {
+                info!("Not the same difficulty {} {}",b , new_chain[index-1]);
+                return Err(last_ok);
+            }
+            last_ok = Some(new_chain[index].block_id);
+        }
+
+        Ok(())
+    }
+
+    fn get_n_block_from<'a>(&'a self, mut n: u64, mut b: &'a Block) -> Option<Vec<&Block>> {
+        let mut vec = vec![];
+        n -= 1;
+        vec.push(b);
+        while n != 0 {
+            let mut hash = b.parent_hash;
+            b = self.get_block(hash)?;
+            vec.push(b);
+            n -= 1;
+        }
+
+        Some(vec)
+    }
+}
+
+fn get_difficulty(chunk: Vec<&Block>) -> Option<u64> {
+    if chunk.len() != N_BLOCK_DIFFICULTY_CHANGE as usize {
+        return None;
+    }
+
+    let time_between = chunk[0].timestamp - chunk[99].timestamp;
+    let mut rate_time = (TIME_N_BLOCK as f64) / (time_between.as_secs() as f64);
+
+    if rate_time == f64::INFINITY {
+        rate_time = 1000.0;
+    }
+
+    Some((chunk[0].difficulty as f64 / rate_time) as u64)
+}
+
+fn best_difficulty(chain1: &Vec<&Block>, chain2: &Vec<&Block>) -> bool {
+    let sum_dif1: u128 = chain1
+        .iter()
+        .map(|&b| (u64::MAX - b.difficulty) as u128)
+        .sum();
+    let sum_dif2: u128 = chain2
+        .iter()
+        .map(|&b| (u64::MAX - b.difficulty) as u128)
+        .sum();
+    sum_dif1 < sum_dif2
 }
 
 #[cfg(test)]
@@ -739,7 +841,7 @@ mod tests {
             .iter()
             .for_each(|f| println!("{}==>{:?}", f.0, f.1));
 
-        let ret = instance.calculation(vec_r, vec);
+        let ret = instance.calculation(&vec_r, &vec);
         println!("{}", ret);
         assert_eq!(*ret, block1);
 

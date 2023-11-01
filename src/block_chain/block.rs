@@ -27,7 +27,7 @@ pub struct Block {
     pub block_height: u64,              //the number of the current block
     pub parent_hash: u64,               //the id of last block (block are chain with that)
     pub transactions: Vec<Transaction>, //the vector of all transaction validated with this block
-    pub difficulty: u64,
+    pub difficulty: u64,                //the current difficulty fot the block (hash_proof <difficulty).
     pub finder: u64, //Who find the answer
     pub quote: String,
     pub answer: u64, //the answer of the defi
@@ -45,9 +45,7 @@ impl Default for Block {
             finder: 0,
             quote: String::from(""),
             difficulty: 0,
-            timestamp: SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap(),
+            timestamp: Duration::from_secs(1683059400), //Begin of the project
         }
     }
 }
@@ -94,7 +92,7 @@ impl fmt::Display for Block {
             self.block_height,
             self.parent_hash,
             transa_str,
-            self.difficulty,
+            u64::MAX - self.difficulty,
             self.finder,
             self.answer,
             self.quote,
