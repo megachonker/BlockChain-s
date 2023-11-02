@@ -91,7 +91,7 @@ impl Server {
             transa: vec![],
             difficulty: self.blockchain.difficulty,
         }));
-        for _ in 1..2 {
+        for _ in 1..4 {
             let miner_stuff_cpy = miner_stuff.clone();
             let event_cpy = event_channels.0.clone();
             thread::Builder::new()

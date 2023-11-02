@@ -6,7 +6,8 @@ use tracing::{debug, info, warn};
 use super::{block::Block, node::server::MinerStuff, transaction::Utxo};
 const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
 const TIME_N_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
-pub const FIRST_DIFFICULTY: u64 = 1000000000000000000;
+pub const FIRST_DIFFICULTY: u64 = 10000000000000;
+// pub const FIRST_DIFFICULTY: u64 = 100000000;
 
 /// Key of hashmap is the top block of the branch that need to be explorer
 /// Value stored is a tuple of:
@@ -232,6 +233,7 @@ impl Blockchain {
     /// The second Option is containt the hash of a block which are needed to complete a chain.
     ///
     pub fn try_append(&mut self, block_to_append: &Block) -> (Option<Block>, Option<u64>) {
+
         if self.hash_map_block.contains_key(&block_to_append.block_id) {
             return (None, None); //already prensent
         }
@@ -336,6 +338,13 @@ impl Blockchain {
 
                     self.balance = new_balence;
                     self.top_block_hash = last_top_transa_ok;
+                    let dif = if self.get_block(self.top_block_hash).unwrap().block_height % N_BLOCK_DIFFICULTY_CHANGE ==0{
+                        self.new_difficutly()
+                    }
+                    else{
+                        self.get_block(self.top_block_hash).unwrap().difficulty
+                    };
+                    self.difficulty=dif;
                 }
                 Err(needed) => {
                     //the block can not be chained into the initial block : needed is missing
@@ -347,7 +356,9 @@ impl Blockchain {
 
             //drop the search cache
         }
-        self.potentials_top_block.erease_old(self.top_block_hash);
+
+        //tricky -> if better branch has a top block < cur_top block, can be ignored (but if it found fast it is ok). 
+        self.potentials_top_block.erease_old(self.get_block(self.top_block_hash).unwrap().block_height);
 
         return (Some(self.last_block()), None);
     }
@@ -573,7 +584,7 @@ fn best_difficulty(chain1: &Vec<&Block>, chain2: &Vec<&Block>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_chain::{block::Profile, transaction::Transaction};
+    use crate::block_chain::{block::Profile, transaction::Transaction, self};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -666,8 +677,46 @@ mod tests {
     }
 
     #[test]
+    fn try_append_2_branchs(){
+        let mut parrallele_best_branch : Vec<Block> =vec![Block::new()];
+        let mut cur_branch : Vec<Block>= vec![Block::new()];
+        for _ in 0..3{
+            parrallele_best_branch.push(parrallele_best_branch.last().unwrap().find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY).unwrap());
+        }
+
+        for _ in 0..1{
+            cur_branch.push(cur_branch.last().unwrap().find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY).unwrap());
+        }
+
+        let mut block_chain = Blockchain::new();
+
+        let (nw, need) = block_chain.try_append(& parrallele_best_branch[3]);
+        assert_eq!(nw,None);
+        assert_eq!(need, Some(parrallele_best_branch[2].block_id));
+        assert_ne!(block_chain.potentials_top_block.hmap.get(& parrallele_best_branch[3].block_id),None);
+
+
+
+        let (nw, need) = block_chain.try_append(& cur_branch[1]);
+        assert_eq!(need,None);
+        assert_eq!(nw.unwrap(), cur_branch[1]);
+        assert_ne!(block_chain.potentials_top_block.hmap.get(& parrallele_best_branch[3].block_id),None);
+
+        let (nw, need) = block_chain.try_append(& parrallele_best_branch[2]);
+        assert_eq!(nw,None);
+        assert_eq!(need, Some(parrallele_best_branch[1].block_id));
+        assert_ne!(block_chain.potentials_top_block.hmap.get(& parrallele_best_branch[3].block_id),None);
+
+
+        let (nw, need) = block_chain.try_append(& parrallele_best_branch[1]);
+        assert_eq!(nw.unwrap(),parrallele_best_branch[3]);
+        assert_eq!(need, None);
+        assert_eq!(block_chain.potentials_top_block.hmap.get(& parrallele_best_branch[3].block_id),None);
+    }
+
+    #[test]
     fn remove_old_potential_top() {
-        for _ in 1..2 {
+        for _ in 1..4 {
             let mut blockchain = Blockchain::new();
 
             let b0 = Block::default();
@@ -711,7 +760,7 @@ mod tests {
                 blockchain.potentials_top_block.hmap.get(&b2_bis.block_id),
                 None
             );
-        }
+        } 
     }
 
     #[test]
