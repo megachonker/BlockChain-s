@@ -45,6 +45,7 @@ pub struct Server {
     //miner
     id: u64,
     blockchain: Blockchain,
+    number_miner : u16, //number of thread of miner to be spawn
 }
 
 #[derive(Debug)]
@@ -55,7 +56,7 @@ pub struct MinerStuff {
 }
 
 impl Server {
-    pub fn new(network: Network) -> Self {
+    pub fn new(network: Network,number_miner : u16) -> Self {
         let name =
             get_friendly_name(network.get_socket()).expect("generation name from ip imposble");
         let id = get_fake_id(&name);
@@ -64,6 +65,7 @@ impl Server {
             network,
             id,
             blockchain: Blockchain::new(),
+            number_miner,
         }
     }
     pub fn start(mut self) {
@@ -91,7 +93,7 @@ impl Server {
             transa: vec![],
             difficulty: self.blockchain.difficulty,
         }));
-        for _ in 1..4 {
+        for _ in 0..self.number_miner {
             let miner_stuff_cpy = miner_stuff.clone();
             let event_cpy = event_channels.0.clone();
             thread::Builder::new()

@@ -40,6 +40,10 @@ struct Cli {
 
     #[arg(short, long,default_value_t =String::from("WARN") )] //a changer a terme
     verbose: String,
+
+
+    #[arg( long,default_value_t =1 )] //a changer a terme
+    number_miner: u16,
 }
 
 use clap::Parser;
@@ -98,7 +102,7 @@ fn parse_args(cli: Cli) -> NewNode {
         ))
     } else {
         //create server worker
-        NewNode::Srv(Server::new(networking))
+        NewNode::Srv(Server::new(networking,cli.number_miner))
     }
 }
 
@@ -123,6 +127,8 @@ mod tests {
             secret: String::new(),
             verbose: String::new(),
             from: 0,
+            number_miner : 1,
+            
         };
         parse_args(cli);
 
@@ -137,6 +143,7 @@ mod tests {
             secret: String::new(),
             verbose: String::new(),
             from: 0,
+            number_miner : 1,
         };
         parse_args(cli);
     }
