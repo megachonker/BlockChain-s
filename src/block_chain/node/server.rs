@@ -163,7 +163,7 @@ impl Server {
                     if let Some(needed_block) = block_need {
                         self.network
                             .broadcast(Packet::Block(TypeBlock::Hash(needed_block as i128)));
-                        println!("Ask for {}", needed_block);
+                        info!("{} is needed to complete another branch", needed_block);
                     }
                 }
                 Event::Transaction(transa) => {
