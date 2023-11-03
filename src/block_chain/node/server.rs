@@ -1,4 +1,8 @@
+use bincode::{deserialize, serialize};
+
 use std::{
+    fs::File,
+    io::{Read, Write},
     net::SocketAddr,
     sync::mpsc::{self, Receiver, Sender},
     sync::{Arc, Mutex},
@@ -7,13 +11,16 @@ use std::{
 
 use tracing::{debug, info, warn};
 
-use crate::block_chain::{
-    block::{mine, Block},
-    blockchain::Blockchain,
-    node::network::{Network, Packet, TypeBlock, TypeTransa},
-    transaction::Transaction,
-};
 use crate::friendly_name::*;
+use crate::{
+    block_chain::{
+        block::{mine, Block},
+        blockchain::Blockchain,
+        node::network::{Network, Packet, TypeBlock, TypeTransa},
+        transaction::Transaction,
+    },
+    Cli,
+};
 
 use super::network::ClientPackect;
 
@@ -27,6 +34,7 @@ pub enum NewBlock {
 #[derive(Debug, PartialEq, Eq)]
 pub enum ClientEvent {
     ReqUtxo(u64),
+    ReqSave, //force server to save the blockchain in file (debug)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -45,7 +53,9 @@ pub struct Server {
     //miner
     id: u64,
     blockchain: Blockchain,
-    number_miner : u16, //number of thread of miner to be spawn
+    number_miner: u16, //number of thread of miner to be spawn
+    path_save_json: String,
+    path_save: String,
 }
 
 #[derive(Debug)]
@@ -56,7 +66,7 @@ pub struct MinerStuff {
 }
 
 impl Server {
-    pub fn new(network: Network,number_miner : u16) -> Self {
+    pub fn new(network: Network, cli: Cli) -> Self {
         let name =
             get_friendly_name(network.get_socket()).expect("generation name from ip imposble");
         let id = get_fake_id(&name);
@@ -65,7 +75,9 @@ impl Server {
             network,
             id,
             blockchain: Blockchain::new(),
-            number_miner,
+            number_miner: cli.number_miner,
+            path_save_json: cli.save_json,
+            path_save: cli.save,
         }
     }
     pub fn start(mut self) {
@@ -185,8 +197,73 @@ impl Server {
                         )),
                         &addr_client,
                     ),
+                    ClientEvent::ReqSave => {
+                        if self.path_save_json != "" {
+                            let file_json = File::create(&self.path_save_json).unwrap();
+                            let chain = self
+                                .blockchain
+                                .get_chain()
+                                .iter()
+                                .map(|&b| b.clone())
+                                .collect();
+                            save_chain_readable(&chain, file_json);
+                        }
+                        if self.path_save != "" {
+                            let file_json = File::create(&self.path_save).unwrap();
+                            let chain = self
+                                .blockchain
+                                .get_chain()
+                                .iter()
+                                .map(|&b| b.clone())
+                                .collect();
+                            save_chain(&chain, file_json);
+                        }
+                    }
                 },
             }
         }
     }
+}
+
+fn save_chain_readable(chain: &Vec<Block>, mut file: File) {
+    file.write_all(b"[").unwrap();
+    for b in chain {
+        let ser_b = serde_json::to_string(&b).unwrap();
+        file.write_all(ser_b.as_bytes()).unwrap();
+        file.write_all(b",").unwrap();
+    }
+    file.write_all(b"{}]").unwrap();
+
+}
+
+fn save_chain(chain: &Vec<Block>, mut file: File) {
+    file.write_all(&(chain.len() as u64).to_be_bytes()).unwrap();
+    for b in chain {
+        let ser_b = serialize(&b).unwrap();
+        let len: u64 = ser_b.len() as u64;
+        file.write_all(&len.to_be_bytes()).unwrap();
+        file.write_all(&ser_b).unwrap();
+    }
+}
+
+fn load_chain(mut file: File) -> Vec<Block> {
+    let mut vec: Vec<Block> = vec![];
+
+    let mut buf_u64: [u8; 8] = (0 as u64).to_be_bytes();
+
+    file.read_exact(&mut buf_u64).unwrap();
+
+    let mut number = u64::from_be_bytes(buf_u64);
+
+    while number != 0 {
+        file.read_exact(&mut buf_u64).unwrap();
+        let size = u64::from_be_bytes(buf_u64);
+        let mut buf = vec![0; size as usize];
+        file.read_exact(&mut buf).unwrap();
+        let b = deserialize::<Block>(&buf).unwrap();
+        vec.push(b);
+        number -= 1;
+    }
+
+    vec
 }

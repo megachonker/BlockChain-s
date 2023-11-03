@@ -1,4 +1,3 @@
-
 use crate::{
     block_chain::{
         node::network::{ClientPackect, Packet, TypeTransa},
@@ -7,8 +6,8 @@ use crate::{
     friendly_name::get_friendly_name,
 };
 
-use super::network::Network;
 use super::super::user;
+use super::network::Network;
 
 pub struct TransaInfo {
     ammount: u64,
@@ -50,10 +49,14 @@ impl Client {
         }
     }
     pub fn start(self) {
-
         user::User::create();
         // let blockaine = Blockchain::default();
         // let transaction = Transaction::new_online(&blockaine, 10, 10, 10);
+
+        self.networking.send_packet(            //force to save (debug)
+            &Packet::Client(ClientPackect::ReqSave),
+            &self.networking.bootstrap,
+        );
 
         self.networking.send_packet(
             &Packet::Client(ClientPackect::ReqUtxo(self.transa_info.from)),

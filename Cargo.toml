@@ -10,6 +10,7 @@ clap = { version = "4.3.1", features = ["derive"] }
 dryoc = { version = "0.5.1", features = ["serde"] }
 rand = "0.8.5"
 serde = { version = "1.0.163", features = ["derive"] }
+serde_json = "1.0.108"
 toml = "0.8.6"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"

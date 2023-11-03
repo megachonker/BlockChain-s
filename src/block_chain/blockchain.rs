@@ -1,5 +1,10 @@
 use core::fmt;
-use std::{collections::HashMap, f32::consts::E};
+use std::{
+    collections::HashMap,
+    f32::consts::E,
+    fs::File,
+    io::{Chain, Read, Write},
+};
 
 use tracing::{debug, info, warn};
 
@@ -74,7 +79,7 @@ struct Balance {
 impl Balance {
     /// Revert change until src with sub
     /// Replay change until dst with add
-    pub fn calculation<'b>(&mut self, src: & Vec<&Block>, dst: & Vec<&'b Block>) -> &'b Block {
+    pub fn calculation<'b>(&mut self, src: &Vec<&Block>, dst: &Vec<&'b Block>) -> &'b Block {
         src.iter().all(|p| self.sub(p));
         dst.iter()
             .find(|p| !self.add(p))
@@ -233,7 +238,6 @@ impl Blockchain {
     /// The second Option is containt the hash of a block which are needed to complete a chain.
     ///
     pub fn try_append(&mut self, block_to_append: &Block) -> (Option<Block>, Option<u64>) {
-
         if self.hash_map_block.contains_key(&block_to_append.block_id) {
             return (None, None); //already prensent
         }
@@ -300,20 +304,27 @@ impl Blockchain {
 
                     let mut new_chain: Vec<&Block> = new_chain.iter().rev().cloned().collect();
 
-                    match self.check_correct_chain(&new_chain) {        
+                    match self.check_correct_chain(&new_chain) {
                         //update the chain if there is the end of the new_chain is not valid
                         Ok(_) => {}
                         Err(last_ok) => {
-                            if last_ok == None{
-                                return (None,None);
+                            if last_ok == None {
+                                return (None, None);
                             }
-                            new_chain = self.get_path_2_block(self.top_block_hash, last_ok.unwrap()).1.iter().rev().cloned().collect();
+                            new_chain = self
+                                .get_path_2_block(self.top_block_hash, last_ok.unwrap())
+                                .1
+                                .iter()
+                                .rev()
+                                .cloned()
+                                .collect();
                         }
                     }
 
                     //sale
                     let mut new_balence = self.balance.clone();
-                    let last_top_transa_ok = new_balence.calculation(& cur_chain, & new_chain).block_id;
+                    let last_top_transa_ok =
+                        new_balence.calculation(&cur_chain, &new_chain).block_id;
                     //last_top_transa_ok : bloc where is transa is valid to the chain
 
                     if last_top_transa_ok != potential_top {
@@ -324,7 +335,11 @@ impl Blockchain {
                         );
                         new_chain = self
                             .get_path_2_block(self.top_block_hash, last_top_transa_ok)
-                            .1.iter().rev().cloned().collect();
+                            .1
+                            .iter()
+                            .rev()
+                            .cloned()
+                            .collect();
                     }
 
                     if !best_difficulty(&cur_chain, &new_chain) {
@@ -338,13 +353,15 @@ impl Blockchain {
 
                     self.balance = new_balence;
                     self.top_block_hash = last_top_transa_ok;
-                    let dif = if self.get_block(self.top_block_hash).unwrap().block_height % N_BLOCK_DIFFICULTY_CHANGE ==0{
+                    let dif = if self.get_block(self.top_block_hash).unwrap().block_height
+                        % N_BLOCK_DIFFICULTY_CHANGE
+                        == 0
+                    {
                         self.new_difficutly()
-                    }
-                    else{
+                    } else {
                         self.get_block(self.top_block_hash).unwrap().difficulty
                     };
-                    self.difficulty=dif;
+                    self.difficulty = dif;
                 }
                 Err(needed) => {
                     //the block can not be chained into the initial block : needed is missing
@@ -357,8 +374,9 @@ impl Blockchain {
             //drop the search cache
         }
 
-        //tricky -> if better branch has a top block < cur_top block, can be ignored (but if it found fast it is ok). 
-        self.potentials_top_block.erease_old(self.get_block(self.top_block_hash).unwrap().block_height);
+        //tricky -> if better branch has a top block < cur_top block, can be ignored (but if it found fast it is ok).
+        self.potentials_top_block
+            .erease_old(self.get_block(self.top_block_hash).unwrap().block_height);
 
         return (Some(self.last_block()), None);
     }
@@ -392,16 +410,13 @@ impl Blockchain {
         let mut vec2: Vec<&Block> = vec![];
 
         let mut last = self.get_block(last_top).unwrap();
-        let mut new = self.get_block(new_top).expect(&format!("{}",new_top));
-
-        
+        let mut new = self.get_block(new_top).expect(&format!("{}", new_top));
 
         while last.block_height != new.block_height {
-            if last.block_height < new.block_height{
-            vec2.push(new);
-            new = self.get_block(new.parent_hash).unwrap();
-            }
-            else {
+            if last.block_height < new.block_height {
+                vec2.push(new);
+                new = self.get_block(new.parent_hash).unwrap();
+            } else {
                 vec1.push(last);
                 last = self.get_block(last.parent_hash).unwrap();
             }
@@ -498,14 +513,6 @@ impl Blockchain {
         self.difficulty
     }
 
-    fn get_height_block(&self, block_height: u64) -> Option<&Block> {
-        let mut block = self.get_block(self.top_block_hash).unwrap();
-        while block.block_height != block_height {
-            block = self.get_block(block.parent_hash)?;
-        }
-        Some(block)
-    }
-
     fn check_correct_chain(&self, new_chain: &Vec<&Block>) -> Result<(), Option<u64>> {
         let mut last_ok = None;
         for (index, b) in new_chain.iter().enumerate() {
@@ -513,7 +520,7 @@ impl Blockchain {
                 continue;
             }
             if !self.check_parent(&b, new_chain[index - 1]) {
-                info!("two node can not be linked {} {}",b, new_chain[index-1]);
+                info!("two node can not be linked {} {}", b, new_chain[index - 1]);
                 return Err(last_ok);
             }
             if new_chain[index - 1].block_height % N_BLOCK_DIFFICULTY_CHANGE == 0
@@ -529,8 +536,10 @@ impl Blockchain {
                     info!("Not the correct addaptative difficulty {} ", b);
                     return Err(last_ok);
                 }
-            } else if new_chain[index - 1].difficulty != b.difficulty &&new_chain[index-1].block_height !=0  {
-                info!("Not the same difficulty {} {}",b , new_chain[index-1]);
+            } else if new_chain[index - 1].difficulty != b.difficulty
+                && new_chain[index - 1].block_height != 0
+            {
+                info!("Not the same difficulty {} {}", b, new_chain[index - 1]);
                 return Err(last_ok);
             }
             last_ok = Some(new_chain[index].block_id);
@@ -544,7 +553,7 @@ impl Blockchain {
         n -= 1;
         vec.push(b);
         while n != 0 {
-            let mut hash = b.parent_hash;
+            let hash = b.parent_hash;
             b = self.get_block(hash)?;
             vec.push(b);
             n -= 1;
@@ -553,6 +562,9 @@ impl Blockchain {
         Some(vec)
     }
 }
+
+
+
 
 fn get_difficulty(chunk: Vec<&Block>) -> Option<u64> {
     if chunk.len() != N_BLOCK_DIFFICULTY_CHANGE as usize {
@@ -584,7 +596,7 @@ fn best_difficulty(chain1: &Vec<&Block>, chain2: &Vec<&Block>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_chain::{block::Profile, transaction::Transaction, self};
+    use crate::block_chain::{self, block::Profile, transaction::Transaction};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -677,41 +689,74 @@ mod tests {
     }
 
     #[test]
-    fn try_append_2_branchs(){
-        let mut parrallele_best_branch : Vec<Block> =vec![Block::new()];
-        let mut cur_branch : Vec<Block>= vec![Block::new()];
-        for _ in 0..3{
-            parrallele_best_branch.push(parrallele_best_branch.last().unwrap().find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY).unwrap());
+    fn try_append_2_branchs() {
+        let mut parrallele_best_branch: Vec<Block> = vec![Block::new()];
+        let mut cur_branch: Vec<Block> = vec![Block::new()];
+        for _ in 0..3 {
+            parrallele_best_branch.push(
+                parrallele_best_branch
+                    .last()
+                    .unwrap()
+                    .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+                    .unwrap(),
+            );
         }
 
-        for _ in 0..1{
-            cur_branch.push(cur_branch.last().unwrap().find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY).unwrap());
+        for _ in 0..1 {
+            cur_branch.push(
+                cur_branch
+                    .last()
+                    .unwrap()
+                    .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+                    .unwrap(),
+            );
         }
 
         let mut block_chain = Blockchain::new();
 
-        let (nw, need) = block_chain.try_append(& parrallele_best_branch[3]);
-        assert_eq!(nw,None);
+        let (nw, need) = block_chain.try_append(&parrallele_best_branch[3]);
+        assert_eq!(nw, None);
         assert_eq!(need, Some(parrallele_best_branch[2].block_id));
-        assert_ne!(block_chain.potentials_top_block.hmap.get(& parrallele_best_branch[3].block_id),None);
+        assert_ne!(
+            block_chain
+                .potentials_top_block
+                .hmap
+                .get(&parrallele_best_branch[3].block_id),
+            None
+        );
 
-
-
-        let (nw, need) = block_chain.try_append(& cur_branch[1]);
-        assert_eq!(need,None);
-        assert_eq!(nw.unwrap(), cur_branch[1]);
-        assert_ne!(block_chain.potentials_top_block.hmap.get(& parrallele_best_branch[3].block_id),None);
-
-        let (nw, need) = block_chain.try_append(& parrallele_best_branch[2]);
-        assert_eq!(nw,None);
-        assert_eq!(need, Some(parrallele_best_branch[1].block_id));
-        assert_ne!(block_chain.potentials_top_block.hmap.get(& parrallele_best_branch[3].block_id),None);
-
-
-        let (nw, need) = block_chain.try_append(& parrallele_best_branch[1]);
-        assert_eq!(nw.unwrap(),parrallele_best_branch[3]);
+        let (nw, need) = block_chain.try_append(&cur_branch[1]);
         assert_eq!(need, None);
-        assert_eq!(block_chain.potentials_top_block.hmap.get(& parrallele_best_branch[3].block_id),None);
+        assert_eq!(nw.unwrap(), cur_branch[1]);
+        assert_ne!(
+            block_chain
+                .potentials_top_block
+                .hmap
+                .get(&parrallele_best_branch[3].block_id),
+            None
+        );
+
+        let (nw, need) = block_chain.try_append(&parrallele_best_branch[2]);
+        assert_eq!(nw, None);
+        assert_eq!(need, Some(parrallele_best_branch[1].block_id));
+        assert_ne!(
+            block_chain
+                .potentials_top_block
+                .hmap
+                .get(&parrallele_best_branch[3].block_id),
+            None
+        );
+
+        let (nw, need) = block_chain.try_append(&parrallele_best_branch[1]);
+        assert_eq!(nw.unwrap(), parrallele_best_branch[3]);
+        assert_eq!(need, None);
+        assert_eq!(
+            block_chain
+                .potentials_top_block
+                .hmap
+                .get(&parrallele_best_branch[3].block_id),
+            None
+        );
     }
 
     #[test]
@@ -760,7 +805,7 @@ mod tests {
                 blockchain.potentials_top_block.hmap.get(&b2_bis.block_id),
                 None
             );
-        } 
+        }
     }
 
     #[test]
@@ -772,66 +817,6 @@ mod tests {
         blockchain.try_append(&block);
         assert_eq!(blockchain.get_chain(), vec![&block, &Block::new()]);
     }
-    /*
-    #[test]
-    fn get_path_2_block() {
-        let mut blockchain = Blockchain::new();
-
-        let b1 = Block {
-            block_height: 1,
-            block_id: 84739656938,
-            parent_hash: 0,
-            transactions: vec![],
-            answer: 8308871350387475192,
-            finder: 17904917467964170301,
-            quote: String::from("bi"),
-        };
-
-        let b2 = Block {
-            block_height: 2,
-            block_id: 32147335136,
-            parent_hash: 84739656938,
-            transactions: vec![],
-            answer: 9377674440955505,
-            finder: 17904917467964170301,
-            quote: String::from("bi"),
-        };
-
-        let b2_bis = Block {
-            block_height: 2,
-            block_id: 190296940020,
-            parent_hash: 84739656938,
-            transactions: vec![],
-            answer: 11832120156767897387,
-            finder: 0,
-            quote: String::from(""),
-        };
-
-        let b3 = Block {
-            block_height: 3,
-            block_id: 44263391524,
-            parent_hash: 32147335136,
-            transactions: vec![],
-            answer: 13893443482872540816,
-            finder: 17904917467964170301,
-            quote: String::from("bi"),
-        };
-
-        assert!(b1.check());
-
-        blockchain.try_append(&b1);
-        blockchain.try_append(&b2_bis);
-        blockchain.try_append(&b2);
-        blockchain.try_append(&b3);
-
-        let res = blockchain.get_path_2_block(b2_bis.block_id, b3.block_id);
-        let a = vec![b2_bis, b1.clone()];
-        let b = vec![b3, b2, b1];
-
-        let must = (a.iter().collect(), b.iter().collect());
-
-        assert_eq!(res, must);
-    } */
 
     #[test]
     /// check rewind
@@ -904,14 +889,4 @@ mod tests {
         block4.transactions = vec![transaction6];
         assert!(!balance.clone().add(&block4))
     }
-
-    // #[test]
-    // fn transaction_simple() {
-    //     // let mut blockchain = Blockchain::new();
-    //     // let block = Block::new();
-    //     // let transaction : Transaction::new
-
-    //     // block.find_next_block(621, transactions)
-    //     // blockchain.append(block)
-    // }
 }

@@ -44,6 +44,12 @@ struct Cli {
 
     #[arg( long,default_value_t =1 )] //a changer a terme
     number_miner: u16,
+
+    #[arg( long,default_value_t =String::new() )] //a changer a terme
+    save_json: String,
+
+    #[arg( long,default_value_t =String::new() )] //a changer a terme
+    save: String,
 }
 
 use clap::Parser;
@@ -102,7 +108,7 @@ fn parse_args(cli: Cli) -> NewNode {
         ))
     } else {
         //create server worker
-        NewNode::Srv(Server::new(networking,cli.number_miner))
+        NewNode::Srv(Server::new(networking,cli))
     }
 }
 
@@ -128,6 +134,8 @@ mod tests {
             verbose: String::new(),
             from: 0,
             number_miner : 1,
+            save_json : "".to_string(),
+            save : "".to_string(),
             
         };
         parse_args(cli);
@@ -144,6 +152,8 @@ mod tests {
             verbose: String::new(),
             from: 0,
             number_miner : 1,
+            save_json : "".to_string(),
+            save : "".to_string(),
         };
         parse_args(cli);
     }

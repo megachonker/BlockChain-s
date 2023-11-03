@@ -58,6 +58,7 @@ pub enum TypeTransa {
 pub enum ClientPackect {
     ReqUtxo(u64),        //Request for the UTXO of u64
     RespUtxo(Vec<Utxo>), //the response of RqUtxo
+    ReqSave,             //force save (debug)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -247,6 +248,9 @@ impl Network {
             }
             ClientPackect::RespUtxo(_) => {
                 info!("Receive a response client packet but it is a server")
+            }
+            ClientPackect::ReqSave => {
+                event_tx.send(Event::ClientEvent(ClientEvent::ReqSave, sender));
             }
         }
     }
