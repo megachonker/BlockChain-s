@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::info;
 
 use super::node::server::{Event, MinerStuff, NewBlock};
-use super::transaction::{Transaction, Utxo};
+use super::transaction::{come_from_hash, Transaction, Utxo};
 
 //variable d'envirnement
 
@@ -20,6 +20,7 @@ use super::transaction::{Transaction, Utxo};
 // const HASH_MAX: u64 = 1000000000;                //slow
 // const HASH_MAX: u64 = 1000000000000; //fast
 const CLOCK_DRIFT: u64 = 10; //second
+pub const MINER_REWARD: u64 = 1; //the coin create for the miner
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
@@ -28,8 +29,8 @@ pub struct Block {
     pub block_height: u64,              //the number of the current block
     pub parent_hash: u64,               //the id of last block (block are chain with that)
     pub transactions: Vec<Transaction>, //the vector of all transaction validated with this block
-    pub difficulty: u64,                //the current difficulty fot the block (hash_proof <difficulty).
-    pub finder: u64, //Who find the answer
+    pub difficulty: u64, //the current difficulty fot the block (hash_proof <difficulty).
+    pub finder: u64,     //Who find the answer
     pub quote: String,
     pub answer: u64, //the answer of the defi
     pub timestamp: Duration,
@@ -160,10 +161,30 @@ impl Block {
     pub fn check(&self) -> bool {
         let answer = self.get_block_hash_proof_work();
 
-        //check block_id
-        //check answer
+        let come_from_miner_transa = come_from_hash(&self.transactions);
+
+        let mut already_see = false;
+        let mut miner_reward: u64 = 0;
+        let mut transa_remain: u64 = 0;
+        for t in &self.transactions {
+            if t.rx.len() == 0 && t.tx.len() == 1 {
+                if already_see {
+                    return false; //double miner transa
+                }
+                already_see = true;
+
+                if t.tx[0].come_from != come_from_miner_transa {
+                    //not correct hash
+                    return false;
+                }
+                miner_reward = t.tx[0].ammount
+            } else {
+                transa_remain += t.remains();
+            }
+        }
 
         answer < self.difficulty
+            && transa_remain + MINER_REWARD >= miner_reward
             && get_id_block(self, answer) == self.block_id
             && self.quote.len() < 100
             && self.timestamp.as_secs()
@@ -184,7 +205,6 @@ impl Block {
         difficulty: u64,
     ) -> Option<Block> {
         // ad the self revenue explicite
-        transactions.push(Transaction::new(Default::default(), vec![100], finder));
 
         let mut new_block: Block = Block {
             block_height: self.block_height + 1,
@@ -234,10 +254,10 @@ impl Block {
 
     /// find unspend transaction
     /// need to convert u128 to utxo
-    pub fn find_new_utxo(&self) -> Vec<Utxo> {
+    pub fn find_created_utxo(&self) -> Vec<Utxo> {
         self.transactions
             .iter()
-            .flat_map(|t| t.find_new_utxo(self.block_id))
+            .flat_map(|t| t.find_created_utxo())
             .collect()
     }
 
@@ -249,15 +269,15 @@ impl Block {
             .collect()
     }
 
-    /// return a list of all utxo for a address
-    pub fn search_utxos(&self, addr: u64) -> Vec<Utxo> {
-        self.transactions
-            .iter()
-            .filter(|transa| transa.target_pubkey == addr)
-            .flat_map(|transa| transa.find_new_utxo(self.block_id))
-            .collect()
-    }
-
+    /*/// return a list of all utxo for a address
+        pub fn search_utxos(&self, addr: u64) -> Vec<Utxo> {
+           self.transactions
+               .iter()
+               .filter(|transa| transa.target_pubkey == addr)
+               .flat_map(|transa| transa.find_new_utxo(self.block_id))
+               .collect()
+       }
+    */
     // Bad name what it does ?? where need to be used ?
     // pub fn utxo_owned(&self, utxo: &Utxo) -> u64 {
     //     let transa = self
@@ -292,20 +312,21 @@ fn get_id_block(new_block: &Block, hash_proof_work: u64) -> u64 {
 
 //exelent!
 impl PartialEq for Block {
-    fn eq(&self, o: &Block) -> bool {
-        self.block_id == o.block_id
+    fn eq(&self, block: &Block) -> bool {
+        self.block_id == block.block_id
     }
 }
 
 /// # Mining Runner
 /// never ending function that feeded in transaction and block;
-pub fn mine(finder: u64, miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Event>) {
+pub fn mine(miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Event>) {
     info!("Begining mining operation");
     loop {
         let miner_stuff_lock = miner_stuff.lock().unwrap();
         let block = miner_stuff_lock.cur_block.clone(); //presque toujour blocker
         let transa = miner_stuff_lock.transa.clone();
         let difficulty = miner_stuff_lock.difficulty;
+        let miner_id = miner_stuff_lock.miner_id;
         drop(miner_stuff_lock);
 
         // do the same things
@@ -315,7 +336,7 @@ pub fn mine(finder: u64, miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Ev
         //     .unwrap();
 
         if let Some(mined_block) =
-            block.find_next_block(finder, transa, Profile::Normal, difficulty)
+            block.find_next_block(miner_id, transa, Profile::Normal, difficulty)
         {
             sender
                 .send(Event::NewBlock(NewBlock::Mined(mined_block)))
@@ -342,12 +363,13 @@ mod tests {
 
         let miner_stuff = Arc::new(Mutex::new(MinerStuff {
             cur_block: Block::default(),
-            transa: vec![],
+            transa: Transaction::transform_for_miner(vec![], 1),
             difficulty: crate::block_chain::blockchain::FIRST_DIFFICULTY,
+            miner_id: 1,
         }));
 
         thread::spawn(move || {
-            mine(1, &miner_stuff, tx);
+            mine(&miner_stuff, tx);
         });
 
         for _ in 0..2 {
@@ -388,7 +410,7 @@ mod tests {
         loop {
             if let Some(block_to_test) = block.find_next_block(
                 Default::default(),
-                Default::default(),
+                Transaction::transform_for_miner(vec![], Default::default()),
                 Profile::Normal,
                 FIRST_DIFFICULTY,
             ) {

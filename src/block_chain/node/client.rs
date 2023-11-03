@@ -74,7 +74,7 @@ impl Client {
             }
         }
 
-        let transactionb = Transaction::new_offline(&myutxo, 10, 555);
+        let transactionb = Transaction::create_transa_from(&myutxo, 10, 555,0.10);
 
         if transactionb.is_none() {
             println!("You not have enought money");
