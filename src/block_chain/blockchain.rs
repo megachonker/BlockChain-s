@@ -640,7 +640,6 @@ mod tests {
             block_height: 1,
             parent_hash: 7,
             transactions: vec![],
-            finder: 7,
             answer: 7,
             quote: String::from(""),
             difficulty: 10000000,
@@ -653,7 +652,7 @@ mod tests {
     fn append_blockchain_second_block() {
         let mut blockchain = Blockchain::new();
         let block = Block::default()
-            .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
         assert!(block.check());
         assert_eq!(block, blockchain.try_append(&block).0.unwrap());
@@ -663,10 +662,10 @@ mod tests {
     fn add_block_unchainned() {
         let mut blockchain = Blockchain::new();
         let b1 = Block::default()
-            .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
         let b2 = b1
-            .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
 
         let (new, need) = blockchain.try_append(&b2);
@@ -689,7 +688,7 @@ mod tests {
                 parrallele_best_branch
                     .last()
                     .unwrap()
-                    .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+                    .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
                     .unwrap(),
             );
         }
@@ -699,7 +698,7 @@ mod tests {
                 cur_branch
                     .last()
                     .unwrap()
-                    .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+                    .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
                     .unwrap(),
             );
         }
@@ -759,16 +758,16 @@ mod tests {
             let b0 = Block::default();
             let b1: Block = b0
                 .clone()
-                .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+                .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
                 .unwrap();
             let b1_bis: Block = b0
                 .clone()
-                .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+                .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
                 .unwrap();
             let b2 = b1
                 .clone()
                 .find_next_block(
-                    10,
+                    
                     vec![Default::default()],
                     Profile::INFINIT,
                     FIRST_DIFFICULTY,
@@ -777,7 +776,7 @@ mod tests {
             let b2_bis = b1_bis
                 .clone()
                 .find_next_block(
-                    10,
+                    
                     vec![Default::default()],
                     Profile::INFINIT,
                     FIRST_DIFFICULTY,
@@ -804,7 +803,7 @@ mod tests {
     fn get_chain() {
         let mut blockchain = Blockchain::new();
         let block = Block::default()
-            .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
         blockchain.try_append(&block);
         assert_eq!(blockchain.get_chain(), vec![&block, &Block::new()]);

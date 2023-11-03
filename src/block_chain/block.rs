@@ -30,7 +30,6 @@ pub struct Block {
     pub parent_hash: u64,               //the id of last block (block are chain with that)
     pub transactions: Vec<Transaction>, //the vector of all transaction validated with this block
     pub difficulty: u64, //the current difficulty fot the block (hash_proof <difficulty).
-    pub finder: u64,     //Who find the answer
     pub quote: String,
     pub answer: u64, //the answer of the defi
     pub timestamp: Duration,
@@ -44,7 +43,6 @@ impl Default for Block {
             parent_hash: 0,
             transactions: vec![],
             answer: 0,
-            finder: 0,
             quote: String::from(""),
             difficulty: 0,
             timestamp: Duration::from_secs(1683059400), //Begin of the project
@@ -85,7 +83,6 @@ impl fmt::Display for Block {
 ║parent_block : {}
 ║transactions {}:   
 ║difficulty : {}   
-║miner_id : {}                           
 ║nonce : {}
 ║quote : {}
 ║timestemp : {}
@@ -95,7 +92,6 @@ impl fmt::Display for Block {
             self.parent_hash,
             transa_str,
             u64::MAX - self.difficulty,
-            self.finder,
             self.answer,
             self.quote,
             Utc.timestamp_millis_opt(self.timestamp.as_millis() as i64)
@@ -143,7 +139,6 @@ impl Block {
         self.parent_hash.hash(&mut hasher);
         self.transactions.hash(&mut hasher);
         self.difficulty.hash(&mut hasher);
-        self.finder.hash(&mut hasher);
         self.quote.hash(&mut hasher);
         self.answer.hash(&mut hasher);
 
@@ -199,7 +194,6 @@ impl Block {
     /// using profile infinit can be use to not create a loop calling find next for test
     pub fn find_next_block(
         &self,
-        finder: u64,
         mut transactions: Vec<Transaction>,
         profile: Profile,
         difficulty: u64,
@@ -209,7 +203,6 @@ impl Block {
         let mut new_block: Block = Block {
             block_height: self.block_height + 1,
             parent_hash: self.block_id,
-            finder,
             transactions,
             difficulty,
             ..Default::default() //styler
@@ -224,7 +217,6 @@ impl Block {
         new_block.parent_hash.hash(&mut hasher);
         new_block.transactions.hash(&mut hasher); //on doit fixer la transaction a avoir
         new_block.difficulty.hash(&mut hasher);
-        new_block.finder.hash(&mut hasher);
         new_block.quote.hash(&mut hasher);
 
         let mut nonce_to_test = rng.gen::<u64>();
@@ -335,9 +327,7 @@ pub fn mine(miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Event>) {
         //     .map(|block| sender.send(block))
         //     .unwrap();
 
-        if let Some(mined_block) =
-            block.find_next_block(miner_id, transa, Profile::Normal, difficulty)
-        {
+        if let Some(mined_block) = block.find_next_block(transa, Profile::Normal, difficulty) {
             sender
                 .send(Event::NewBlock(NewBlock::Mined(mined_block)))
                 .unwrap();
@@ -392,10 +382,10 @@ mod tests {
         let b0 = Block::default();
 
         let b1 = b0
-            .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
         let b2 = b1
-            .find_next_block(0, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
 
         println!("{}\n{}", b1, b2);
@@ -409,7 +399,6 @@ mod tests {
         let block = Block::default();
         loop {
             if let Some(block_to_test) = block.find_next_block(
-                Default::default(),
                 Transaction::transform_for_miner(vec![], Default::default()),
                 Profile::Normal,
                 FIRST_DIFFICULTY,

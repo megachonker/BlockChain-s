@@ -266,6 +266,7 @@ impl Transaction {
     
 }
 
+///calulcate the hash of the come_from for the miner transa
 pub fn come_from_hash(transas :& Vec<Transaction>) -> u64{
     let mut transas_cpy = transas.clone();
     for t in transas{
@@ -337,7 +338,7 @@ mod tests {
 
         //+ 100 for 1
         let block_org = block_org
-            .find_next_block(1, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
         blockchain.try_append(&block_org); //we assume its ok
 
