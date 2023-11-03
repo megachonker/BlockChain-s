@@ -16,7 +16,7 @@ use std::{
 };
 
 #[derive(Parser)]
-struct Cli {
+pub struct Cli {
     /// Addresse ip: du serveur a utiliser pour boostrap
     bootstrap: Option<IpAddr>,
 
