@@ -53,7 +53,8 @@ impl Client {
         // let blockaine = Blockchain::default();
         // let transaction = Transaction::new_online(&blockaine, 10, 10, 10);
 
-        self.networking.send_packet(            //force to save (debug)
+        self.networking.send_packet(
+            //force to save (debug)
             &Packet::Client(ClientPackect::ReqSave),
             &self.networking.bootstrap,
         );
@@ -63,18 +64,25 @@ impl Client {
             &self.networking.bootstrap,
         );
 
-        let myutxo;
+        let mut myutxo = vec![];
         loop {
-            match self.networking.recv_packet_true_function().0 {
-                Packet::Client(ClientPackect::RespUtxo(utxo)) => {
-                    myutxo = utxo;
-                    break;
+            match self.networking.recv_packet2().0 {
+                Packet::Client(ClientPackect::RespUtxo((i, utxo))) => {
+                    myutxo.push(utxo);
+                    if i == 0 {
+                        break;
+                    }
                 }
                 _ => continue,
             }
         }
 
-        let transactionb = Transaction::create_transa_from(&myutxo, 10, 555,0.10);
+        let transactionb = Transaction::create_transa_from(
+            &myutxo,
+            self.transa_info.ammount,
+            self.transa_info.destination,
+            0.10,
+        );
 
         if transactionb.is_none() {
             println!("You not have enought money");

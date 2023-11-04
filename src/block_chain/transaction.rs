@@ -4,9 +4,10 @@ use std::{
     fmt::{self, write},
     hash::{BuildHasherDefault, Hash, Hasher},
 };
+use tracing::Subscriber;
 
-use super::blockchain::{Balance, Blockchain};
 use super::block::MINER_REWARD;
+use super::blockchain::{Balance, Blockchain};
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Utxo {
@@ -25,7 +26,7 @@ impl Hash for Utxo {
 }
 impl Utxo {
     fn check(&self) -> bool {
-        self.hash == self.hash()
+        self.hash == self.hash() && self.ammount > 0
     }
 
     fn hash(&self) -> u64 {
@@ -60,14 +61,14 @@ impl fmt::Display for Utxo {
 pub struct Transaction {
     pub rx: Vec<Utxo>, //the utxo to be used
     pub tx: Vec<Utxo>, //the utxo created
-                   //add signature of the sender
+                       //add signature of the sender
 }
 
 impl fmt::Display for Transaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[")?;
         for transrx in &self.rx {
-            writeln!(f, "{} ", transrx)?;
+            write!(f, "{} ", transrx)?;
         }
         write!(f, "==> ").unwrap();
         for transtx in &self.tx {
@@ -87,14 +88,22 @@ impl Transaction {
 
     ///Check if the transaction is valid :    
     /// all utxo is valid, the rx is present in the balence (can be use) and the ammont is positive
-    pub fn check(&self, balence: &Balance) -> bool {
+    pub fn check_utxo_valid(&self, balence: &Balance) -> bool {
+        for utxo in self.rx.iter() {
+            if !balence.valid(&utxo) {
+                return false;
+            }
+        }
+        true
+    }
+    pub fn check(&self) -> bool {
         let mut ammount: i128 = 0;
         if self.rx.len() == 0 && self.tx.len() == 1 {
-            return self.tx[0].check() ;
+            return self.tx[0].check();
         }
 
         for utxo in self.rx.iter() {
-            if !balence.valid(&utxo) || !utxo.check() {
+            if !utxo.check() {
                 return false;
             }
             ammount += utxo.ammount as i128;
@@ -106,6 +115,7 @@ impl Transaction {
 
         for utxo in self.tx.iter() {
             if !utxo.check() || hash_come_from != utxo.come_from {
+                print!("Ici");
                 return false;
             }
             ammount -= utxo.ammount as i128;
@@ -185,7 +195,7 @@ impl Transaction {
         rx.hash(&mut hasher);
         let hash_come_from = hasher.finish();
 
-        if input.len() == 0 {
+        if input.len() == 0 || resend == 0{
             Some(Self {
                 rx,
                 tx: vec![Utxo::new(amount, destination, hash_come_from)],
@@ -229,7 +239,11 @@ impl Transaction {
         None
     }
 
-    pub fn transform_for_miner(mut transas: Vec<Transaction>, miner_id: u64,block_heigt : u64) -> Vec<Transaction> {
+    pub fn transform_for_miner(
+        mut transas: Vec<Transaction>,
+        miner_id: u64,
+        block_heigt: u64,
+    ) -> Vec<Transaction> {
         let mut miner_reward = MINER_REWARD;
 
         let mut place_remove = None;
@@ -245,7 +259,6 @@ impl Transaction {
             transas.remove(place_remove.unwrap()); //reward transa already present remove it
         }
 
-
         transas.push(Transaction {
             rx: vec![],
             tx: vec![Utxo::new(miner_reward, miner_id, block_heigt)],
@@ -258,8 +271,6 @@ impl Transaction {
         let output: u64 = self.tx.iter().map(|u| u.ammount).sum();
         input - output
     }
-
-    
 }
 
 ///calulcate the hash of the come_from for the miner transa
@@ -334,7 +345,7 @@ mod tests {
 
         //+ 100 for 1
         let block_org = block_org
-            .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
         blockchain.try_append(&block_org); //we assume its ok
 

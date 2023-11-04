@@ -187,6 +187,7 @@ impl Block {
                     .unwrap()
                     .as_secs()
                     + CLOCK_DRIFT
+            && self.transactions.iter().all(|t| t.check())
     }
 
     /// Lunch every time need to change transaction content or block

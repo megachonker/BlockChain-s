@@ -5,9 +5,10 @@ use std::{
     thread,
 };
 
+
 use bincode::{deserialize, serialize};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn};
+use tracing::{debug, info, warn, error};
 
 use crate::block_chain::{
     block::Block,
@@ -57,7 +58,7 @@ pub enum TypeTransa {
 #[derive(Deserialize, Serialize, Debug)]
 pub enum ClientPackect {
     ReqUtxo(u64),        //Request for the UTXO of u64
-    RespUtxo(Vec<Utxo>), //the response of RqUtxo
+    RespUtxo((usize,Utxo)), //the response of RqUtxo : (number of utxo remains, the utxo -> (0,utxo..) is the last)
     ReqSave,             //force save (debug)
 }
 
@@ -68,7 +69,10 @@ pub enum Packet {
     Block(TypeBlock),
     Peer(TypePeer),
     Client(ClientPackect),
+    None,
 }
+
+
 
 // whole network function inside it
 // send packet with action do scan block ect get peers
@@ -171,6 +175,7 @@ impl Network {
                         Packet::Client(client_packet) => {
                             self_cpy.client(client_packet, sender, &event_tx)
                         }
+                        Packet::None => {}
                     }
                 }
             })
@@ -204,7 +209,9 @@ impl Network {
 
     /// verry cool send a packet
     pub fn send_packet(&self, packet: &Packet, dest: &SocketAddr) {
+
         let packet_serialized = serialize(&packet).expect("Can not serialize AswerKA");
+        debug!("packet size = {}", packet_serialized.len());
         self.binding
             .send_to(&packet_serialized, dest)
             .unwrap_or_else(|_| panic!("Can not send packet {:?}", packet));
@@ -223,19 +230,30 @@ impl Network {
     /// awsome
     pub fn recv_packet(selff: &UdpSocket) -> (Packet, SocketAddr) {
         //faudrait éliminer les vecteur dans les structure pour avoir une taille prédictible
-        let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
+
+        const MAX_PACKET_SIZE : usize = 256;
+        let mut buf = [0u8; MAX_PACKET_SIZE]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
+        
         let (_, sender) = selff.recv_from(&mut buf).expect("Error recv block");
-        let des = deserialize(&mut buf).expect("Can not deserilize block");
-        (des, sender)
+        let des = deserialize(&mut buf);
+        if des.is_err(){
+            error!("Can to deserialize packet");
+            return (Packet::None,sender);
+        }
+        (des.unwrap(), sender)
     }
 
-    //ces quoi ça sert a quoi ?
-    pub fn recv_packet_true_function(&self) -> (Packet, SocketAddr) {
+    pub fn recv_packet2(&self) -> (Packet, SocketAddr) {
         //faudrait éliminer les vecteur dans les structure pour avoir une taille prédictible
         let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
         let (_, sender) = self.binding.recv_from(&mut buf).expect("Error recv block");
-        let des = deserialize(&mut buf).expect("Can not deserilize block");
-        (des, sender)
+        let des = deserialize(&mut buf);
+        if des.is_err(){
+            error!("Can to deserialize packet");
+            return (Packet::None,sender);
+
+        }
+        (des.unwrap(), sender)
     }
 
     fn client(&self, client_packet: ClientPackect, sender: SocketAddr, event_tx: &Sender<Event>) {

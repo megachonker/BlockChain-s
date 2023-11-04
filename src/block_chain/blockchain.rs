@@ -1,19 +1,20 @@
 use core::fmt;
 use std::{
-    collections::{HashMap, hash_map::DefaultHasher},
+    collections::{hash_map::DefaultHasher, HashMap},
     f32::consts::E,
     fs::File,
-    io::{Chain, Read, Write}, hash::{Hash, Hasher},
+    hash::{Hash, Hasher},
+    io::{Chain, Read, Write},
 };
 
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 use crate::block_chain::block;
 
 use super::{block::Block, node::server::MinerStuff, transaction::Utxo};
 const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
 const TIME_N_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
-pub const FIRST_DIFFICULTY: u64 = 10000000000000;
+pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
 // pub const FIRST_DIFFICULTY: u64 = 100000000;
 
 /// Key of hashmap is the top block of the branch that need to be explorer
@@ -83,14 +84,15 @@ impl Balance {
     /// Replay change until dst with add
     pub fn calculation<'b>(&mut self, src: &Vec<&Block>, dst: &Vec<&'b Block>) -> &'b Block {
         src.iter().all(|p| self.sub(p));
-        for (index,b) in dst.iter().enumerate(){
-            if !self.add(b){
-                debug!("{} as incorrect rx utxo",b);
-                return dst.get(index-1).expect("first block has no valid transactions in dst ????");
+        for (index, b) in dst.iter().enumerate() {
+            if !self.add(b) {
+                debug!("{} as incorrect rx utxo", b);
+                return dst
+                    .get(index - 1)
+                    .expect("first block has no valid transactions in dst ????");
             }
         }
         dst.last().expect("dst empty")
-        
     }
 
     pub fn valid(&self, utxo: &Utxo) -> bool {
@@ -146,7 +148,7 @@ impl Balance {
         }
 
         // Consume transaction
-         for utxo in to_remove {
+        for utxo in to_remove {
             if let Some(utxo) = self.utxo_hmap.get_mut(&utxo) {
                 *utxo = match utxo {
                     Status::Avaible => Status::Consumed,
@@ -156,7 +158,7 @@ impl Balance {
                     }
                 }
             } else {
-                error!("add: consume using unknow utxo : {}",utxo);
+                error!("add: consume using unknow utxo : {}", utxo);
                 return false;
             }
         }
@@ -199,7 +201,6 @@ impl Blockchain {
             .cloned()
             .collect()
     }
-
 
     pub fn new() -> Blockchain {
         let mut hash_map = HashMap::new();
@@ -256,6 +257,9 @@ impl Blockchain {
 
         //does have same direct ancestor
         if self.check_block_linked(block_to_append, &cur_block)
+            && !self
+                .potentials_top_block
+                .is_block_needed(block_to_append.block_id)
         //check if block can be linked to the previous one and to the blockchain
         {
             //basic case
@@ -321,7 +325,6 @@ impl Blockchain {
                     let last_top_transa_ok =
                         new_balence.calculation(&cur_chain, &new_chain).block_id;
                     //last_top_transa_ok : bloc where is transa is valid to the chain
-                    dbg!(last_top_transa_ok!=potential_top);
                     if last_top_transa_ok != potential_top {
                         //update the chain if there is the end of the new_chain is not valid
                         info!(
@@ -377,15 +380,8 @@ impl Blockchain {
     }
 
     fn check_block_linked(&self, block_to_append: &Block, parent: &Block) -> bool {
-
-        
-
-        
-        
-
-        self.check_parent(block_to_append, parent)
-            && !self.potentials_top_block.is_block_needed(block_to_append.block_id)     //not needed by a higher block in a queue 
-            && block_to_append.transactions.iter().all(|t| t.check(&self.balance))
+        self.check_parent(block_to_append, parent)     //not needed by a higher block in a queue 
+            && block_to_append.transactions.iter().all(|t| t.check_utxo_valid(&self.balance))
             && block_to_append.difficulty == self.difficulty
     }
 
@@ -659,7 +655,7 @@ mod tests {
     fn append_blockchain_second_block() {
         let mut blockchain = Blockchain::new();
         let block = Block::default()
-            .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
         assert!(block.check());
         assert_eq!(block, blockchain.try_append(&block).0.unwrap());
@@ -669,10 +665,10 @@ mod tests {
     fn add_block_unchainned() {
         let mut blockchain = Blockchain::new();
         let b1 = Block::default()
-            .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
         let b2 = b1
-            .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
 
         let (new, need) = blockchain.try_append(&b2);
@@ -695,7 +691,7 @@ mod tests {
                 parrallele_best_branch
                     .last()
                     .unwrap()
-                    .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+                    .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
                     .unwrap(),
             );
         }
@@ -705,7 +701,7 @@ mod tests {
                 cur_branch
                     .last()
                     .unwrap()
-                    .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+                    .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
                     .unwrap(),
             );
         }
@@ -765,29 +761,19 @@ mod tests {
             let b0 = Block::default();
             let b1: Block = b0
                 .clone()
-                .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+                .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
                 .unwrap();
             let b1_bis: Block = b0
                 .clone()
-                .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+                .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
                 .unwrap();
             let b2 = b1
                 .clone()
-                .find_next_block(
-                    
-                    vec![Default::default()],
-                    Profile::INFINIT,
-                    FIRST_DIFFICULTY,
-                )
+                .find_next_block(vec![Default::default()], Profile::INFINIT, FIRST_DIFFICULTY)
                 .unwrap();
             let b2_bis = b1_bis
                 .clone()
-                .find_next_block(
-                    
-                    vec![Default::default()],
-                    Profile::INFINIT,
-                    FIRST_DIFFICULTY,
-                )
+                .find_next_block(vec![Default::default()], Profile::INFINIT, FIRST_DIFFICULTY)
                 .unwrap();
 
             blockchain.try_append(&b2_bis);
@@ -810,7 +796,7 @@ mod tests {
     fn get_chain() {
         let mut blockchain = Blockchain::new();
         let block = Block::default()
-            .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
         blockchain.try_append(&block);
         assert_eq!(blockchain.get_chain(), vec![&block, &Block::new()]);
