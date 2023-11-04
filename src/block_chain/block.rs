@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::info;
 
 use super::node::server::{Event, MinerStuff, NewBlock};
-use super::transaction::{come_from_hash, Transaction, Utxo};
+use super::transaction::{ Transaction, Utxo};
 
 //variable d'envirnement
 
@@ -156,7 +156,6 @@ impl Block {
     pub fn check(&self) -> bool {
         let answer = self.get_block_hash_proof_work();
 
-        let come_from_miner_transa = come_from_hash(&self.transactions);
 
         let mut already_see = false;
         let mut miner_reward: u64 = 0;
@@ -168,7 +167,7 @@ impl Block {
                 }
                 already_see = true;
 
-                if t.tx[0].come_from != come_from_miner_transa {
+                if t.tx[0].come_from != self.block_height {
                     //not correct hash
                     return false;
                 }
@@ -353,7 +352,7 @@ mod tests {
 
         let miner_stuff = Arc::new(Mutex::new(MinerStuff {
             cur_block: Block::default(),
-            transa: Transaction::transform_for_miner(vec![], 1),
+            transa: Transaction::transform_for_miner(vec![], 1,1),
             difficulty: crate::block_chain::blockchain::FIRST_DIFFICULTY,
             miner_id: 1,
         }));
@@ -399,7 +398,7 @@ mod tests {
         let block = Block::default();
         loop {
             if let Some(block_to_test) = block.find_next_block(
-                Transaction::transform_for_miner(vec![], Default::default()),
+                Transaction::transform_for_miner(vec![], Default::default(),1),
                 Profile::Normal,
                 FIRST_DIFFICULTY,
             ) {

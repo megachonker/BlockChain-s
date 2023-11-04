@@ -8,6 +8,8 @@ use std::{
 
 use tracing::{debug, info, warn, error};
 
+use crate::block_chain::block;
+
 use super::{block::Block, node::server::MinerStuff, transaction::Utxo};
 const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
 const TIME_N_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
@@ -81,9 +83,14 @@ impl Balance {
     /// Replay change until dst with add
     pub fn calculation<'b>(&mut self, src: &Vec<&Block>, dst: &Vec<&'b Block>) -> &'b Block {
         src.iter().all(|p| self.sub(p));
-        dst.iter()
-            .find(|p| !self.add(p))
-            .unwrap_or(dst.last().unwrap())
+        for (index,b) in dst.iter().enumerate(){
+            if !self.add(b){
+                debug!("{} as incorrect rx utxo",b);
+                return dst.get(index-1).expect("first block has no valid transactions in dst ????");
+            }
+        }
+        dst.last().expect("dst empty")
+        
     }
 
     pub fn valid(&self, utxo: &Utxo) -> bool {
@@ -314,7 +321,7 @@ impl Blockchain {
                     let last_top_transa_ok =
                         new_balence.calculation(&cur_chain, &new_chain).block_id;
                     //last_top_transa_ok : bloc where is transa is valid to the chain
-
+                    dbg!(last_top_transa_ok!=potential_top);
                     if last_top_transa_ok != potential_top {
                         //update the chain if there is the end of the new_chain is not valid
                         info!(
@@ -373,12 +380,12 @@ impl Blockchain {
 
         
 
-
+        
         
 
         self.check_parent(block_to_append, parent)
             && !self.potentials_top_block.is_block_needed(block_to_append.block_id)     //not needed by a higher block in a queue 
-            && !block_to_append.transactions.iter().all(|t| t.check(&self.balance))
+            && block_to_append.transactions.iter().all(|t| t.check(&self.balance))
             && block_to_append.difficulty == self.difficulty
     }
 

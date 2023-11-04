@@ -103,7 +103,7 @@ impl Server {
 
         let miner_stuff = Arc::new(Mutex::new(MinerStuff {
             cur_block: self.blockchain.last_block(),
-            transa: Transaction::transform_for_miner(vec![],finder),
+            transa: Transaction::transform_for_miner(vec![],finder,1),
             difficulty: self.blockchain.difficulty,
             miner_id : finder,
         }));
@@ -166,7 +166,7 @@ impl Server {
 
                         let mut lock_miner_stuff = miner_stuff.lock().unwrap();
                         lock_miner_stuff.cur_block = top_block.clone();
-                        lock_miner_stuff.transa = Transaction::transform_for_miner(vec![], lock_miner_stuff.miner_id); //for the moment reset transa not taken     //maybe check transa not accpted and already available
+                        lock_miner_stuff.transa = Transaction::transform_for_miner(vec![], lock_miner_stuff.miner_id,top_block.block_height+1); //for the moment reset transa not taken     //maybe check transa not accpted and already available
                         lock_miner_stuff.difficulty = new_difficulty; //for the moment reset transa not taken     //maybe check transa not accpted and already available
 
                         drop(lock_miner_stuff);

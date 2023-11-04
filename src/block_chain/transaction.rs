@@ -89,9 +89,8 @@ impl Transaction {
     /// all utxo is valid, the rx is present in the balence (can be use) and the ammont is positive
     pub fn check(&self, balence: &Balance) -> bool {
         let mut ammount: i128 = 0;
-
         if self.rx.len() == 0 && self.tx.len() == 1 {
-            return self.tx[0].check();
+            return self.tx[0].check() ;
         }
 
         for utxo in self.rx.iter() {
@@ -230,7 +229,7 @@ impl Transaction {
         None
     }
 
-    pub fn transform_for_miner(mut transas: Vec<Transaction>, miner_id: u64) -> Vec<Transaction> {
+    pub fn transform_for_miner(mut transas: Vec<Transaction>, miner_id: u64,block_heigt : u64) -> Vec<Transaction> {
         let mut miner_reward = MINER_REWARD;
 
         let mut place_remove = None;
@@ -246,13 +245,10 @@ impl Transaction {
             transas.remove(place_remove.unwrap()); //reward transa already present remove it
         }
 
-        let mut hasher = DefaultHasher::new();
-        transas.hash(&mut hasher);
-        let hash_come_from = hasher.finish();
 
         transas.push(Transaction {
             rx: vec![],
-            tx: vec![Utxo::new(miner_reward, miner_id, hash_come_from)],
+            tx: vec![Utxo::new(miner_reward, miner_id, block_heigt)],
         });
         transas
     }
@@ -267,7 +263,7 @@ impl Transaction {
 }
 
 ///calulcate the hash of the come_from for the miner transa
-pub fn come_from_hash(transas :& Vec<Transaction>) -> u64{
+/* pub fn come_from_hash(transas :& Vec<Transaction>) -> u64{
     let mut transas_cpy = transas.clone();
     for t in transas{
         if t.rx.len() ==0 && t.tx.len()==1{
@@ -282,7 +278,7 @@ pub fn come_from_hash(transas :& Vec<Transaction>) -> u64{
 
 
 }
-
+ */
 #[cfg(test)]
 mod tests {
 
