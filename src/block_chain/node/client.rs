@@ -49,7 +49,8 @@ impl Client {
         }
     }
     pub fn start(self) {
-        user::User::create();
+        let user = user::User::new_user("cli.usr");
+        user.save();
         // let blockaine = Blockchain::default();
         // let transaction = Transaction::new_online(&blockaine, 10, 10, 10);
 
