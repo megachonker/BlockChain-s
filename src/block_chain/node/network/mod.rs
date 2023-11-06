@@ -229,13 +229,16 @@ impl Network {
         (des, sender)
     }
 
-    //ces quoi ça sert a quoi ?
-    pub fn recv_packet_true_function(&self) -> (Packet, SocketAddr) {
-        //faudrait éliminer les vecteur dans les structure pour avoir une taille prédictible
+    /// wait for a wallet
+    pub fn recv_packet_utxo_wallet(&self) -> Vec<Utxo> {
         let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
-        let (_, sender) = self.binding.recv_from(&mut buf).expect("Error recv block");
-        let des = deserialize(&mut buf).expect("Can not deserilize block");
-        (des, sender)
+        loop {
+            self.binding.recv_from(&mut buf).expect("Error recv block");
+            let answer:Packet = deserialize(&mut buf).expect("Can not deserilize block");
+            if let  Packet::Client(ClientPackect::RespUtxo(utxo)) = answer  {
+                return utxo;
+            }
+        }
     }
 
     fn client(&self, client_packet: ClientPackect, sender: SocketAddr, event_tx: &Sender<Event>) {
@@ -250,7 +253,7 @@ impl Network {
                 info!("Receive a response client packet but it is a server")
             }
             ClientPackect::ReqSave => {
-                event_tx.send(Event::ClientEvent(ClientEvent::ReqSave, sender));
+                event_tx.send(Event::ClientEvent(ClientEvent::ReqSave, sender)).unwrap();
             }
         }
     }
