@@ -1,18 +1,21 @@
 use std::{
     collections::HashSet,
+    io::Read,
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
     sync::{mpsc::Sender, Arc, Mutex},
     thread,
 };
 
+use anyhow::Result;
 use bincode::{deserialize, serialize};
+use dryoc::{sign::SignedMessage, types::StackByteArray};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
 use crate::block_chain::{
     block::Block,
     node::server::ClientEvent,
-    transaction::{Transaction, Utxo},
+    transaction::{self, Transaction, Utxo},
 };
 
 use super::server::{Event, NewBlock};
@@ -49,7 +52,7 @@ pub enum TypeBlock {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TypeTransa {
-    Push(Transaction),
+    Push(SignedMessage<StackByteArray<64>, Vec<u8>>),
     Req(u64),
     Ans(Vec<Utxo>),
 }
@@ -81,11 +84,22 @@ impl Network {
         match transa {
             TypeTransa::Ans(_utxos) => { /* array of all utxo append */ }
             TypeTransa::Push(transaction) => {
-                // if !transaction.check() {
-                //     return;
-                // } else {
-                net_transa_tx.send(Event::Transaction(transaction)).unwrap();
-                // }
+                let (key, msg) = transaction.clone().into_parts();
+
+                let transa: Transaction = bincode::deserialize(&msg).unwrap();
+                warn!("error  on deserialize rtransaction");
+
+                // information en double
+                // on peut choper la clef and la signature ET dans la structure.
+                if key.to_vec() != transa.sender_pubkey{
+                    panic!("NIQUE")
+                }
+
+                if let Err(e) = transaction.verify(&transa.sender_pubkey) {
+                    warn!("signature false! {:?}", e);
+                } else {
+                    net_transa_tx.send(Event::Transaction(transa)).unwrap()
+                }
             }
             TypeTransa::Req(_userid) => { /* get all transa and filter by user id*/ }
         }
@@ -234,8 +248,8 @@ impl Network {
         let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
         loop {
             self.binding.recv_from(&mut buf).expect("Error recv block");
-            let answer:Packet = deserialize(&mut buf).expect("Can not deserilize block");
-            if let  Packet::Client(ClientPackect::RespUtxo(utxo)) = answer  {
+            let answer: Packet = deserialize(&mut buf).expect("Can not deserilize block");
+            if let Packet::Client(ClientPackect::RespUtxo(utxo)) = answer {
                 return utxo;
             }
         }
@@ -253,7 +267,9 @@ impl Network {
                 info!("Receive a response client packet but it is a server")
             }
             ClientPackect::ReqSave => {
-                event_tx.send(Event::ClientEvent(ClientEvent::ReqSave, sender)).unwrap();
+                event_tx
+                    .send(Event::ClientEvent(ClientEvent::ReqSave, sender))
+                    .unwrap();
             }
         }
     }

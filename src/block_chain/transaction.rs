@@ -1,9 +1,11 @@
+use dryoc::{sign::{SigningKeyPair, PublicKey, SecretKey, SignedMessage}, constants::CRYPTO_KX_SECRETKEYBYTES, types::{StackByteArray, Bytes, ByteArray}};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_map::DefaultHasher,
     fmt,
     hash::{Hash, Hasher},
 };
+use anyhow::{Context, Result, Error};
 
 use super::blockchain::Blockchain;
 
@@ -27,11 +29,18 @@ impl fmt::Display for Utxo {
     }
 }
 
+// pub struct signed_transaction{
+//     transaction:Transaction,
+//     pubkey:Vec<u8>
+// }
+
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+/// Structure That Be Signed 
 pub struct Transaction {
     rx: Vec<Utxo>,
     tx: Vec<u128>, //fist is what is send back <= changed so it now last but need impleented
     pub target_pubkey: u64,
+    pub sender_pubkey:Vec<u8>//not optimal
     //add signature of the sender
 }
 
@@ -100,11 +109,12 @@ impl Transaction {
         sum_in > sum_out
     }
 
-    pub fn new(rx: Vec<Utxo>, tx: Vec<u128>, target_pubkey: u64) -> Transaction {
+    pub fn new(rx: Vec<Utxo>, tx: Vec<u128>, target_pubkey: u64, sender_pubkey:Vec<u8>) -> Transaction {
         Transaction {
             rx,
             tx,
             target_pubkey,
+            sender_pubkey
         }
     }
 
@@ -166,18 +176,24 @@ impl Transaction {
             rx,
             tx: vec![resend, amount],
             target_pubkey: destination,
+            ..Default::default()
         })
     }
 
     /// ofline use actual wallet and create transa
-    pub fn new_offline(input: &Vec<Utxo>, amount: u128, destination: u64) -> Option<Self> {
+    pub fn new_offline(key:&SigningKeyPair<PublicKey, SecretKey>,input: &Vec<Utxo>, amount: u128, destination: u64) ->  Option<SignedMessage<StackByteArray<64>, Vec<u8>>> {
         let (rx, resend) = Self::select_utxo_from_vec(input, amount)?;
 
-        Some(Self {
+        let transa = Self {
             rx,
             tx: vec![resend, amount],
             target_pubkey: destination,
-        })
+            sender_pubkey:key.public_key.to_vec()
+        };
+
+        let unsigned_transa = bincode::serialize(&transa).expect("new_offline: serd imposible de seriailiser la tranction");
+        let signed_transa = key.sign_with_defaults(unsigned_transa).expect("new offline imposible de signer la transaction");
+        Some(signed_transa)
     }
 
     /// ## find a combinaison
@@ -273,20 +289,20 @@ mod tests {
         //59 for 10
 
         //should work
-        let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8], 10);
+        let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8], 10,Default::default());
         assert!(new_transa.check(&blockchain));
 
         //bad source
         let utxo_s = blockchain.filter_utxo(5);
-        let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8], 10);
+        let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8], 10,Default::default());
         assert!(!new_transa.check(&blockchain));
 
         // not enought  money in utxo
-        let new_transa = Transaction::new(utxo_s, vec![80, 70, 8], 10);
+        let new_transa = Transaction::new(utxo_s, vec![80, 70, 8], 10,Default::default());
         assert!(!new_transa.check(&blockchain));
 
         // utxo do not exist
-        let new_transa = Transaction::new(Default::default(), vec![70, 8], 10);
+        let new_transa = Transaction::new(Default::default(), vec![70, 8], 10,Default::default());
         assert!(!new_transa.check(&blockchain))
 
         // println!("NEW TRANSA {}", new_transa);

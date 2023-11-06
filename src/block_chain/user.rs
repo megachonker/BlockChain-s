@@ -1,6 +1,6 @@
 use dryoc::{keypair, sign::*, types::StackByteArray};
 use serde::{Deserialize, Serialize};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, Error};
 use super::{
     node::network::Packet,
     transaction::{Transaction, Utxo},
@@ -19,13 +19,18 @@ pub struct User {
     keypair: SigningKeyPair<PublicKey, SecretKey>,
 }
 
-impl From<&str> for User {
-    fn from(path: &str) -> Self {
-        User::load(path).unwrap()
+impl TryFrom<&str> for User {
+    type Error = Error;
+    fn try_from(path: &str) -> std::result::Result<Self, Self::Error> {
+        User::load(path)
     }
 }
 
 impl User {
+    pub fn get_key(&self)-> &SigningKeyPair<PublicKey, SecretKey> {
+        &self.keypair
+    }
+
     pub fn new_user(path:&str) -> Self {
         Self {
             path: path.to_string(),

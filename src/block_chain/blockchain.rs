@@ -834,25 +834,25 @@ mod tests {
         let mut block4 = Block::default();
 
         // Create Transactions
-        let transaction1 = Transaction::new(Default::default(), vec![10], 0);
-        let transaction2 = Transaction::new(Default::default(), vec![20], 0);
+        let transaction1 = Transaction::new(Default::default(), vec![10], 0,Default::default());
+        let transaction2 = Transaction::new(Default::default(), vec![20], 0,Default::default());
 
         block1.transactions = vec![transaction1, transaction2];
 
         let transaction3 = Transaction::new(
             block1.transactions[0].find_new_utxo(block1.block_id),
             vec![5],
-            0,
+            0,Default::default()
         );
         let transaction4 = Transaction::new(
             block1.transactions[1].find_new_utxo(block1.block_id),
             vec![15],
-            0,
+            0,Default::default()
         );
 
         block2.transactions = vec![transaction3, transaction4];
 
-        let transaction5 = Transaction::new(block2.find_new_utxo(), vec![25], 0);
+        let transaction5 = Transaction::new(block2.find_new_utxo(), vec![25], 0,Default::default());
 
         // Create Blocks
         block3.transactions = vec![transaction5];
@@ -880,12 +880,12 @@ mod tests {
         assert_eq!(*ret, block1);
 
         //try replay transaction
-        let transaction6 = Transaction::new(block2.find_new_utxo(), vec![25], 0);
+        let transaction6 = Transaction::new(block2.find_new_utxo(), vec![25], 0,Default::default());
         block4.transactions = vec![transaction6];
         assert!(!balance.clone().add(&block4));
 
         //try reusing already spend utxo
-        let transaction6 = Transaction::new(block2.find_new_utxo(), vec![5], 0);
+        let transaction6 = Transaction::new(block2.find_new_utxo(), vec![5], 0,Default::default());
         block4.transactions = vec![transaction6];
         assert!(!balance.clone().add(&block4))
     }

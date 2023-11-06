@@ -35,7 +35,6 @@ impl Client {
     pub fn new(
         networking: Network,
         destination: u64,
-        _secret: String,
         ammount: u64,
         from: u64,
     ) -> Result<Self> {
@@ -65,7 +64,7 @@ impl Client {
         let myutxo = self.networking.recv_packet_utxo_wallet();
         user.refresh_wallet(myutxo.clone());
 
-        let transactionb = Transaction::new_offline(&myutxo, 10, 555).context("You not have enought money")?;
+        let transactionb = Transaction::new_offline(user.get_key() , &myutxo, 10, 555).context("You not have enought money")?;
         println!("Transaction created : {:?}", transactionb);
 
         self.networking.send_packet(

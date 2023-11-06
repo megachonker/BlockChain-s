@@ -184,7 +184,7 @@ impl Block {
         difficulty: u64,
     ) -> Option<Block> {
         // ad the self revenue explicite
-        transactions.push(Transaction::new(Default::default(), vec![100], finder));
+        transactions.push(Transaction::new(Default::default(), vec![100], finder,Default::default()));
 
         let mut new_block: Block = Block {
             block_height: self.block_height + 1,
