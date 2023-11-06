@@ -102,7 +102,6 @@ fn parse_args(cli: Cli) -> NewNode {
         NewNode::Cli(Client::new(
             networking,
             cli.destination,
-            cli.secret,
             cli.ammount,
             cli.from,
         ).expect("global error"))
