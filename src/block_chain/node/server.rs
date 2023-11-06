@@ -8,6 +8,7 @@ use std::{
     sync::{Arc, Mutex},
     thread,
 };
+use anyhow::{Context, Result};
 
 use tracing::{debug, info, warn};
 
@@ -80,7 +81,7 @@ impl Server {
             path_save: cli.save,
         }
     }
-    pub fn start(mut self) {
+    pub fn start(mut self) -> Result<()>{
         info!(
             "Server started {} facke id {} -> {:?}",
             &self.name,
@@ -94,6 +95,7 @@ impl Server {
         self.network.clone().start(event_channel.0.clone());
 
         self.server_runtime(self.id, event_channel);
+        Ok(())
     }
 
     /// Routing event and adding block and transaction

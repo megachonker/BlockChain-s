@@ -105,7 +105,7 @@ fn parse_args(cli: Cli) -> NewNode {
             cli.secret,
             cli.ammount,
             cli.from,
-        ))
+        ).expect("global error"))
     } else {
         //create server worker
         NewNode::Srv(Server::new(networking,cli))

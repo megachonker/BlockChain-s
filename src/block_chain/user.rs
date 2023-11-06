@@ -34,9 +34,13 @@ impl User {
         }
     }
 
+    pub fn  refresh_wallet(&mut self,wallet:Vec<Utxo>){
+        self.wallet = wallet
+    }
+
     pub fn load(path: &str) -> Result<Self> { //need  err handling
-        let conf = std::fs::read(path).with_context(|| "impossible de lire la conf")?;
-        let user: ToSave = serde_json::from_slice(&conf).with_context(||"la conf lut est broken")?;
+        let conf = std::fs::read(path).context( "impossible de lire la conf")?;
+        let user: ToSave = serde_json::from_slice(&conf).context("la conf lut est broken")?;
         let keypair: SigningKeyPair<PublicKey, SecretKey> =
             SigningKeyPair::from_secret_key(user.privkey);
         Ok(Self {
@@ -51,8 +55,8 @@ impl User {
             wallet: self.wallet,
             privkey: self.keypair.secret_key.to_owned(),
         };
-        let contents = serde_json::to_string(&tosave).with_context(||"serialisation de la conf user imposible")?;
-        std::fs::write(self.path, contents).with_context(||"imposible d'écrire la conf user")?;
+        let contents = serde_json::to_string(&tosave).context("serialisation de la conf user imposible")?;
+        std::fs::write(self.path, contents).context("imposible d'écrire la conf user")?;
         Ok(())
     }
 
