@@ -1,6 +1,6 @@
 use dryoc::{keypair, sign::*, types::StackByteArray};
 use serde::{Deserialize, Serialize};
-
+use anyhow::{Context, Result};
 use super::{
     node::network::Packet,
     transaction::{Transaction, Utxo},
@@ -21,7 +21,7 @@ pub struct User {
 
 impl From<&str> for User {
     fn from(path: &str) -> Self {
-        User::load(path)
+        User::load(path).unwrap()
     }
 }
 
@@ -34,25 +34,26 @@ impl User {
         }
     }
 
-    pub fn load(path: &str) -> Self { //need  err handling
-        let conf = std::fs::read(path).unwrap();
-        let user: ToSave = serde_json::from_slice(&conf).unwrap();
+    pub fn load(path: &str) -> Result<Self> { //need  err handling
+        let conf = std::fs::read(path).with_context(|| "impossible de lire la conf")?;
+        let user: ToSave = serde_json::from_slice(&conf).with_context(||"la conf lut est broken")?;
         let keypair: SigningKeyPair<PublicKey, SecretKey> =
             SigningKeyPair::from_secret_key(user.privkey);
-        Self {
+        Ok(Self {
             path: path.to_string(),
             wallet: user.wallet,
             keypair,
-        }
+        })
     }
 
-    pub fn save(self) {
+    pub fn save(self) -> Result<()> {
         let tosave = ToSave {
             wallet: self.wallet,
             privkey: self.keypair.secret_key.to_owned(),
         };
-        let contents = serde_json::to_string(&tosave).unwrap();
-        std::fs::write(self.path, contents).unwrap();
+        let contents = serde_json::to_string(&tosave).with_context(||"serialisation de la conf user imposible")?;
+        std::fs::write(self.path, contents).with_context(||"imposible d'écrire la conf user")?;
+        Ok(())
     }
 
     fn sign_transa(&self, transa: Transaction) -> SignedMessage<StackByteArray<64>, Vec<u8>> {
@@ -86,9 +87,9 @@ mod test {
     #[test]
     fn serialize_unserialize_key() {
         let user1 = User::new_user("test.usr");
-        user1.clone().save();
-        let user2 = User::load("test.usr");
-        assert_eq!(user1, user2);
+        user1.clone().save().unwrap();
+        let user2 = User::load("test.usr").unwrap();
+        assert_eq!(user1, user2)
     }
 
     #[test]
