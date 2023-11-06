@@ -1,4 +1,5 @@
 use bincode::{deserialize, serialize};
+use dryoc::{sign::SignedMessage, types::StackByteArray};
 
 use std::{
     fs::File,
@@ -26,7 +27,6 @@ use crate::{
 use super::network::ClientPackect;
 
 #[derive(Debug, PartialEq, Eq)]
-
 pub enum NewBlock {
     Mined(Block),
     Network(Block),
@@ -38,7 +38,7 @@ pub enum ClientEvent {
     ReqSave, //force server to save the blockchain in file (debug)
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum Event {
     NewBlock(NewBlock),
     HashReq((i128, SocketAddr)),
@@ -54,7 +54,7 @@ pub struct Server {
     //miner
     id: u64,
     blockchain: Blockchain,
-    number_miner: u16, //number of thread of miner to be spawn
+    number_miner: u16, //number of thread of miner to be spawn //<= use once 
     path_save_json: String,
     path_save: String,
 }
@@ -107,6 +107,8 @@ impl Server {
             transa: vec![],
             difficulty: self.blockchain.difficulty,
         }));
+
+        // manny whay to do better
         for _ in 0..self.number_miner {
             let miner_stuff_cpy = miner_stuff.clone();
             let event_cpy = event_channels.0.clone();
@@ -183,13 +185,16 @@ impl Server {
                     }
                 }
                 Event::Transaction(transa) => {
-                    //check if is valid
                     let mut minner_stuff_lock = miner_stuff.lock().unwrap();
 
                     if self.blockchain.transa_is_valid(&transa, &minner_stuff_lock) {
                         minner_stuff_lock.transa.push(transa.clone());
-                        self.network
-                            .broadcast(Packet::Transaction(TypeTransa::Push(transa)));
+
+                        // WRONG why the server whant to publish recived transaction
+                        // can create loop
+                        // no benefit just drowback 
+                        // self.network
+                        //     .broadcast(Packet::Transaction(TypeTransa::Push(transa)));
                     }
                 }
                 Event::ClientEvent(event, addr_client) => match event {
