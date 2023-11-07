@@ -231,7 +231,7 @@ impl Network {
     pub fn recv_packet(selff: &UdpSocket) -> (Packet, SocketAddr) {
         //faudrait éliminer les vecteur dans les structure pour avoir une taille prédictible
 
-        const MAX_PACKET_SIZE : usize = 256;
+        const MAX_PACKET_SIZE : usize = 65507;
         let mut buf = [0u8; MAX_PACKET_SIZE]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
         
         let (_, sender) = selff.recv_from(&mut buf).expect("Error recv block");
