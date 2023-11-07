@@ -6,11 +6,13 @@ use std::{
     thread,
 };
 
+
+
 use anyhow::Result;
 use bincode::{deserialize, serialize};
 use dryoc::{sign::SignedMessage, types::StackByteArray};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn};
+use tracing::{debug, info, warn, error};
 
 use crate::block_chain::{
     block::Block,
@@ -52,7 +54,7 @@ pub enum TypeBlock {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TypeTransa {
-    Push(SignedMessage<StackByteArray<64>, Vec<u8>>),
+    Push(Transaction),
     Req(u64),
     Ans(Vec<Utxo>),
 }
@@ -60,7 +62,7 @@ pub enum TypeTransa {
 #[derive(Deserialize, Serialize, Debug)]
 pub enum ClientPackect {
     ReqUtxo(u64),        //Request for the UTXO of u64
-    RespUtxo(Vec<Utxo>), //the response of RqUtxo
+    RespUtxo((usize,Utxo)), //the response of RqUtxo : (number of utxo remains, the utxo -> (0,utxo..) is the last)
     ReqSave,             //force save (debug)
 }
 
@@ -71,7 +73,10 @@ pub enum Packet {
     Block(TypeBlock),
     Peer(TypePeer),
     Client(ClientPackect),
+    None,
 }
+
+
 
 // whole network function inside it
 // send packet with action do scan block ect get peers
@@ -84,22 +89,22 @@ impl Network {
         match transa {
             TypeTransa::Ans(_utxos) => { /* array of all utxo append */ }
             TypeTransa::Push(transaction) => {
-                let (key, msg) = transaction.clone().into_parts();
+                // let (key, msg) = transaction.clone().into_parts();
 
-                let transa: Transaction = bincode::deserialize(&msg).unwrap();
-                warn!("error  on deserialize rtransaction");
+                // let transa: Transaction = bincode::deserialize(&msg).unwrap();
+                // warn!("error  on deserialize rtransaction");
 
-                // information en double
-                // on peut choper la clef and la signature ET dans la structure.
-                if key.to_vec() != transa.sender_pubkey{
-                    panic!("NIQUE")
-                }
+                // // information en double
+                // // on peut choper la clef and la signature ET dans la structure.
+                // if key.to_vec() != transa.sender_pubkey{
+                //     panic!("NIQUE")
+                // }
 
-                if let Err(e) = transaction.verify(&transa.sender_pubkey) {
-                    warn!("signature false! {:?}", e);
-                } else {
-                    net_transa_tx.send(Event::Transaction(transa)).unwrap()
-                }
+                // if let Err(e) = transaction.verify(&transa.sender_pubkey) {
+                //     warn!("signature false! {:?}", e);
+                // } else {
+                    net_transa_tx.send(Event::Transaction(transaction)).unwrap()
+                // }
             }
             TypeTransa::Req(_userid) => { /* get all transa and filter by user id*/ }
         }
@@ -185,6 +190,7 @@ impl Network {
                         Packet::Client(client_packet) => {
                             self_cpy.client(client_packet, sender, &event_tx)
                         }
+                        Packet::None => {}
                     }
                 }
             })
@@ -218,7 +224,9 @@ impl Network {
 
     /// verry cool send a packet
     pub fn send_packet(&self, packet: &Packet, dest: &SocketAddr) {
+
         let packet_serialized = serialize(&packet).expect("Can not serialize AswerKA");
+        debug!("packet size = {}", packet_serialized.len());
         self.binding
             .send_to(&packet_serialized, dest)
             .unwrap_or_else(|_| panic!("Can not send packet {:?}", packet));
@@ -237,20 +245,30 @@ impl Network {
     /// awsome
     pub fn recv_packet(selff: &UdpSocket) -> (Packet, SocketAddr) {
         //faudrait éliminer les vecteur dans les structure pour avoir une taille prédictible
-        let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
+
+        const MAX_PACKET_SIZE : usize = 65507;
+        let mut buf = [0u8; MAX_PACKET_SIZE]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
+        
         let (_, sender) = selff.recv_from(&mut buf).expect("Error recv block");
-        let des = deserialize(&mut buf).expect("Can not deserilize block");
-        (des, sender)
+        let des = deserialize(&mut buf);
+        if des.is_err(){
+            error!("Can to deserialize packet");
+            return (Packet::None,sender);
+        }
+        (des.unwrap(), sender)
     }
 
     /// wait for a wallet
     pub fn recv_packet_utxo_wallet(&self) -> Vec<Utxo> {
         let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
+        let allutxo =vec![];
         loop {
             self.binding.recv_from(&mut buf).expect("Error recv block");
             let answer: Packet = deserialize(&mut buf).expect("Can not deserilize block");
-            if let Packet::Client(ClientPackect::RespUtxo(utxo)) = answer {
-                return utxo;
+            if let Packet::Client(ClientPackect::RespUtxo((size,utxo))) = answer {
+                if  size == 0{
+                    return allutxo;
+                }
             }
         }
     }

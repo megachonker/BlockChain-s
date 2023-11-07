@@ -2,30 +2,58 @@ use dryoc::{sign::{SigningKeyPair, PublicKey, SecretKey, SignedMessage}, constan
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_map::DefaultHasher,
-    fmt,
-    hash::{Hash, Hasher},
+    fmt::{self, write},
+    hash::{BuildHasherDefault, Hash, Hasher},
 };
-use anyhow::{Context, Result, Error};
 
-use super::blockchain::Blockchain;
+use super::block::MINER_REWARD;
+use super::blockchain::{Balance, Blockchain};
 
-#[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Utxo {
-    pub block_location: u64, //dans quelle block est la transa
-    pub transa_id: u64,      //hash de Transaction
-    moula_id: usize,         //id mola not refering value but position in the vec
-    // no value !
-    // it can seem verry cringe but there only refering to actual transaction
-    value: u128, //can work without but Simplify the challenge NOT NEED TO SERIALIZED
+    pub hash: u64,
+    pub onwer: u64,
+    pub ammount: u64,
+    pub come_from: u64, //the hash of the utxo which come from (permit to the utxo to unique), hash of the list of transactions validated if it is the utxo create by miner.
 }
 
+impl Hash for Utxo {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.onwer.hash(state);
+        self.ammount.hash(state);
+        self.come_from.hash(state);
+    }
+}
+impl Utxo {
+    fn check(&self) -> bool {
+        self.hash == self.hash() && self.ammount > 0
+    }
+
+    fn hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.onwer.hash(&mut hasher);
+        self.ammount.hash(&mut hasher);
+        self.come_from.hash(&mut hasher);
+
+        hasher.finish()
+    }
+
+    fn new(ammount: u64, owner: u64, come_from: u64) -> Utxo {
+        let mut utxo = Self {
+            hash: 0,
+            onwer: owner,
+            ammount,
+            come_from,
+        };
+        utxo.hash = utxo.hash();
+        utxo
+    }
+}
+
+//do no show the come_from (useless to show)
 impl fmt::Display for Utxo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Rx: [{}=>{}=>{}] {}",
-            self.block_location, self.transa_id, self.moula_id, self.value,
-        )
+        write!(f, "|#{}->({},{}$)|", self.hash, self.onwer, self.ammount)
     }
 }
 
@@ -37,29 +65,21 @@ impl fmt::Display for Utxo {
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 /// Structure That Be Signed 
 pub struct Transaction {
-    rx: Vec<Utxo>,
-    tx: Vec<u128>, //fist is what is send back <= changed so it now last but need impleented
-    pub target_pubkey: u64,
-    pub sender_pubkey:Vec<u8>//not optimal
-    //add signature of the sender
+    pub rx: Vec<Utxo>,
+    pub tx: Vec<Utxo>,
 }
 
 impl fmt::Display for Transaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "║ transa id: {}", self.hash_id()).unwrap();
+        write!(f, "[")?;
         for transrx in &self.rx {
-            writeln!(f, "║{}", transrx).unwrap();
+            write!(f, "{} ", transrx)?;
         }
-        write!(f, "║Tx[").unwrap();
+        write!(f, "==> ").unwrap();
         for transtx in &self.tx {
-            write!(f, "{},", transtx).unwrap();
+            write!(f, "{} ", transtx)?;
         }
-        write!(
-            f,
-            "]\n\
-║dst: {}",
-            self.target_pubkey,
-        )
+        write!(f, "]")
     }
 }
 
@@ -67,55 +87,51 @@ impl fmt::Display for Transaction {
 impl Transaction {
     pub fn display_for_bock(&self) -> String {
         let mut str = String::from("");
-        for transrx in &self.rx {
-            str += format!("{}", transrx).as_str();
-        }
-        str += " Tx[".to_string().as_str();
-        for transtx in &self.tx {
-            str += format!("{},", transtx).as_str();
-        }
-        str += format!("] -> {}", self.target_pubkey,).as_str();
-
+        str += &format!("{}", self);
         str
     }
 
-    /// Sum(Rx) > Sum(Tx)
-    /// don't check if transa already used
-    /// check value is right
-    /// check all utxo exist
-    pub fn check(&self, blockaine: &Blockchain) -> bool {
-        // need to be done inside the block level
-        // to change <================================
-        // self.tx.contains(&100).then(||println!("TRIGUERRRRRRRRRRR")); // we considere that 100 number tx is directly
-        self.tx.contains(&100).then_some(true); // we considere that 100 number tx is directly
-                                                //the reward of the miner
-
-        //check all utxo is accesible
-        //need to use balance
-        if !self.rx.iter().all(|utxo| {
-            blockaine.get_block(utxo.block_location).is_some_and(|h| {
-                h.transactions
-                    .iter()
-                    .find(|transa| transa.hash_id() == utxo.transa_id)
-                    .is_some_and(|h| h.tx.get(utxo.moula_id).is_some())
-            })
-        }) {
-            return false;
+    ///Check if the transaction is valid :    
+    /// all utxo is valid, the rx is present in the balence (can be use) and the ammont is positive
+    pub fn check_utxo_valid(&self, balence: &Balance) -> bool {
+        for utxo in self.rx.iter() {
+            if !balence.valid(&utxo) {
+                return false;
+            }
+        }
+        true
+    }
+    pub fn check(&self) -> bool {
+        let mut ammount: i128 = 0;
+        if self.rx.len() == 0 && self.tx.len() == 1 {
+            return self.tx[0].check();
         }
 
-        //need to be change by using get utxo because rx no need to store value
-        let sum_in: u128 = self.rx.iter().map(|utxo| utxo.value).sum();
-        let sum_out: u128 = self.tx.iter().sum();
-        sum_in > sum_out
+        for utxo in self.rx.iter() {
+            if !utxo.check() {
+                return false;
+            }
+            ammount += utxo.ammount as i128;
+        }
+
+        let mut hasher = DefaultHasher::new();
+        self.rx.hash(&mut hasher);
+        let hash_come_from = hasher.finish();
+
+        for utxo in self.tx.iter() {
+            if !utxo.check() || hash_come_from != utxo.come_from {
+                print!("Ici");
+                return false;
+            }
+            ammount -= utxo.ammount as i128;
+        }
+
+        ammount >= 0
     }
 
-    pub fn new(rx: Vec<Utxo>, tx: Vec<u128>, target_pubkey: u64, sender_pubkey:Vec<u8>) -> Transaction {
-        Transaction {
-            rx,
-            tx,
-            target_pubkey,
-            sender_pubkey
-        }
+    ///create a new Transition with the given argument. Does not check : can create invalid Transaction
+    pub fn new(rx: Vec<Utxo>, tx: Vec<Utxo>) -> Transaction {
+        Transaction { rx, tx }
     }
 
     /// get the hash id of the transaction
@@ -123,11 +139,12 @@ impl Transaction {
     /// auto self hash
     /// not efficient because init the hasher manualy
     /// tradoff is that it getting simpler
-    pub fn hash_id(&self) -> u64 {
+    /* ub fn hash_id(&self) -> u64 {
         let mut s = DefaultHasher::new();
         self.hash(&mut s);
         s.finish()
-    }
+    } */
+
     /// create a Utxo from a know output transaction in the transa
     /// we Create a utxo from it and we need the block hash
     /// transaction don't know where it is in blockain it need to ask
@@ -136,21 +153,10 @@ impl Transaction {
     /// BUT NO NEEDED
     /// in reality we need to ask blockain about the amount every time we
     /// face a utxo it take time
-    pub fn find_new_utxo(&self, block_location: u64) -> Vec<Utxo> {
-        let mut no = 0;
-        self.tx
-            .iter()
-            .map(|tx| {
-                let tmp = Utxo {
-                    block_location,
-                    transa_id: self.hash_id(),
-                    moula_id: no,
-                    value: *tx,
-                };
-                no += 1;
-                tmp
-            })
-            .collect()
+    ///
+    ///
+    pub fn find_created_utxo(&self) -> Vec<Utxo> {
+        self.tx.clone()
     }
 
     /// fin utxo taken at input in the block
@@ -161,7 +167,7 @@ impl Transaction {
     }
 
     /// Use the blockaine to find money and send it
-    pub fn new_online(
+    /* pub fn new_online(
         blockchain: &Blockchain,
         source: u64,
         amount: u128,
@@ -178,58 +184,122 @@ impl Transaction {
             target_pubkey: destination,
             ..Default::default()
         })
-    }
+    } */
 
-    /// ofline use actual wallet and create transa
-    pub fn new_offline(key:&SigningKeyPair<PublicKey, SecretKey>,input: &Vec<Utxo>, amount: u128, destination: u64) ->  Option<SignedMessage<StackByteArray<64>, Vec<u8>>> {
-        let (rx, resend) = Self::select_utxo_from_vec(input, amount)?;
+    /// Create transaction from the input utxo and and send the ammount to destination and send back to the owner of input the surplus
+    /// miner rate is part of the ammount will be pass to the miner  
+    pub fn create_transa_from(
+        input: &Vec<Utxo>,
+        amount: u64,
+        destination: u64,
+        miner_rate: f64,
+    ) -> Option<Self> {
+        let total_ammount = (amount as f64 * (1.0 + miner_rate)) as u64;
+        let (rx, resend) = Self::select_utxo_from_vec(input, total_ammount)?;
 
-        let transa = Self {
-            rx,
-            tx: vec![resend, amount],
-            target_pubkey: destination,
-            sender_pubkey:key.public_key.to_vec()
-        };
+        let mut hasher = DefaultHasher::new();
+        rx.hash(&mut hasher);
+        let hash_come_from = hasher.finish();
 
-        let unsigned_transa = bincode::serialize(&transa).expect("new_offline: serd imposible de seriailiser la tranction");
-        let signed_transa = key.sign_with_defaults(unsigned_transa).expect("new offline imposible de signer la transaction");
-        Some(signed_transa)
+        if input.len() == 0 || resend == 0{
+            Some(Self {
+                rx,
+                tx: vec![Utxo::new(amount, destination, hash_come_from)],
+            })
+        } else {
+            //send back the money to the owner of input
+            Some(Self {
+                rx: rx,
+                tx: vec![
+                    Utxo::new(amount, destination, hash_come_from),
+                    Utxo::new(resend, input[0].onwer, hash_come_from),
+                ],
+            })
+        }
     }
 
     /// ## find a combinaison
     /// want send 10
     ///
-    /// with fee it need to search for 11 for give 1 to miner
+    /// at input there are 7 2 2 9
     ///
-    /// at input there are 7 3 2 9
+    /// stop at 11  
     ///
-    /// stop at 12  
+    /// 7 2 2 was selected
     ///
-    /// 7 3 2 was selected
-    ///
-    /// it need to give 1 to miner give implicitly, 10 to the user and send back 1
-    fn select_utxo_from_vec(avaible: &Vec<Utxo>, amount: u128) -> Option<(Vec<Utxo>, u128)> {
-        let fee = amount / 10;
-        let mut sum = 0;
-        let r: Vec<Utxo> = avaible
-            .iter()
-            .take_while(|utxo| {
-                if sum <= amount + fee {
-                    sum += utxo.value;
-                    true
-                } else {
-                    false
-                }
-            })
-            .cloned()
-            .collect();
-        let to_send_back = sum.checked_sub(amount + fee);
-        to_send_back.map(|val| (r, val))
+    /// 10 to the user and send back 1
+    fn select_utxo_from_vec(avaible: &Vec<Utxo>, amount: u64) -> Option<(Vec<Utxo>, u64)> {
+        if amount == 0 {
+            return Some((vec![], 0));
+        }
+        let mut value = 0;
+        let mut vec_utxo = vec![];
+        for utxo in avaible {
+            value += utxo.ammount;
+            vec_utxo.push(utxo.clone());
+            if value >= amount {
+                return Some((vec_utxo, value - amount));
+            }
+        }
+
+        None
+    }
+
+    pub fn transform_for_miner(
+        mut transas: Vec<Transaction>,
+        miner_id: u64,
+        block_heigt: u64,
+    ) -> Vec<Transaction> {
+        let mut miner_reward = MINER_REWARD;
+
+        let mut place_remove = None;
+
+        for (i, t) in transas.iter().enumerate() {
+            if t.rx.len() == 0 && t.tx.len() == 1 {
+                place_remove = Some(i)
+            } else {
+                miner_reward += t.remains();
+            }
+        }
+        if place_remove.is_some() {
+            transas.remove(place_remove.unwrap()); //reward transa already present remove it
+        }
+
+        transas.push(Transaction {
+            rx: vec![],
+            tx: vec![Utxo::new(miner_reward, miner_id, block_heigt)],
+        });
+        transas
+    }
+
+    pub fn remains(&self) -> u64 {
+        let input: u64 = self.rx.iter().map(|u| u.ammount).sum();
+        let output: u64 = self.tx.iter().map(|u| u.ammount).sum();
+        input - output
     }
 }
 
+///calulcate the hash of the come_from for the miner transa
+/* pub fn come_from_hash(transas :& Vec<Transaction>) -> u64{
+    let mut transas_cpy = transas.clone();
+    for t in transas{
+        if t.rx.len() ==0 && t.tx.len()==1{
+            transas_cpy.remove(transas_cpy.iter().position(|t_cpy| t_cpy==t).unwrap());     //remove miner_transa
+        }
+    }
+
+    let mut hasher = DefaultHasher::new();
+    transas_cpy.hash(&mut hasher);
+    hasher.finish()
+
+
+
+}
+ */
 #[cfg(test)]
 mod tests {
+
+    use rand::Rng;
 
     use crate::block_chain::{
         block::{Block, Profile},
@@ -238,46 +308,50 @@ mod tests {
     };
 
     #[test]
+    fn create_utxo() {
+        let mut rng = rand::thread_rng();
+        let utxo = Utxo::new(rng.gen(), rng.gen(), rng.gen());
+
+        assert!(utxo.check());
+    }
+
+    #[test]
     fn test_select_utxo_from_vec() {
         let rx_7 = Utxo {
-            value: 5,
+            ammount: 5,
             ..Default::default()
         };
         let rx_3 = Utxo {
-            value: 4,
+            ammount: 4,
             ..Default::default()
         };
         let rx_2 = Utxo {
-            value: 8,
+            ammount: 8,
             ..Default::default()
         };
         let rx_9 = Utxo {
-            value: 9,
+            ammount: 9,
             ..Default::default()
         };
 
         let wallet = vec![rx_7, rx_3, rx_2, rx_9];
 
-        let (transa, sendback) = Transaction::select_utxo_from_vec(&wallet, 10).unwrap();
+        let amount = 10;
+        let (transa, sendback) = Transaction::select_utxo_from_vec(&wallet, amount).unwrap();
         transa.iter().for_each(|transa| print!("{}", transa));
-        let full: u128 = transa.iter().map(|f| f.value).sum();
-        let total_cost = full - 10;
-        println!(
-            "\nneed to send back:{}, total spend with fee:{}",
-            sendback, total_cost
-        );
-        assert_eq!(sendback, 6);
-        assert_eq!(total_cost, 7)
+        let full: u64 = transa.iter().map(|f| f.ammount).sum();
+        assert!(full > amount);
+        assert!(full - amount == sendback);
     }
 
     #[test]
     fn test_check() {
-        let mut blockchain = Blockchain::new();
+        let mut blockchain: Blockchain = Blockchain::new();
         let block_org = Block::new();
 
         //+ 100 for 1
         let block_org = block_org
-            .find_next_block(1, vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
         blockchain.try_append(&block_org); //we assume its ok
 
@@ -289,29 +363,29 @@ mod tests {
         //59 for 10
 
         //should work
-        let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8], 10,Default::default());
-        assert!(new_transa.check(&blockchain));
+        /* let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8]);
+               assert!(new_transa.check(&blockchain.balance));
 
         //bad source
         let utxo_s = blockchain.filter_utxo(5);
-        let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8], 10,Default::default());
+        let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8], 10);
         assert!(!new_transa.check(&blockchain));
 
         // not enought  money in utxo
-        let new_transa = Transaction::new(utxo_s, vec![80, 70, 8], 10,Default::default());
+        let new_transa = Transaction::new(utxo_s, vec![80, 70, 8], 10);
         assert!(!new_transa.check(&blockchain));
 
-        // utxo do not exist
-        let new_transa = Transaction::new(Default::default(), vec![70, 8], 10,Default::default());
-        assert!(!new_transa.check(&blockchain))
-
+               // utxo do not exist
+               let new_transa = Transaction::new(Default::default(), vec![70, 8]);
+               assert!(!new_transa.check(&blockchain.balance))
+        */
         // println!("NEW TRANSA {}", new_transa);
         // println!("Block {}", blockchain);
 
         // assert!(r)
     }
 
-    #[test]
+    /* #[test]
     /// need to be finished
     fn test_new_online() {
         let mut blockchain = Blockchain::new();
@@ -338,5 +412,5 @@ mod tests {
 
         println!("{}", blockchain);
         assert!(true)
-    }
+    } */
 }

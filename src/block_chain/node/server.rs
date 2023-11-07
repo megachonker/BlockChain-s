@@ -64,6 +64,7 @@ pub struct MinerStuff {
     pub cur_block: Block,
     pub transa: Vec<Transaction>,
     pub difficulty: u64,
+    pub miner_id: u64,
 }
 
 impl Server {
@@ -104,8 +105,9 @@ impl Server {
 
         let miner_stuff = Arc::new(Mutex::new(MinerStuff {
             cur_block: self.blockchain.last_block(),
-            transa: vec![],
+            transa: Transaction::transform_for_miner(vec![], finder, 1),
             difficulty: self.blockchain.difficulty,
+            miner_id: finder,
         }));
 
         // manny whay to do better
@@ -116,7 +118,7 @@ impl Server {
                 .name("Miner {}".to_string())
                 .spawn(move || {
                     info!("start Miner");
-                    mine(finder, &miner_stuff_cpy, event_cpy);
+                    mine(&miner_stuff_cpy, event_cpy);
                 })
                 .unwrap();
         }
@@ -168,7 +170,11 @@ impl Server {
 
                         let mut lock_miner_stuff = miner_stuff.lock().unwrap();
                         lock_miner_stuff.cur_block = top_block.clone();
-                        lock_miner_stuff.transa = vec![]; //for the moment reset transa not taken     //maybe check transa not accpted and already available
+                        lock_miner_stuff.transa = Transaction::transform_for_miner(
+                            vec![],
+                            lock_miner_stuff.miner_id,
+                            top_block.block_height + 1,
+                        ); //for the moment reset transa not taken     //maybe check transa not accpted and already available
                         lock_miner_stuff.difficulty = new_difficulty; //for the moment reset transa not taken     //maybe check transa not accpted and already available
 
                         drop(lock_miner_stuff);
@@ -198,12 +204,15 @@ impl Server {
                     }
                 }
                 Event::ClientEvent(event, addr_client) => match event {
-                    ClientEvent::ReqUtxo(id_client) => self.network.send_packet(
-                        &Packet::Client(ClientPackect::RespUtxo(
-                            self.blockchain.filter_utxo(id_client), //need to be parralizesd
-                        )),
-                        &addr_client,
-                    ),
+                    ClientEvent::ReqUtxo(id_client) => {
+                        let utxos = self.blockchain.filter_utxo(id_client);
+                        let nb_utxo = utxos.len();
+                        for (index, utxo) in utxos.iter().enumerate() {
+                            self.network
+                                .send_packet(&Packet::Client(ClientPackect::RespUtxo((nb_utxo -1 - index,utxo.clone()))), & addr_client);
+                        }
+                    }
+
                     ClientEvent::ReqSave => {
                         if self.path_save_json != "" {
                             let file_json = File::create(&self.path_save_json).unwrap();
@@ -240,7 +249,6 @@ fn save_chain_readable(chain: &Vec<Block>, mut file: File) {
         file.write_all(b",").unwrap();
     }
     file.write_all(b"{}]").unwrap();
-
 }
 
 fn save_chain(chain: &Vec<Block>, mut file: File) {

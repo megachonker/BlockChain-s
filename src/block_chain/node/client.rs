@@ -64,7 +64,15 @@ impl Client {
         let myutxo = self.networking.recv_packet_utxo_wallet();
         user.refresh_wallet(myutxo.clone());
 
-        let transactionb = Transaction::new_offline(user.get_key() , &myutxo, 10, 555).context("You not have enought money")?;
+        let transactionb = Transaction::create_transa_from(
+            &myutxo,
+            self.transa_info.ammount,
+            self.transa_info.destination,
+            0.10,
+        );
+
+        let transactionb = transactionb.context("You not have enought money")?;
+
         println!("Transaction created : {:?}", transactionb);
 
         self.networking.send_packet(
