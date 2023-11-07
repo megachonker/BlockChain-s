@@ -31,8 +31,8 @@ pub struct Cli {
     bind: Option<IpAddr>,
 
     /// Address reception: addresse contenant le virement
-    #[arg(short, long, default_value_t = u64::MIN)]
-    destination: u64,
+    #[arg(short, long, default_value_t = u32::MIN)]
+    destination: u32,
 
     /// Montant: nombre de crédit a donner
     #[arg(short, long, default_value_t = 0)]
@@ -115,9 +115,13 @@ fn parse_args(cli: Cli) -> Result<NewNode> {
             bail!("missing amount, secret or destination")
         }
 
+        ////////////NeedLookup  throught wallet!!!!!!!!!!!!!
+        //cli.destination
+
+
         //create client worker
         Ok(NewNode::Cli(
-            Client::new(networking, cli.destination, cli.ammount).context("global error")?,
+            Client::new(networking, Default::default(), cli.ammount).context("global error")?,
         ))
     } else {
         //create server worker

@@ -14,8 +14,7 @@ use tracing::info;
 
 pub struct TransaInfo {
     pub ammount: u64,
-    pub destination: u64,
-    pub from: PublicKey,
+    pub destination: PublicKey,
 }
 
 pub struct Client {
@@ -26,7 +25,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(networking: Network, destination: u64, ammount: u64) -> Result<Self> {
+    pub fn new(networking: Network, destination: PublicKey, ammount: u64) -> Result<Self> {
         let name = get_friendly_name(networking.get_socket())
             .context("generation name from ip imposible PATH?")?;
         let user = user::User::new_user("cli.usr");
@@ -38,7 +37,6 @@ impl Client {
             transa_info: TransaInfo {
                 ammount,
                 destination,
-                from: user.get_key().public_key,
             },
         })
     }
@@ -52,8 +50,9 @@ impl Client {
     /// ask to all peer balance and take first balance received and update
     fn refresh_wallet(&mut self){
         // pull utxo avaible
+
         self.networking.send_packet(
-            &Packet::Client(ClientPackect::ReqUtxo(self.transa_info.from)),
+            &Packet::Client(ClientPackect::ReqUtxo(self.user.get_key().public_key.clone())),
             &self.networking.bootstrap,
         );
 

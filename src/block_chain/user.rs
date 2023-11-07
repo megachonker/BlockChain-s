@@ -33,7 +33,7 @@ impl TryFrom<&str> for User {
 
 impl User {
     pub fn get_key(&self)-> &SigningKeyPair<PublicKey, SecretKey> {
-        &self.keypair
+        &self.keypair//double clone
     }
 
     pub fn new_user(path:&str) -> Self {

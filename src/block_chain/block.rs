@@ -318,7 +318,6 @@ pub fn mine(miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Event>) {
         let block = miner_stuff_lock.cur_block.clone(); //presque toujour blocker
         let transa = miner_stuff_lock.transa.clone();
         let difficulty = miner_stuff_lock.difficulty;
-        let miner_id = miner_stuff_lock.miner_id;
         drop(miner_stuff_lock);
 
         // do the same things
@@ -353,9 +352,9 @@ mod tests {
 
         let miner_stuff = Arc::new(Mutex::new(MinerStuff {
             cur_block: Block::default(),
-            transa: Transaction::transform_for_miner(vec![], 1,1),
+            transa: Transaction::transform_for_miner(vec![], Default::default(),1),
             difficulty: crate::block_chain::blockchain::FIRST_DIFFICULTY,
-            miner_id: 1,
+            miner_id: Default::default(),
         }));
 
         thread::spawn(move || {

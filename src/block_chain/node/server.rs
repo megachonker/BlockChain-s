@@ -56,7 +56,7 @@ pub struct Server {
     name: String,
     network: Network, // blockchaine
     //miner
-    id: u64,
+    miner_pubkey: PublicKey,
     blockchain: Blockchain,
     number_miner: u16, //number of thread of miner to be spawn //<= use once 
     // path_save_json: String,
@@ -68,18 +68,20 @@ pub struct MinerStuff {
     pub cur_block: Block,
     pub transa: Vec<Transaction>,
     pub difficulty: u64,
-    pub miner_id: u64,
+    pub miner_id: PublicKey,
 }
 
 impl Server {
     pub fn new(network: Network, cli: Cli) -> Self {
         let name =
             get_friendly_name(network.get_socket()).expect("generation name from ip imposble");
-        let id = get_fake_id(&name);
+
+        /////////////////// NEED TO READ KEY !!!!!!!!!!!!!!!
+        
         Self {
             name,
             network,
-            id,
+            miner_pubkey: Default::default(),
             blockchain: Blockchain::new(),
             number_miner: cli.threads,
         }
@@ -97,19 +99,19 @@ impl Server {
 
         self.network.clone().start(event_channel.0.clone());
 
-        self.server_runtime(self.id, event_channel);
+        self.server_runtime( event_channel);
         Ok(())
     }
 
     /// Routing event and adding block and transaction
-    fn server_runtime(&mut self, finder: u64, event_channels: (Sender<Event>, Receiver<Event>)) -> Result<()> {
+    fn server_runtime(&mut self, event_channels: (Sender<Event>, Receiver<Event>)) -> Result<()> {
         info!("Runtime server start");
 
         let miner_stuff = Arc::new(Mutex::new(MinerStuff {
             cur_block: self.blockchain.last_block(),
-            transa: Transaction::transform_for_miner(vec![], finder, 1),
+            transa: Transaction::transform_for_miner(vec![], self.miner_pubkey.clone(), 1),
             difficulty: self.blockchain.difficulty,
-            miner_id: finder,
+            miner_id:self.miner_pubkey.clone(),
         }));
 
         // manny whay to do better
@@ -174,7 +176,7 @@ impl Server {
                         lock_miner_stuff.cur_block = top_block.clone();
                         lock_miner_stuff.transa = Transaction::transform_for_miner(
                             vec![],
-                            lock_miner_stuff.miner_id,
+                            lock_miner_stuff.miner_id.clone(),
                             top_block.block_height + 1,
                         ); //for the moment reset transa not taken     //maybe check transa not accpted and already available
                         lock_miner_stuff.difficulty = new_difficulty; //for the moment reset transa not taken     //maybe check transa not accpted and already available

@@ -7,6 +7,7 @@ use std::{
     io::{Chain, Read, Write},
 };
 
+use dryoc::sign::PublicKey;
 use tracing::{debug, error, info, warn};
 
 use crate::block_chain::block;
@@ -192,7 +193,7 @@ impl Default for Blockchain {
 }
 
 impl Blockchain {
-    pub fn filter_utxo(&self, addr: u64) -> Vec<Utxo> {
+    pub fn filter_utxo(&self, addr: PublicKey) -> Vec<Utxo> {
         self.balance
             .utxo_hmap
             .iter()
