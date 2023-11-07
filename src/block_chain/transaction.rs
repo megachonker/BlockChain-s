@@ -1,4 +1,8 @@
-use dryoc::{sign::{SigningKeyPair, PublicKey, SecretKey, SignedMessage}, constants::CRYPTO_KX_SECRETKEYBYTES, types::{StackByteArray, Bytes, ByteArray}};
+use dryoc::{
+    constants::CRYPTO_KX_SECRETKEYBYTES,
+    sign::{PublicKey, SecretKey, SignedMessage, SigningKeyPair},
+    types::{ByteArray, Bytes, StackByteArray},
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_map::DefaultHasher,
@@ -6,8 +10,8 @@ use std::{
     hash::{BuildHasherDefault, Hash, Hasher},
 };
 
-use super::block::MINER_REWARD;
 use super::blockchain::{Balance, Blockchain};
+use super::{block::MINER_REWARD, user::User};
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Utxo {
@@ -57,13 +61,8 @@ impl fmt::Display for Utxo {
     }
 }
 
-// pub struct signed_transaction{
-//     transaction:Transaction,
-//     pubkey:Vec<u8>
-// }
-
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
-/// Structure That Be Signed 
+/// Structure That Be Signed
 pub struct Transaction {
     pub rx: Vec<Utxo>,
     pub tx: Vec<Utxo>,
@@ -134,88 +133,50 @@ impl Transaction {
         Transaction { rx, tx }
     }
 
-    /// get the hash id of the transaction
-    /// it used inside utxo to refer correct transa in block
-    /// auto self hash
-    /// not efficient because init the hasher manualy
-    /// tradoff is that it getting simpler
-    /* ub fn hash_id(&self) -> u64 {
-        let mut s = DefaultHasher::new();
-        self.hash(&mut s);
-        s.finish()
-    } */
-
-    /// create a Utxo from a know output transaction in the transa
-    /// we Create a utxo from it and we need the block hash
-    /// transaction don't know where it is in blockain it need to ask
-    /// then create the "fake" utxo
-    /// it important to remember that the value is PASTED HERE
-    /// BUT NO NEEDED
-    /// in reality we need to ask blockain about the amount every time we
-    /// face a utxo it take time
-    ///
-    ///
     pub fn find_created_utxo(&self) -> Vec<Utxo> {
         self.tx.clone()
     }
 
     /// fin utxo taken at input in the block
-    ///
-    /// it better to use & but it simplify to no
     pub fn find_used_utxo(&self) -> Vec<Utxo> {
         self.rx.clone()
     }
 
-    /// Use the blockaine to find money and send it
-    /* pub fn new_online(
-        blockchain: &Blockchain,
-        source: u64,
-        amount: u128,
-        destination: u64,
-    ) -> Option<Self> {
-        let utxos = blockchain.filter_utxo(source);
+    // can create transa from multiple user
+    // todo!()
 
-        //not optimal but i is a NP problem see bag problem
-        let (rx, resend) = Self::select_utxo_from_vec(&utxos, amount)?;
-
-        Some(Self {
-            rx,
-            tx: vec![resend, amount],
-            target_pubkey: destination,
-            ..Default::default()
-        })
-    } */
-
-    /// Create transaction from the input utxo and and send the ammount to destination and send back to the owner of input the surplus
-    /// miner rate is part of the ammount will be pass to the miner  
-    pub fn create_transa_from(
-        input: &Vec<Utxo>,
-        amount: u64,
-        destination: u64,
-        miner_rate: f64,
-    ) -> Option<Self> {
-        let total_ammount = (amount as f64 * (1.0 + miner_rate)) as u64;
-        let (rx, resend) = Self::select_utxo_from_vec(input, total_ammount)?;
+    /// Take money from User wallet and create transaction
+    /// search a utxo combinaison from user wallet
+    /// introduce miner fee
+    /// send back to owner surplus
+    pub fn create_transa_from(user: &mut User, amount: u64, destination: u64) -> Option<Self> {
+        let total_ammount = (amount as f64 * (1.0 + user.miner_rate)) as u64;
+        let (selected, sendback) = Self::select_utxo_from_vec(&user.wallet, total_ammount)?;
 
         let mut hasher = DefaultHasher::new();
-        rx.hash(&mut hasher);
+        selected.hash(&mut hasher);
         let hash_come_from = hasher.finish();
 
-        if input.len() == 0 || resend == 0{
-            Some(Self {
-                rx,
-                tx: vec![Utxo::new(amount, destination, hash_come_from)],
-            })
-        } else {
-            //send back the money to the owner of input
-            Some(Self {
-                rx: rx,
-                tx: vec![
-                    Utxo::new(amount, destination, hash_come_from),
-                    Utxo::new(resend, input[0].onwer, hash_come_from),
-                ],
-            })
+        let mut transaction = Self {
+            rx: selected,
+            tx: vec![Utxo::new(amount, destination, hash_come_from)],
+        };
+
+
+        // Update wallet
+        // can triguerre here a hanndler to know were transa done
+        user.wallet.retain(|transa| !selected.contains(transa));
+
+        // if ? ? ?
+        if user.wallet.len() == 0 || sendback == 0 {
+            return Some(transaction);
         }
+
+        //send back the money to the owner of input
+        transaction
+            .tx
+            .push(Utxo::new(sendback, user.wallet[0].onwer, hash_come_from));
+        Some(transaction)
     }
 
     /// ## find a combinaison
@@ -230,10 +191,12 @@ impl Transaction {
     /// 10 to the user and send back 1
     fn select_utxo_from_vec(avaible: &Vec<Utxo>, amount: u64) -> Option<(Vec<Utxo>, u64)> {
         if amount == 0 {
-            return Some((vec![], 0));
+            return None;
         }
+
         let mut value = 0;
         let mut vec_utxo = vec![];
+
         for utxo in avaible {
             value += utxo.ammount;
             vec_utxo.push(utxo.clone());
@@ -279,33 +242,15 @@ impl Transaction {
     }
 }
 
-///calulcate the hash of the come_from for the miner transa
-/* pub fn come_from_hash(transas :& Vec<Transaction>) -> u64{
-    let mut transas_cpy = transas.clone();
-    for t in transas{
-        if t.rx.len() ==0 && t.tx.len()==1{
-            transas_cpy.remove(transas_cpy.iter().position(|t_cpy| t_cpy==t).unwrap());     //remove miner_transa
-        }
-    }
-
-    let mut hasher = DefaultHasher::new();
-    transas_cpy.hash(&mut hasher);
-    hasher.finish()
-
-
-
-}
- */
 #[cfg(test)]
 mod tests {
-
-    use rand::Rng;
 
     use crate::block_chain::{
         block::{Block, Profile},
         blockchain::{Blockchain, FIRST_DIFFICULTY},
         transaction::{Transaction, Utxo},
     };
+    use rand::Rng;
 
     #[test]
     fn create_utxo() {

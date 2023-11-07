@@ -6,13 +6,14 @@ use std::{
     thread,
 };
 
-
-
-use anyhow::Result;
+use anyhow::{Context, Result};
 use bincode::{deserialize, serialize};
-use dryoc::{sign::SignedMessage, types::StackByteArray};
+use dryoc::{
+    sign::{PublicKey, SignedMessage},
+    types::StackByteArray,
+};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 use crate::block_chain::{
     block::Block,
@@ -61,9 +62,9 @@ pub enum TypeTransa {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub enum ClientPackect {
-    ReqUtxo(u64),        //Request for the UTXO of u64
-    RespUtxo((usize,Utxo)), //the response of RqUtxo : (number of utxo remains, the utxo -> (0,utxo..) is the last)
-    ReqSave,             //force save (debug)
+    ReqUtxo(PublicKey),      //Request for the UTXO of u64
+    RespUtxo((usize, Utxo)), //the response of RqUtxo : (number of utxo remains, the utxo -> (0,utxo..) is the last)
+    ReqSave,                 //force save (debug)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -75,8 +76,6 @@ pub enum Packet {
     Client(ClientPackect),
     None,
 }
-
-
 
 // whole network function inside it
 // send packet with action do scan block ect get peers
@@ -103,7 +102,7 @@ impl Network {
                 // if let Err(e) = transaction.verify(&transa.sender_pubkey) {
                 //     warn!("signature false! {:?}", e);
                 // } else {
-                    net_transa_tx.send(Event::Transaction(transaction)).unwrap()
+                net_transa_tx.send(Event::Transaction(transaction)).unwrap()
                 // }
             }
             TypeTransa::Req(_userid) => { /* get all transa and filter by user id*/ }
@@ -131,7 +130,7 @@ impl Network {
                 self.send_packet(
                     &Packet::Peer(TypePeer::List(self.peers.lock().unwrap().clone())),
                     &source,
-                )
+                ).unwrap();
             }
         }
         //on add aussi le remote dans la liste
@@ -223,13 +222,11 @@ impl Network {
     }
 
     /// verry cool send a packet
-    pub fn send_packet(&self, packet: &Packet, dest: &SocketAddr) {
-
-        let packet_serialized = serialize(&packet).expect("Can not serialize AswerKA");
-        debug!("packet size = {}", packet_serialized.len());
+    pub fn send_packet(&self, packet: &Packet, dest: &SocketAddr) -> Result<usize> {
+        let packet_serialized = serialize(&packet).context("Send: Cannot serialize Packet")?;
         self.binding
             .send_to(&packet_serialized, dest)
-            .unwrap_or_else(|_| panic!("Can not send packet {:?}", packet));
+            .context("send: cannot send packet")
     }
 
     /// awsome send a packet broadcast
@@ -239,21 +236,24 @@ impl Network {
             .unwrap()
             .iter()
             .filter(|&&x| x != self.get_socket())
-            .for_each(|dest| self.send_packet(&packet, dest)); ///////send socket differant
+            .for_each(|dest| {
+                self.send_packet(&packet, dest)
+                    .map_err(|err| error!("imposible de send a {}", err));
+            });
     }
 
     /// awsome
     pub fn recv_packet(selff: &UdpSocket) -> (Packet, SocketAddr) {
         //faudrait éliminer les vecteur dans les structure pour avoir une taille prédictible
 
-        const MAX_PACKET_SIZE : usize = 65507;
+        const MAX_PACKET_SIZE: usize = 65507;
         let mut buf = [0u8; MAX_PACKET_SIZE]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
-        
+
         let (_, sender) = selff.recv_from(&mut buf).expect("Error recv block");
         let des = deserialize(&mut buf);
-        if des.is_err(){
+        if des.is_err() {
             error!("Can to deserialize packet");
-            return (Packet::None,sender);
+            return (Packet::None, sender);
         }
         (des.unwrap(), sender)
     }
@@ -261,12 +261,12 @@ impl Network {
     /// wait for a wallet
     pub fn recv_packet_utxo_wallet(&self) -> Vec<Utxo> {
         let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
-        let allutxo =vec![];
+        let allutxo = vec![];
         loop {
             self.binding.recv_from(&mut buf).expect("Error recv block");
             let answer: Packet = deserialize(&mut buf).expect("Can not deserilize block");
-            if let Packet::Client(ClientPackect::RespUtxo((size,utxo))) = answer {
-                if  size == 0{
+            if let Packet::Client(ClientPackect::RespUtxo((size, utxo))) = answer {
+                if size == 0 {
                     return allutxo;
                 }
             }
@@ -276,7 +276,7 @@ impl Network {
     fn client(&self, client_packet: ClientPackect, sender: SocketAddr, event_tx: &Sender<Event>) {
         match client_packet {
             ClientPackect::ReqUtxo(id_client) => {
-                info!("Reciv client ({}) request UTXO ", id_client);
+                info!("Reciv client ({:?}) request UTXO ", id_client);
                 event_tx
                     .send(Event::ClientEvent(ClientEvent::ReqUtxo(id_client), sender))
                     .unwrap();

@@ -12,10 +12,15 @@ pub struct ToSave {
     privkey: SecretKey,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone,Default)]
 pub struct User {
+    /// path were stored wallet
     path: String,
-    wallet: Vec<Utxo>,
+    /// fee to give to miner
+    pub miner_rate: f64,
+    /// buch of non used transaction
+    pub wallet: Vec<Utxo>,
+    /// stuff to sign
     keypair: SigningKeyPair<PublicKey, SecretKey>,
 }
 
@@ -34,8 +39,8 @@ impl User {
     pub fn new_user(path:&str) -> Self {
         Self {
             path: path.to_string(),
-            wallet: vec![],
             keypair: SigningKeyPair::gen_with_defaults(),
+            ..Default::default()
         }
     }
 
@@ -52,6 +57,7 @@ impl User {
             path: path.to_string(),
             wallet: user.wallet,
             keypair,
+            ..Default::default()
         })
     }
 
@@ -72,22 +78,6 @@ impl User {
     }
 }
 
-fn main() {
-    // Generate a random keypair, using default types
-    let keypair = SigningKeyPair::gen_with_defaults();
-    let message = b"Fair is foul, and foul is fair: Hover through the fog and filthy air.";
-
-    // Sign the message, using default types (stack-allocated byte array, Vec<u8>)
-    let signed_message = keypair.sign_with_defaults(message).expect("signing failed");
-    let (a, mut b) = signed_message.into_parts();
-    b = "Fair is foul, and foul is fair: Hover through the fog and filthy air.".into();
-    let signed_message = SignedMessage::from_parts(a, b);
-
-    // Verify the message signature
-    signed_message
-        .verify(&keypair.public_key)
-        .expect("verification failed");
-}
 
 #[cfg(test)]
 mod test {

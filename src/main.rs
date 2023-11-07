@@ -8,16 +8,23 @@ mod block_chain {
     pub mod transaction;
     pub mod user;
 }
-
-use block_chain::node::{client::Client, network::Network, server::Server, NewNode};
+use anyhow::{bail, Context, Result};
+use block_chain::node::{
+    client::{self, Client},
+    network::Network,
+    server::Server,
+    NewNode,
+};
+use clap::Parser;
 use std::{
+    default,
     net::{IpAddr, Ipv4Addr},
     str::FromStr,
 };
 
 #[derive(Parser)]
 pub struct Cli {
-    /// Addresse ip: du serveur a utiliser pour boostrap
+    /// Addresse ip: du serveur a utiliser pour l'initialisation
     bootstrap: Option<IpAddr>,
 
     /// Addresse ip: adresse a utiliser
@@ -31,46 +38,57 @@ pub struct Cli {
     #[arg(short, long, default_value_t = 0)]
     ammount: u64,
 
-    /// Key file: fichier contenant la clef privée
+    /// Key file: fichier contenant le port money
     #[arg(short, long,default_value_t = String::new())]
-    secret: String,
+    path: String,
 
-    #[arg(short, long, default_value_t = 0)]
-    from: u64,
-
-    #[arg(short, long,default_value_t =String::from("WARN") )] //a changer a terme
+    /// niveaux de verbositée 1-3
+    #[arg(short,default_value_t =String::from("WARN") )]
     verbose: String,
 
+    /// nombre de thread a utiliser
+    #[arg(long, default_value_t = 1)]
+    threads: u16,
 
-    #[arg( long,default_value_t =1 )] //a changer a terme
-    number_miner: u16,
-
-    #[arg( long,default_value_t =String::new() )] //a changer a terme
-    save_json: String,
-
-    #[arg( long,default_value_t =String::new() )] //a changer a terme
-    save: String,
+    /// crée un nouveaux compte
+    #[arg(long, default_value_t = false)]
+    jouvance: bool,
 }
 
-use clap::Parser;
+impl Default for Cli {
+    fn default() -> Self {
+        Self {
+            bootstrap: Some(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0))),
+            bind: Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
+            ..Default::default()
+        }
+    }
+}
 
-fn main() {
+fn main() -> Result<()> {
     //get argument
     let arg = Cli::parse();
+
+    
 
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::from_str(&arg.verbose).unwrap_or(tracing::Level::WARN))
         .init();
 
+    // si doit recrée un compte 
+    if arg.jouvance {
+        client::Client::new_wallet(arg.path.as_str())?
+    }
+
     //check error of logique
-    let node = parse_args(arg);
+    let node = parse_args(arg)?;
 
     // don't care what we start just starting it
-    node.start();
+    node.start()
 }
 
-// s'ocupe de faire une logique des argument
-fn parse_args(cli: Cli) -> NewNode {
+/// parsing argument
+fn parse_args(cli: Cli) -> Result<NewNode> {
     // check un bootstrap spésifier
     let bootstrap;
     if cli.bind.is_none() {
@@ -91,23 +109,19 @@ fn parse_args(cli: Cli) -> NewNode {
     let networking = Network::new(bootstrap.unwrap(), binding.unwrap());
 
     // si doit send
-    if !cli.secret.is_empty() || cli.destination != 0 {
+    if !cli.path.is_empty() || cli.destination != 0 {
         // si manque un arg pour send
-        if !(!cli.secret.is_empty() && cli.destination != 0) {
-            panic!("missing amount, secret or destination")
+        if !(!cli.path.is_empty() && cli.destination != 0) {
+            bail!("missing amount, secret or destination")
         }
+
         //create client worker
-        //pourait être une action ici si lancer en interpréteur
-        //ça serait pas un new mais client::newaction(action)
-        NewNode::Cli(Client::new(
-            networking,
-            cli.destination,
-            cli.ammount,
-            cli.from,
-        ).expect("global error"))
+        Ok(NewNode::Cli(
+            Client::new(networking, cli.destination, cli.ammount).context("global error")?,
+        ))
     } else {
         //create server worker
-        NewNode::Srv(Server::new(networking,cli))
+        Ok(NewNode::Srv(Server::new(networking, cli)))
     }
 }
 
@@ -115,46 +129,32 @@ fn parse_args(cli: Cli) -> NewNode {
 //possible de lancer les calcule de block avec une seed par exemple est de simplifier le nombre d'itération
 #[cfg(test)]
 mod tests {
-    // use futures::{future::join, join, pin_mut, select, FutureExt};
     use crate::{parse_args, Cli};
     use std::net::Ipv4Addr;
 
     #[test]
     fn argument_lunch_server_init() {
-        //seed mode
+        //server mode
         let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
         let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)));
+
         let cli = Cli {
-            ammount: 0,
             bind,
             bootstrap,
-            destination: u64::MIN,
-            secret: String::new(),
-            verbose: String::new(),
-            from: 0,
-            number_miner : 1,
-            save_json : "".to_string(),
-            save : "".to_string(),
-            
+            ..Default::default()
         };
-        parse_args(cli);
+        parse_args(cli).unwrap();
 
         //client mode
         let bind = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)));
         let bootstrap = Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
+
         let cli = Cli {
-            ammount: 0,
             bind,
             bootstrap,
-            destination: u64::MIN,
-            secret: String::new(),
-            verbose: String::new(),
-            from: 0,
-            number_miner : 1,
-            save_json : "".to_string(),
-            save : "".to_string(),
+            ..Default::default()
         };
-        parse_args(cli);
+        parse_args(cli).unwrap();
     }
 
     #[test]

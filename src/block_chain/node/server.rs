@@ -1,5 +1,5 @@
 use bincode::{deserialize, serialize};
-use dryoc::{sign::SignedMessage, types::StackByteArray};
+use dryoc::{sign::{SignedMessage, PublicKey}, types::StackByteArray};
 
 use std::{
     fs::File,
@@ -24,6 +24,10 @@ use crate::{
     Cli,
 };
 
+
+const path_save_json:&str = "path_save_json.save";
+const path_save:&str = "path_save_json.save";
+
 use super::network::ClientPackect;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -34,7 +38,7 @@ pub enum NewBlock {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ClientEvent {
-    ReqUtxo(u64),
+    ReqUtxo(PublicKey),
     ReqSave, //force server to save the blockchain in file (debug)
 }
 
@@ -55,8 +59,8 @@ pub struct Server {
     id: u64,
     blockchain: Blockchain,
     number_miner: u16, //number of thread of miner to be spawn //<= use once 
-    path_save_json: String,
-    path_save: String,
+    // path_save_json: String,
+    // path_save: String,
 }
 
 #[derive(Debug)]
@@ -77,9 +81,7 @@ impl Server {
             network,
             id,
             blockchain: Blockchain::new(),
-            number_miner: cli.number_miner,
-            path_save_json: cli.save_json,
-            path_save: cli.save,
+            number_miner: cli.threads,
         }
     }
     pub fn start(mut self) -> Result<()>{
@@ -100,7 +102,7 @@ impl Server {
     }
 
     /// Routing event and adding block and transaction
-    fn server_runtime(&mut self, finder: u64, event_channels: (Sender<Event>, Receiver<Event>)) {
+    fn server_runtime(&mut self, finder: u64, event_channels: (Sender<Event>, Receiver<Event>)) -> Result<()> {
         info!("Runtime server start");
 
         let miner_stuff = Arc::new(Mutex::new(MinerStuff {
@@ -133,7 +135,7 @@ impl Server {
                         self.network.send_packet(
                             &Packet::Block(TypeBlock::Block(self.blockchain.last_block())),
                             &dest,
-                        )
+                        )?;
                     }
                     //ça partira ducoup
                     else if hash.is_negative() {
@@ -142,7 +144,7 @@ impl Server {
                     //ça sera le enum hash
                     else if let Some(block) = self.blockchain.get_block(hash as u64) {
                         self.network
-                            .send_packet(&Packet::Block(TypeBlock::Block(block.clone())), &dest)
+                            .send_packet(&Packet::Block(TypeBlock::Block(block.clone())), &dest)?;
                     } else {
                         warn!("hash not found in database :{}", hash);
                     }
@@ -214,8 +216,8 @@ impl Server {
                     }
 
                     ClientEvent::ReqSave => {
-                        if self.path_save_json != "" {
-                            let file_json = File::create(&self.path_save_json).unwrap();
+                        if path_save_json != "" {
+                            let file_json = File::create(path_save_json).unwrap();
                             let chain = self
                                 .blockchain
                                 .get_chain()
@@ -224,8 +226,8 @@ impl Server {
                                 .collect();
                             save_chain_readable(&chain, file_json);
                         }
-                        if self.path_save != "" {
-                            let file_json = File::create(&self.path_save).unwrap();
+                        if path_save != "" {
+                            let file_json = File::create(path_save).unwrap();
                             let chain = self
                                 .blockchain
                                 .get_chain()

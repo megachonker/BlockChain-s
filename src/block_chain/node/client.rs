@@ -4,81 +4,85 @@ use crate::{
     block_chain::{
         node::network::{ClientPackect, Packet, TypeTransa},
         transaction::Transaction,
+        user::User,
     },
     friendly_name::get_friendly_name,
 };
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
+use dryoc::sign::PublicKey;
+use tracing::info;
 
 pub struct TransaInfo {
-    ammount: u64,
-    destination: u64,
-    from: u64,
-}
-
-impl TransaInfo {
-    pub fn new(ammount: u64, destination: u64, from: u64) -> Self {
-        TransaInfo {
-            ammount,
-            destination,
-            from,
-        }
-    }
+    pub ammount: u64,
+    pub destination: u64,
+    pub from: PublicKey,
 }
 
 pub struct Client {
+    user: User,
     name: String,
     networking: Network,
     transa_info: TransaInfo,
 }
 
 impl Client {
-    pub fn new(
-        networking: Network,
-        destination: u64,
-        ammount: u64,
-        from: u64,
-    ) -> Result<Self> {
+    pub fn new(networking: Network, destination: u64, ammount: u64) -> Result<Self> {
         let name = get_friendly_name(networking.get_socket())
-            .context("generation name from ip imposble")?;
+            .context("generation name from ip imposible PATH?")?;
+        let user = user::User::new_user("cli.usr");
 
         Ok(Self {
             name,
+            user,
             networking,
-            transa_info: TransaInfo::new(ammount, destination, from),
+            transa_info: TransaInfo {
+                ammount,
+                destination,
+                from: user.get_key().public_key,
+            },
         })
     }
-    pub fn start(self) -> Result<()> {
-        let mut user = user::User::new_user("cli.usr");
 
-        //force to save (debug)
-        self.networking.send_packet(
-            &Packet::Client(ClientPackect::ReqSave),
-            &self.networking.bootstrap,
-        );
+    /// create empty wallet annd write it
+    pub fn new_wallet(path: &str) -> Result<()> {
+        let user = user::User::new_user(path);
+        user.save()
+    }
 
+    /// ask to all peer balance and take first balance received and update
+    fn refresh_wallet(&mut self){
+        // pull utxo avaible
         self.networking.send_packet(
             &Packet::Client(ClientPackect::ReqUtxo(self.transa_info.from)),
             &self.networking.bootstrap,
         );
 
+        // register utxo
         let myutxo = self.networking.recv_packet_utxo_wallet();
-        user.refresh_wallet(myutxo.clone());
 
-        let transactionb = Transaction::create_transa_from(
-            &myutxo,
-            self.transa_info.ammount,
-            self.transa_info.destination,
-            0.10,
+        self.user.refresh_wallet(myutxo);
+    }
+
+    pub fn start(mut self) -> Result<()> {
+        
+        // json blockainne
+        self.networking.send_packet(
+            &Packet::Client(ClientPackect::ReqSave),
+            &self.networking.bootstrap,
         );
 
-        let transactionb = transactionb.context("You not have enought money")?;
+        let transactionb = Transaction::create_transa_from(
+            &mut self.user,
+            self.transa_info.ammount,
+            self.transa_info.destination,
+        ).ok_or_else(||anyhow!("You not have enought money"))?;
 
-        println!("Transaction created : {:?}", transactionb);
+        info!("Transaction created : {:?}", transactionb);
 
         self.networking.send_packet(
             &Packet::Transaction(TypeTransa::Push(transactionb)),
             &self.networking.bootstrap,
         );
-        user.save()
+        self.user.save()
     }
 }
