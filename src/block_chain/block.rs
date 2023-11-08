@@ -85,7 +85,7 @@ impl fmt::Display for Block {
 ║difficulty : {}   
 ║nonce : {}
 ║quote : {}
-║timestemp : {}
+║timestamp : {}
 ╚═══════════════════════════════════════╝ ",
             self.block_id,
             self.block_height,
