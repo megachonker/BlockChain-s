@@ -178,7 +178,7 @@ pub struct Blockchain {
 
 impl fmt::Display for Blockchain {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Block actuel: {}", self.top_block_hash).unwrap();
+        writeln!(f, "Block actuel: {}", self.top_block_hash)?;
         self.get_chain()
             .into_iter()
             .for_each(|b| writeln!(f, "{}", b).unwrap());

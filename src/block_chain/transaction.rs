@@ -13,6 +13,7 @@ use std::{
 use super::blockchain::{Balance, Blockchain};
 use super::{block::MINER_REWARD, user::User};
 
+
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Utxo {
     pub hash: u64,
@@ -60,6 +61,9 @@ impl fmt::Display for Utxo {
         write!(f, "|#{}->({:?},{}$)|", self.hash, self.onwer, self.ammount)
     }
 }
+
+
+
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 /// Structure That Be Signed
@@ -150,7 +154,7 @@ impl Transaction {
     /// introduce miner fee
     /// send back to owner surplus
     pub fn create_transa_from(user: &mut User, amount: u64, destination: PublicKey) -> Option<Self> {
-        let total_ammount = (amount as f64 * (1.0 + user.miner_rate)) as u64;
+        let total_ammount = (amount as f64 * (1.0 + user.miner_fee)) as u64;
         let (selected, sendback) = Self::select_utxo_from_vec(&user.wallet, total_ammount)?;
 
         let mut hasher = DefaultHasher::new();

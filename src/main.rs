@@ -9,13 +9,17 @@ mod block_chain {
     pub mod user;
 }
 use anyhow::{bail, Context, Result};
-use block_chain::node::{
-    client::{self, Client},
-    network::Network,
-    server::Server,
-    NewNode,
+use block_chain::{
+    node::{
+        client::{self, Client},
+        network::Network,
+        server::Server,
+        NewNode,
+    },
+    user::User,
 };
 use clap::Parser;
+use tracing::info;
 use std::{
     default,
     net::{IpAddr, Ipv4Addr},
@@ -80,7 +84,12 @@ fn main() -> Result<()> {
 
     // si doit recrée un compte
     if arg.jouvance {
-        client::Client::new_wallet(arg.path.as_str())?
+        if arg.path.is_empty(){
+            bail!("missing path for create new user !");
+        }
+        client::Client::new_wallet(arg.path.as_str())?;
+        info!("Successfully create new user !");
+        return Ok(());
     }
 
     //check error of logique
@@ -122,9 +131,13 @@ fn parse_args(cli: Cli) -> Result<NewNode> {
         //cli.destination
 
         //create client worker
-        Ok(NewNode::Cli(
-            Client::new(networking, Default::default(), cli.ammount).context("global error")?,
-        ))
+        let user = User::load("cli.path")?;
+        Ok(NewNode::Cli(Client::new(
+            networking,
+            user,
+            Default::default(),
+            cli.ammount,
+        )))
     } else {
         //create server worker
         Ok(NewNode::Srv(Server::new(networking, cli)))

@@ -155,7 +155,7 @@ impl Server {
                     let new_block = match new_block {
                         NewBlock::Mined(b) => {
                             self.network
-                                .broadcast(Packet::Block(TypeBlock::Block(b.clone())));
+                                .broadcast(Packet::Block(TypeBlock::Block(b.clone())))?;
                             debug!("Broadcast mined block");
                             b
                         }
@@ -185,12 +185,12 @@ impl Server {
                         println!("New Top Block : {}", top_block);
 
                         self.network
-                            .broadcast(Packet::Block(TypeBlock::Block(top_block.clone())));
+                            .broadcast(Packet::Block(TypeBlock::Block(top_block.clone())))?;
                     }
 
                     if let Some(needed_block) = block_need {
                         self.network
-                            .broadcast(Packet::Block(TypeBlock::Hash(needed_block as i128)));
+                            .broadcast(Packet::Block(TypeBlock::Hash(needed_block as i128)))?;
                         info!("{} is needed to complete another branch", needed_block);
                     }
                 }
@@ -213,7 +213,7 @@ impl Server {
                         let nb_utxo = utxos.len();
                         for (index, utxo) in utxos.iter().enumerate() {
                             self.network
-                                .send_packet(&Packet::Client(ClientPackect::RespUtxo((nb_utxo -1 - index,utxo.clone()))), & addr_client);
+                                .send_packet(&Packet::Client(ClientPackect::RespUtxo((nb_utxo -1 - index,utxo.clone()))), & addr_client)?;
                         }
                     }
 

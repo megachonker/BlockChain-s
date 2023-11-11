@@ -64,6 +64,7 @@ pub enum TypeTransa {
 pub enum ClientPackect {
     ReqUtxo(PublicKey),      //Request for the UTXO of u64
     RespUtxo((usize, Utxo)), //the response of RqUtxo : (number of utxo remains, the utxo -> (0,utxo..) is the last)
+    
     ReqSave,                 //force save (debug)
 }
 
