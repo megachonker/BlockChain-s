@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use bincode::{deserialize, serialize};
 use dryoc::{
     sign::{PublicKey, SignedMessage},
@@ -130,17 +130,18 @@ impl Network {
                 self.send_packet(
                     &Packet::Peer(TypePeer::List(self.peers.lock().unwrap().clone())),
                     &source,
-                ).unwrap();
+                )
+                .unwrap();
             }
         }
         //on add aussi le remote dans la liste
     }
 
     /// Ping Pong but update timestamp
-    fn keepalive(&self, sender: SocketAddr) {
+    fn keepalive(&self, sender: SocketAddr) -> Result<()> {
         // do here the timestamp things
         // todo!();
-        self.send_packet(&Packet::Keepalive, &sender);
+        self.send_packet(&Packet::Keepalive, &sender).map(|u| ())
     }
 
     fn block(
@@ -170,7 +171,7 @@ impl Network {
         }
     }
 
-    pub fn start(self, event_tx: Sender<Event>) {
+    pub fn start(self, event_tx: Sender<Event>) -> Result<()> {
         info!("network start");
 
         let mut self_cpy = self.clone();
@@ -184,23 +185,23 @@ impl Network {
                     match message {
                         Packet::Transaction(transa) => Network::transaction(transa, &event_tx),
                         Packet::Peer(peers) => self_cpy.peers(peers, sender),
-                        Packet::Keepalive => self_cpy.keepalive(sender),
+                        Packet::Keepalive => self_cpy.keepalive(sender).unwrap(),
                         Packet::Block(typeblock) => self_cpy.block(typeblock, sender, &event_tx),
                         Packet::Client(client_packet) => {
-                            self_cpy.client(client_packet, sender, &event_tx)
+                            self_cpy.client(client_packet, sender, &event_tx).unwrap()
                         }
                         Packet::None => {}
                     }
                 }
-            })
-            .unwrap();
+            })?;
 
         if self.bootstrap != SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 6021)
         ////////////// need to be removed
         {
-            self.send_packet(&Packet::Peer(TypePeer::Request(100)), &self.bootstrap); //to register and get peers
-            self.send_packet(&Packet::Block(TypeBlock::Lastblock), &self.bootstrap);
+            self.send_packet(&Packet::Peer(TypePeer::Request(100)), &self.bootstrap)?; //to register and get peers
+            self.send_packet(&Packet::Block(TypeBlock::Lastblock), &self.bootstrap)?;
         }
+        Ok(())
     }
 
     /// Constructor of network
@@ -230,16 +231,14 @@ impl Network {
     }
 
     /// awsome send a packet broadcast
-    pub fn broadcast(&self, packet: Packet) {
-        self.peers
-            .lock()
-            .unwrap()
-            .iter()
-            .filter(|&&x| x != self.get_socket())
-            .for_each(|dest| {
-                self.send_packet(&packet, dest)
-                    .map_err(|err| error!("imposible de send a {}", err));
-            });
+    pub fn broadcast(&self, packet: Packet) -> Result<()> {
+        let peers = self.peers.lock().unwrap();
+        
+        for dest in peers.iter().filter(|&&x| x != self.get_socket()) {
+            self.send_packet(&packet, dest).context(format!("Failed to send to {}", dest))?;
+        }
+        
+        Ok(())
     }
 
     /// awsome
@@ -273,28 +272,32 @@ impl Network {
         }
     }
 
-    fn client(&self, client_packet: ClientPackect, sender: SocketAddr, event_tx: &Sender<Event>) {
+    fn client(
+        &self,
+        client_packet: ClientPackect,
+        sender: SocketAddr,
+        event_tx: &Sender<Event>,
+    ) -> Result<()> {
         match client_packet {
             ClientPackect::ReqUtxo(id_client) => {
                 info!("Reciv client ({:?}) request UTXO ", id_client);
-                event_tx
-                    .send(Event::ClientEvent(ClientEvent::ReqUtxo(id_client), sender))
-                    .unwrap();
+                event_tx.send(Event::ClientEvent(ClientEvent::ReqUtxo(id_client), sender))?;
             }
             ClientPackect::RespUtxo(_) => {
                 info!("Receive a response client packet but it is a server")
             }
             ClientPackect::ReqSave => {
-                event_tx
-                    .send(Event::ClientEvent(ClientEvent::ReqSave, sender))
-                    .unwrap();
+                event_tx.send(Event::ClientEvent(ClientEvent::ReqSave, sender))?;
             }
         }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Result;
+
     use crate::block_chain::node::{
         network::{Network, Packet, TypeBlock},
         server::{Event, NewBlock},
@@ -307,7 +310,7 @@ mod tests {
     /// test client asking block
     /// test client recieved the block
     /// Test server added client
-    fn create_blockchain() {
+    fn create_blockchain() -> Result<()> {
         let client_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 2)), 6021);
 
         // New pair
@@ -325,8 +328,8 @@ mod tests {
 
         let tserver = server.clone();
         std::thread::spawn(move || {
-            tserver.start(server_tx.clone());
-            client.start(client_tx);
+            tserver.start(server_tx.clone()).unwrap();
+            client.start(client_tx).unwrap();
         });
 
         let s1 = server_rx.recv().unwrap();
@@ -337,7 +340,7 @@ mod tests {
         server.send_packet(
             &Packet::Block(TypeBlock::Block(Default::default())),
             &client_addr,
-        );
+        )?;
 
         let c1 = client_rx.recv().unwrap();
         assert_eq!(c1, Event::NewBlock(NewBlock::Network(Default::default())));
@@ -347,5 +350,6 @@ mod tests {
             *server.peers.lock().unwrap().get(&client_addr).unwrap(),
             client_addr
         );
+        Ok(())
     }
 }

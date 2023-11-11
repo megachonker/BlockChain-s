@@ -48,18 +48,19 @@ impl Client {
     }
 
     /// ask to all peer balance and take first balance received and update
-    fn refresh_wallet(&mut self){
+    fn refresh_wallet(&mut self) -> Result<()>{
         // pull utxo avaible
 
         self.networking.send_packet(
             &Packet::Client(ClientPackect::ReqUtxo(self.user.get_key().public_key.clone())),
             &self.networking.bootstrap,
-        );
+        )?;
 
         // register utxo
         let myutxo = self.networking.recv_packet_utxo_wallet();
 
         self.user.refresh_wallet(myutxo);
+        Ok(())
     }
 
     pub fn start(mut self) -> Result<()> {
@@ -68,7 +69,7 @@ impl Client {
         self.networking.send_packet(
             &Packet::Client(ClientPackect::ReqSave),
             &self.networking.bootstrap,
-        );
+        )?;
 
         let transactionb = Transaction::create_transa_from(
             &mut self.user,
@@ -81,7 +82,17 @@ impl Client {
         self.networking.send_packet(
             &Packet::Transaction(TypeTransa::Push(transactionb)),
             &self.networking.bootstrap,
-        );
+        )?;
         self.user.save()
+    }
+}
+
+
+#[cfg(test)]
+mod  test{
+
+    #[test]
+    fn make_transaction(){
+        
     }
 }
