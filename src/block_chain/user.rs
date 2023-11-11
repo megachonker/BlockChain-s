@@ -12,6 +12,7 @@ pub struct ToSave {
     privkey: SecretKey,
 }
 
+
 #[derive(Debug, PartialEq, Clone,Default)]
 pub struct User {
     /// path were stored wallet

@@ -60,7 +60,12 @@ impl Default for Cli {
         Self {
             bootstrap: Some(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0))),
             bind: Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
-            ..Default::default()
+            ammount: 0,
+            destination: 0,
+            jouvance: false,
+            path: "".to_string(),
+            threads: 1,
+            verbose: "LOG".to_string(),
         }
     }
 }
@@ -69,13 +74,11 @@ fn main() -> Result<()> {
     //get argument
     let arg = Cli::parse();
 
-    
-
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::from_str(&arg.verbose).unwrap_or(tracing::Level::WARN))
         .init();
 
-    // si doit recrée un compte 
+    // si doit recrée un compte
     if arg.jouvance {
         client::Client::new_wallet(arg.path.as_str())?
     }
@@ -117,7 +120,6 @@ fn parse_args(cli: Cli) -> Result<NewNode> {
 
         ////////////NeedLookup  throught wallet!!!!!!!!!!!!!
         //cli.destination
-
 
         //create client worker
         Ok(NewNode::Cli(

@@ -158,7 +158,7 @@ impl Transaction {
         let hash_come_from = hasher.finish();
 
         let mut transaction = Self {
-            rx: selected,
+            rx: selected.clone(),///
             tx: vec![Utxo::new(amount, destination, hash_come_from)],
         };
 
@@ -175,7 +175,7 @@ impl Transaction {
         //send back the money to the owner of input
         transaction
             .tx
-            .push(Utxo::new(sendback, user.wallet[0].onwer, hash_come_from));
+            .push(Utxo::new(sendback, user.wallet[0].onwer.clone(), hash_come_from));
         Some(transaction)
     }
 
@@ -252,10 +252,12 @@ mod tests {
     };
     use rand::Rng;
 
+    use super::*;
+
     #[test]
     fn create_utxo() {
         let mut rng = rand::thread_rng();
-        let utxo = Utxo::new(rng.gen(), rng.gen(), rng.gen());
+        let utxo = Utxo::new(rng.gen(), Default::default(), rng.gen());
 
         assert!(utxo.check());
     }
