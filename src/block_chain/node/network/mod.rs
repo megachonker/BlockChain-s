@@ -276,7 +276,7 @@ impl Network {
     /// wait for a wallet
     pub fn recv_packet_utxo_wallet(&self) -> Result<Vec<Utxo>> {
         let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
-        let allutxo = vec![];
+        let mut allutxo = vec![];
         loop {
             self.binding
                 .set_read_timeout(Some(Duration::from_secs(1)))?;
@@ -288,7 +288,8 @@ impl Network {
             })?;
             let answer: Packet = deserialize(&mut buf).expect("Can not deserilize block");
             if let Packet::Client(ClientPackect::RespUtxo((size, utxo))) = answer {
-                debug!("rev some wallet info: {} {}",size,utxo);
+                debug!("rev some wallet utxo: {} {}",size,utxo);
+                allutxo.push(utxo);
                 if size == 0 {
                     return Ok(allutxo);
                 }
