@@ -2,10 +2,10 @@ use std::fmt::Display;
 
 use super::{
     node::network::Packet,
-    transaction::{Transaction, Utxo},
+    transaction::{amount, Transaction, Utxo},
 };
 use anyhow::{Context, Error, Result};
-use dryoc::{keypair, sign::*, types::StackByteArray, auth::Key};
+use dryoc::{auth::Key, keypair, sign::*, types::StackByteArray};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -27,13 +27,13 @@ impl std::fmt::Display for Acount {
     }
 }
 
-#[derive(Debug,PartialEq,Clone,Default)]
-pub  struct Keypair(SigningKeyPair<PublicKey, SecretKey>);
+#[derive(Debug, PartialEq, Clone, Default)]
+pub struct Keypair(SigningKeyPair<PublicKey, SecretKey>);
 
 impl Display for Keypair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f,"Pub  Key:{:x?}",self.0.public_key)?;
-        writeln!(f,"Priv Key:{:x?}",self.0.secret_key)
+        writeln!(f, "Pub  Key:{:x?}", self.0.public_key)?;
+        writeln!(f, "Priv Key:{:x?}", self.0.secret_key)
     }
 }
 
@@ -75,19 +75,20 @@ impl TryFrom<&str> for Acount {
     }
 }
 
-
-
-
 impl Acount {
     pub fn get_key(&self) -> &Keypair {
         &self.keypair //double clone
+    }
+
+    pub fn get_sold(&self) -> u64 {
+        self.wallet.iter().fold(Default::default(),|sum,x| x.amount+sum )
     }
 
     pub fn new_user(path: &str) -> Self {
         Self {
             path: path.to_string(),
             keypair: SigningKeyPair::gen_with_defaults().into(),
-            miner_fee:0.1,
+            miner_fee: 0.1,
             ..Default::default()
         }
     }
@@ -98,15 +99,14 @@ impl Acount {
 
     pub fn load(path: &str) -> Result<Self> {
         //need  err handling
-        let conf = std::fs::read(path).context("impossible de lire la conf")?;
+        let conf = std::fs::read(path).with_context( || format!( "I/O impossible de charger le wallet [{}] (non existing file ?)",path))?;
         let user: ToSave = serde_json::from_slice(&conf).context("la conf lut est broken")?;
-        let keypair: Keypair =
-            SigningKeyPair::from_secret_key(user.privkey).into();
+        let keypair: Keypair = SigningKeyPair::from_secret_key(user.privkey).into();
         Ok(Self {
             path: path.to_string(),
             wallet: user.wallet,
             keypair,
-            miner_fee:0.1,
+            miner_fee: 0.1,
             ..Default::default()
         })
     }

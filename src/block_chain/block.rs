@@ -171,7 +171,7 @@ impl Block {
                     //not correct hash
                     return false;
                 }
-                miner_reward = t.tx[0].ammount
+                miner_reward = t.tx[0].amount
             } else {
                 transa_remain += t.remains();
             }

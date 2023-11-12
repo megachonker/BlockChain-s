@@ -164,6 +164,7 @@ mod tests {
         let cli = Cli {
             bind,
             bootstrap,
+            path:"test.usr".to_string(),
             ..Default::default()
         };
         parse_args(cli).unwrap();
@@ -175,6 +176,7 @@ mod tests {
         let cli = Cli {
             bind,
             bootstrap,
+            path:"test.usr".to_string(),
             ..Default::default()
         };
         parse_args(cli).unwrap();

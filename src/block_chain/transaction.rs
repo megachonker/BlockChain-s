@@ -13,33 +13,35 @@ use std::{
 use super::{blockchain::{Balance, Blockchain}, acount::Keypair};
 use super::{block::MINER_REWARD, acount::Acount};
 
-type amount = u32;
+pub type amount = u32;
 type hash = u64;
+
+
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Utxo {
     pub hash: u64,
     pub onwer: PublicKey,
-    pub ammount: u64,
+    pub amount: u64,
     pub come_from: u64, //the hash of the utxo which come from (permit to the utxo to unique), hash of the list of transactions validated if it is the utxo create by miner.
 }
 
 impl Hash for Utxo {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.onwer.hash(state);
-        self.ammount.hash(state);
+        self.amount.hash(state);
         self.come_from.hash(state);
     }
 }
 impl Utxo {
     fn check(&self) -> bool {
-        self.hash == self.hash() && self.ammount > 0
+        self.hash == self.hash() && self.amount > 0
     }
 
     fn hash(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
         self.onwer.hash(&mut hasher);
-        self.ammount.hash(&mut hasher);
+        self.amount.hash(&mut hasher);
         self.come_from.hash(&mut hasher);
 
         hasher.finish()
@@ -49,7 +51,7 @@ impl Utxo {
         let mut utxo = Self {
             hash: 0,
             onwer: owner,
-            ammount,
+            amount: ammount,
             come_from,
         };
         utxo.hash = utxo.hash();
@@ -60,7 +62,7 @@ impl Utxo {
 //do no show the come_from (useless to show)
 impl fmt::Display for Utxo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "|#{}->({:?},{}$)|", self.hash,self.onwer.to_vec().get(..5).unwrap(), self.ammount)
+        write!(f, "|#{}->({:?},{}$)|", self.hash,self.onwer.to_vec().get(..5).unwrap(), self.amount)
     }
 }
 
@@ -116,7 +118,7 @@ impl Transaction {
             if !utxo.check() {
                 return false;
             }
-            ammount += utxo.ammount as i128;
+            ammount += utxo.amount as i128;
         }
 
         let mut hasher = DefaultHasher::new();
@@ -128,7 +130,7 @@ impl Transaction {
                 print!("Ici");
                 return false;
             }
-            ammount -= utxo.ammount as i128;
+            ammount -= utxo.amount as i128;
         }
 
         ammount >= 0
@@ -204,7 +206,7 @@ impl Transaction {
         let mut vec_utxo = vec![];
 
         for utxo in avaible {
-            value += utxo.ammount;
+            value += utxo.amount;
             vec_utxo.push(utxo.clone());
             if value >= amount {
                 return Some((vec_utxo, value - amount));
@@ -242,8 +244,8 @@ impl Transaction {
     }
 
     pub fn remains(&self) -> u64 {
-        let input: u64 = self.rx.iter().map(|u| u.ammount).sum();
-        let output: u64 = self.tx.iter().map(|u| u.ammount).sum();
+        let input: u64 = self.rx.iter().map(|u| u.amount).sum();
+        let output: u64 = self.tx.iter().map(|u| u.amount).sum();
         input - output
     }
 }
@@ -271,19 +273,19 @@ mod tests {
     #[test]
     fn test_select_utxo_from_vec() {
         let rx_7 = Utxo {
-            ammount: 5,
+            amount: 5,
             ..Default::default()
         };
         let rx_3 = Utxo {
-            ammount: 4,
+            amount: 4,
             ..Default::default()
         };
         let rx_2 = Utxo {
-            ammount: 8,
+            amount: 8,
             ..Default::default()
         };
         let rx_9 = Utxo {
-            ammount: 9,
+            amount: 9,
             ..Default::default()
         };
 
@@ -292,7 +294,7 @@ mod tests {
         let amount = 10;
         let (transa, sendback) = Transaction::select_utxo_from_vec(&wallet, amount).unwrap();
         transa.iter().for_each(|transa| print!("{}", transa));
-        let full: u64 = transa.iter().map(|f| f.ammount).sum();
+        let full: u64 = transa.iter().map(|f| f.amount).sum();
         assert!(full > amount);
         assert!(full - amount == sendback);
     }

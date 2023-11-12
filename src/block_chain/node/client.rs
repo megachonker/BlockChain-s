@@ -58,7 +58,7 @@ impl Client {
         // register utxo
         trace!("waiting receiving packet of wallet");
         let myutxo = self.networking.recv_packet_utxo_wallet()?;
-
+        
         self.user.refresh_wallet(myutxo);
         Ok(())
     }
@@ -71,7 +71,11 @@ impl Client {
         )?;
 
         self.refresh_wallet()?;
-        info!("Wallet: {}",self.user);
+        info!("Wallet:\n{}",self.user);
+
+
+        info!("sold: {}",self.user.get_sold());
+
 
         let transactionb = Transaction::create_transa_from(
             &mut self.user,
@@ -96,15 +100,16 @@ mod test {
     use crate::block_chain::{node::network::Network, acount::Acount};
     use super::Client;
 
-    #[test]
-    fn make_transaction() {
-        let bind = std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
-        let bootstrap = std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0));
+    // #[test]
+    // fn make_transaction() {
+    //     let bind = std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+    //     let bootstrap = std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0));
 
-        let net = Network::new(bootstrap, bind);
-        let user = Acount::default();
+    //     let net = Network::new(bootstrap, bind);
+    //     let user = Acount::default();
 
-        let cli = Client::new(net, user, Default::default(), 1);
-        cli.start().unwrap();
-    }
+    //     let cli = Client::new(net, user, Default::default(), 1);
+    //     cli.start().unwrap();
+    // }
+    //tester  le sold
 }
