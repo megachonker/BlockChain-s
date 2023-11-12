@@ -265,6 +265,7 @@ impl Network {
         loop {
             self.binding.recv_from(&mut buf).expect("Error recv block");
             let answer: Packet = deserialize(&mut buf).expect("Can not deserilize block");
+            debug!("rev some wallet info");
             if let Packet::Client(ClientPackect::RespUtxo((size, utxo))) = answer {
                 if size == 0 {
                     return allutxo;
@@ -281,7 +282,7 @@ impl Network {
     ) -> Result<()> {
         match client_packet {
             ClientPackect::ReqUtxo(id_client) => {
-                info!("Reciv client ({:?}) request UTXO ", id_client);
+                info!("Received client ({:?}) request UTXO ", id_client);
                 event_tx.send(Event::ClientEvent(ClientEvent::ReqUtxo(id_client), sender))?;
             }
             ClientPackect::RespUtxo(_) => {

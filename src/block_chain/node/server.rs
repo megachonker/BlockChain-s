@@ -11,7 +11,7 @@ use std::{
 };
 use anyhow::{Context, Result};
 
-use tracing::{debug, info, warn};
+use tracing::{debug, info, warn,trace};
 
 use crate::friendly_name::*;
 use crate::{
@@ -199,19 +199,21 @@ impl Server {
 
                     if self.blockchain.transa_is_valid(&transa, &minner_stuff_lock) {
                         minner_stuff_lock.transa.push(transa.clone());
-
-                        // WRONG why the server whant to publish recived transaction
-                        // can create loop
-                        // no benefit just drowback 
-                        // self.network
-                        //     .broadcast(Packet::Transaction(TypeTransa::Push(transa)));
                     }
                 }
                 Event::ClientEvent(event, addr_client) => match event {
                     ClientEvent::ReqUtxo(id_client) => {
                         let utxos = self.blockchain.filter_utxo(id_client);
                         let nb_utxo = utxos.len();
+
+                        // si le client n'es pas trouve 
+                        if utxos.is_empty() {
+                            self.network
+                                .send_packet(&Packet::Client(ClientPackect::RespUtxo((0,Default::default()))), & addr_client)?;
+                        }
+
                         for (index, utxo) in utxos.iter().enumerate() {
+                            trace!("send back to {} transaction {} {}",addr_client,index,utxo);
                             self.network
                                 .send_packet(&Packet::Client(ClientPackect::RespUtxo((nb_utxo -1 - index,utxo.clone()))), & addr_client)?;
                         }

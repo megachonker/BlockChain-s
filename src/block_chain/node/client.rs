@@ -10,7 +10,7 @@ use crate::{
 };
 use anyhow::{anyhow, Context, Result};
 use dryoc::sign::PublicKey;
-use tracing::{info, debug};
+use tracing::{info, debug,warn,trace};
 
 pub struct TransaInfo {
     pub ammount: u64,
@@ -46,14 +46,17 @@ impl Client {
     fn refresh_wallet(&mut self) -> Result<()> {
         // pull utxo avaible
 
+        let pubkey:PublicKey= self.user.get_key().clone().into();
+        debug!("Ask for wallet value for {:?}",pubkey);
         self.networking.send_packet(
             &Packet::Client(ClientPackect::ReqUtxo(
-                self.user.get_key().clone().into(),
+                pubkey,
             )),
             &self.networking.bootstrap,
         )?;
 
         // register utxo
+        trace!("waiting receiving packet of wallet");
         let myutxo = self.networking.recv_packet_utxo_wallet();
 
         self.user.refresh_wallet(myutxo);
@@ -67,6 +70,7 @@ impl Client {
             &self.networking.bootstrap,
         )?;
 
+        
         
         self.refresh_wallet()?;
         info!("Wallet: {}",self.user);

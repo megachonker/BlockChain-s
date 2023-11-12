@@ -43,7 +43,7 @@ pub struct Cli {
     ammount: u64,
 
     /// Key file: fichier contenant le port money
-    #[arg(short, long,default_value_t = String::new())]
+    #[arg(short, long,default_value_t = String::from("default.usr"))]
     path: String,
 
     /// niveaux de verbositée 1-3
@@ -101,6 +101,10 @@ fn main() -> Result<()> {
 
 /// parsing argument
 fn parse_args(cli: Cli) -> Result<NewNode> {
+    //create user
+    let user = User::load(&cli.path)?;
+    
+    
     // check un bootstrap spésifier
     let bootstrap;
     if cli.bind.is_none() {
@@ -123,15 +127,15 @@ fn parse_args(cli: Cli) -> Result<NewNode> {
     // si doit send
     if !cli.path.is_empty() || cli.destination != 0 {
         // si manque un arg pour send
-        if !(!cli.path.is_empty() && cli.destination != 0) {
-            bail!("missing amount, secret or destination")
+        if cli.ammount == 0 {
+            bail!("missing amount")
         }
 
-        ////////////NeedLookup  throught wallet!!!!!!!!!!!!!
-        //cli.destination
+        if cli.destination == 0 {
+            bail!("missing destination for transaction")
+        }
 
         //create client worker
-        let user = User::load("cli.path")?;
         Ok(NewNode::Cli(Client::new(
             networking,
             user,
