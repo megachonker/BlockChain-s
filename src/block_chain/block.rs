@@ -160,19 +160,19 @@ impl Block {
         let mut miner_reward: Amount = 0;
         let mut transa_remain: Amount = 0;
         for t in &self.transactions {
-            if t.rx.is_empty() && t.tx.len() == 1 {
+            if t.rx.0.is_empty() && t.tx.0.len() == 1 {
                 if already_see {
                     return false; //double miner transa
                 }
                 already_see = true;
 
-                if t.tx[0].come_from != self.block_height {
+                if t.tx.0[0].come_from != self.block_height {
                     //not correct hash
                     return false;
                 }
-                miner_reward = t.tx[0].amount
+                miner_reward = t.tx.0[0].amount
             } else {
-                transa_remain += t.remains();
+                transa_remain += t.remains() as Amount;
             }
         }
 

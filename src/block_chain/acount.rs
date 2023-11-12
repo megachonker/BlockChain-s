@@ -25,7 +25,7 @@ impl std::fmt::Display for Acount {
 }
 
 #[derive(Debug, PartialEq, Clone, Default)]
-pub struct Keypair(SigningKeyPair<PublicKey, SecretKey>);
+pub struct Keypair(pub SigningKeyPair<PublicKey, SecretKey>);
 
 impl Display for Keypair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
