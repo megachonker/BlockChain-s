@@ -16,7 +16,7 @@ use block_chain::{
         server::Server,
         NewNode,
     },
-    acount::Acount,
+    acount::Acount, transaction::Amount,
 };
 use clap::Parser;
 use tracing::info;
@@ -40,7 +40,7 @@ pub struct Cli {
 
     /// Montant: nombre de crédit a donner
     #[arg(short, long, default_value_t = 0)]
-    ammount: u64,
+    ammount: Amount,
 
     /// Key file: fichier contenant le port money
     #[arg(short, long,default_value_t = String::from("default.usr"))]

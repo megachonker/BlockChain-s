@@ -3,7 +3,7 @@ use super::network::Network;
 use crate::{
     block_chain::{
         node::network::{ClientPackect, Packet, TypeTransa},
-        transaction::Transaction,
+        transaction::{Transaction, Amount},
         acount::Acount,
     },
     friendly_name::get_friendly_name,
@@ -13,7 +13,7 @@ use dryoc::sign::PublicKey;
 use tracing::{info, debug,warn,trace};
 
 pub struct TransaInfo {
-    pub ammount: u64,
+    pub ammount: Amount,
     pub destination: PublicKey,
 }
 
@@ -24,7 +24,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(networking: Network, user: Acount, destination: PublicKey, ammount: u64) -> Self{
+    pub fn new(networking: Network, user: Acount, destination: PublicKey, ammount: Amount) -> Self{
         Self {
             user,
             networking,

@@ -13,16 +13,16 @@ use std::{
 use super::{blockchain::{Balance, Blockchain}, acount::Keypair};
 use super::{block::MINER_REWARD, acount::Acount};
 
-pub type amount = u32;
-type hash = u64;
+pub type Amount = u32;
+pub  type HashValue = u64;
 
 
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Utxo {
-    pub hash: u64,
+    pub hash: HashValue,
     pub onwer: PublicKey,
-    pub amount: u64,
+    pub amount: Amount,
 
     // need to hash of block
     pub come_from: u64, //the hash of the utxo which come from (permit to the utxo to unique), hash of the list of transactions validated if it is the utxo create by miner.
@@ -49,7 +49,7 @@ impl Utxo {
         hasher.finish()
     }
 
-    fn new(ammount: u64, owner: PublicKey, come_from: u64) -> Utxo {
+    fn new(ammount: Amount, owner: PublicKey, come_from: u64) -> Utxo {
         let mut utxo = Self {
             hash: 0,
             onwer: owner,
@@ -178,7 +178,7 @@ impl Transaction {
     /// introduce miner fee
     /// send back to owner surplus
     /// ///// NEED TEST
-    pub fn create_transa_from(user: &mut Acount, amount: u64, destination: PublicKey) -> Option<Self> {
+    pub fn create_transa_from(user: &mut Acount, amount: Amount, destination: PublicKey) -> Option<Self> {
         let total_ammount = amount + user.miner_fee;//// on veuux pas taxer sur des pourcent mais pour pas abu
         // je send 1 milliard si je me fait taxer 10% le miner recois 10Million autant faire moi meme un noeud lol
         let (selected, sendback) = Self::select_utxo_from_vec(&user.wallet, total_ammount)?;
@@ -219,7 +219,7 @@ impl Transaction {
     /// 7 2 2 was selected
     ///
     /// 10 to the user and send back 1
-    fn select_utxo_from_vec(avaible: &Vec<Utxo>, amount: u64) -> Option<(Vec<Utxo>, u64)> {
+    fn select_utxo_from_vec(avaible: &Vec<Utxo>, amount: Amount) -> Option<(Vec<Utxo>, Amount)> {
         if amount == 0 {
             return None;
         }
@@ -266,9 +266,10 @@ impl Transaction {
         transas
     }
 
-    pub fn remains(&self) -> u64 {
-        let input: u64 = self.rx.iter().map(|u| u.amount).sum();
-        let output: u64 = self.tx.iter().map(|u| u.amount).sum();
+    /// Combien Input Utcxo - OutputUtxo => Pour  le miner
+    pub fn remains(&self) -> Amount {
+        let input: Amount = self.rx.iter().map(|u| u.amount).sum();
+        let output: Amount = self.tx.iter().map(|u| u.amount).sum();
         input - output
     }
 }
@@ -317,7 +318,7 @@ mod tests {
         let amount = 10;
         let (transa, sendback) = Transaction::select_utxo_from_vec(&wallet, amount).unwrap();
         transa.iter().for_each(|transa| print!("{}", transa));
-        let full: u64 = transa.iter().map(|f| f.amount).sum();
+        let full: Amount = transa.iter().map(|f| f.amount).sum();
         assert!(full > amount);
         assert!(full - amount == sendback);
     }

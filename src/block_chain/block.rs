@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::{info,debug,trace};
 
 use super::node::server::{Event, MinerStuff, NewBlock};
-use super::transaction::{ Transaction, Utxo};
+use super::transaction::{ Transaction, Utxo, Amount};
 
 //variable d'envirnement
 
@@ -20,7 +20,7 @@ use super::transaction::{ Transaction, Utxo};
 // const HASH_MAX: u64 = 1000000000;                //slow
 // const HASH_MAX: u64 = 1000000000000; //fast
 const CLOCK_DRIFT: u64 = 10; //second
-pub const MINER_REWARD: u64 = 1; //the coin create for the miner
+pub const MINER_REWARD: Amount = 1; //the coin create for the miner
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
@@ -158,8 +158,8 @@ impl Block {
 
 
         let mut already_see = false;
-        let mut miner_reward: u64 = 0;
-        let mut transa_remain: u64 = 0;
+        let mut miner_reward: Amount = 0;
+        let mut transa_remain: Amount = 0;
         for t in &self.transactions {
             if t.rx.len() == 0 && t.tx.len() == 1 {
                 if already_see {

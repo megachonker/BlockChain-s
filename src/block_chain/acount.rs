@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use super::{
     node::network::Packet,
-    transaction::{amount, Transaction, Utxo},
+    transaction::{Amount, Transaction, Utxo},
 };
 use anyhow::{Context, Error, Result};
 use dryoc::{auth::Key, keypair, sign::*, types::StackByteArray};
@@ -61,7 +61,7 @@ pub struct Acount {
     /// path were stored wallet
     path: String,
     /// fee to give to miner
-    pub miner_fee: u64,
+    pub miner_fee: Amount,
     /// buch of non used transaction
     pub wallet: Vec<Utxo>,
     /// stuff to sign
@@ -80,7 +80,7 @@ impl Acount {
         &self.keypair //double clone
     }
 
-    pub fn get_sold(&self) -> u64 {
+    pub fn get_sold(&self) -> Amount {
         self.wallet.iter().fold(Default::default(),|sum,x| x.amount+sum )
     }
 
