@@ -12,14 +12,53 @@ use super::{acount::Keypair, blockchain::Balance};
 pub type Amount = u32;
 pub type HashValue = u64;
 
+
+/// Unspend tocken
+/// 
+/// it contain a Challenge (need implement wasm)
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Utxo {
-    pub hash: HashValue,
+    //owner
+    //target
+
+    // pub hash: HashValue,
     pub onwer: PublicKey,
     pub amount: Amount,
 
     // need to hash of block
     pub come_from: HashValue, //the hash of the utxo which come from (permit to the utxo to unique), hash of the list of transactions validated if it is the utxo create by miner.
+}
+
+
+impl Utxo {
+    /// check validity of the utxo
+    fn check(&self) -> bool {
+        self.amount > 0
+    }
+
+    /// use trait hash and create hash
+    /// overhead cuz it init the hasher each call
+    fn get_hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn new(ammount: Amount, owner: PublicKey, come_from: u64) -> Utxo {
+        let mut utxo = Self {
+            onwer: owner,
+            amount: ammount,
+            come_from,
+        };
+        utxo
+    }
+
+    /// Check signature validity
+    /// 
+    /// at term will be used to run contract
+    fn unlock(){
+
+    }
 }
 
 impl Hash for Utxo {
@@ -29,31 +68,6 @@ impl Hash for Utxo {
         self.come_from.hash(state);
     }
 }
-impl Utxo {
-    fn check(&self) -> bool {
-        self.hash == self.hash() && self.amount > 0
-    }
-
-    fn hash(&self) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        self.onwer.hash(&mut hasher);
-        self.amount.hash(&mut hasher);
-        self.come_from.hash(&mut hasher);
-
-        hasher.finish()
-    }
-
-    fn new(ammount: Amount, owner: PublicKey, come_from: u64) -> Utxo {
-        let mut utxo = Self {
-            hash: 0,
-            onwer: owner,
-            amount: ammount,
-            come_from,
-        };
-        utxo.hash = utxo.hash();
-        utxo
-    }
-}
 
 //do no show the come_from (useless to show)
 impl fmt::Display for Utxo {
@@ -61,52 +75,46 @@ impl fmt::Display for Utxo {
         write!(
             f,
             "#{}->({:?},{}$)",
-            self.hash,
+            self.get_hash(),
             self.onwer.to_vec().get(..5).unwrap(),
             self.amount
         )
     }
 }
 
+/// ## Short: Use Rx + Challenge => Gen Tx Utxo
+/// 
+/// ## Long: 
+/// 
+/// **Consume** Rx Utxo's owned by "A..Z" *ready* to be consumed by "NewOwner"
+/// 
+/// "NewOwner" can now and **create** Tx Utxo's *that* can be consumed by "NextOwner-A..Z"
+/// 
+/// ## Ownership:
+/// ### condition:
+/// Rx NextOwner == Tx NewOwner
+/// 
+/// **Rx** can be used only if target **Pubkey is same that Tx Pubkey** owner
+/// 
+/// ### proof of ownership: 
+/// *For creating new Tx we need to use our PrivKey*
+/// 
+/// **Tx creation proof PubKey** owner validity
+/// ## Fee:
+/// Sum(Rx)-Sum(Tx) => fee for the miner 
+/// 
+/// ### Challenge (future)
+/// will write in web asembly
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
-/// Structure That Be Signed
 pub struct Transaction {
     pub rx: Vec<Utxo>,
     pub tx: Vec<Utxo>,
+
+    //// WASM challenge
+    // challenge:Bytes,
 }
 
-impl fmt::Display for Transaction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut hasher = DefaultHasher::new();
-        self.hash(&mut hasher);
-        let hash = hasher.finish();
 
-        write!(f, "Hash:{}", hash)?;
-        write!(f, "\n║Input:\t")?;
-        let mut c = 0;
-        for transrx in &self.rx {
-            write!(f, "{} ", transrx)?;
-            c += 1;
-            if c == 3 {
-                write!(f, "\n║\t")?;
-                c = 0;
-            }
-        }
-        write!(f, "\n║Output:\t")?;
-        c = 0;
-        for transtx in &self.tx {
-            write!(f, "{} ", transtx)?;
-            c += 1;
-            if c == 3 {
-                write!(f, "\n║\t")?;
-                c = 0;
-            }
-        }
-        write!(f, "")
-    }
-}
-
-/// Make the split of the coin
 impl Transaction {
     pub fn display_for_bock(&self) -> String {
         let mut str = String::from("");
@@ -150,11 +158,6 @@ impl Transaction {
         }
 
         ammount >= 0
-    }
-
-    ///create a new Transition with the given argument. Does not check : can create invalid Transaction
-    pub fn new(rx: Vec<Utxo>, tx: Vec<Utxo>) -> Transaction {
-        Transaction { rx, tx }
     }
 
     pub fn find_created_utxo(&self) -> Vec<Utxo> {
@@ -211,7 +214,9 @@ impl Transaction {
         Some(transaction)
     }
 
-    /// ## find a combinaison
+    /// # find a combinaison of Utxo for a amount given
+    /// 
+    /// ### exemple:
     /// want send 10
     ///
     /// at input there are 7 2 2 9
@@ -240,7 +245,10 @@ impl Transaction {
         None
     }
 
-    /// NEED TEST
+    /// # NEED TEST
+    /// 
+    /// ## Create a Reward transaction for miner
+    /// 
     pub fn transform_for_miner(
         mut transas: Vec<Transaction>,
         key: Keypair,
@@ -275,6 +283,39 @@ impl Transaction {
         input - output
     }
 }
+
+
+impl fmt::Display for Transaction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        let hash = hasher.finish();
+        write!(f, "Hash:{}", hash)?;
+        write!(f, "\n║Input:\t")?;
+        let mut c = 0;
+        for transrx in &self.rx {
+            write!(f, "{} ", transrx)?;
+            c += 1;
+            if c == 3 {
+                write!(f, "\n║\t")?;
+                c = 0;
+            }
+        }
+        write!(f, "\n║Output:\t")?;
+        c = 0;
+        for transtx in &self.tx {
+            write!(f, "{} ", transtx)?;
+            c += 1;
+            if c == 3 {
+                write!(f, "\n║\t")?;
+                c = 0;
+            }
+        }
+        write!(f,"For the miner: {}",self.remains())?;
+        write!(f, "")
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
