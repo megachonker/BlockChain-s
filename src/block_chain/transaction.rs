@@ -25,7 +25,7 @@ pub struct Utxo {
     pub amount: Amount,
 
     // need to hash of block
-    pub come_from: u64, //the hash of the utxo which come from (permit to the utxo to unique), hash of the list of transactions validated if it is the utxo create by miner.
+    pub come_from: HashValue, //the hash of the utxo which come from (permit to the utxo to unique), hash of the list of transactions validated if it is the utxo create by miner.
 }
 
 impl Hash for Utxo {
@@ -67,7 +67,6 @@ impl fmt::Display for Utxo {
         write!(f, "#{}->({:?},{}$)", self.hash,self.onwer.to_vec().get(..5).unwrap(), self.amount)
     }
 }
-
 
 
 

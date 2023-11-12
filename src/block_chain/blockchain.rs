@@ -393,6 +393,7 @@ impl Blockchain {
              // these block is needed from a higher block 
             && child.timestamp > parent.timestamp
     }
+    
     /// Return two chains which are the link between last_top and new_top.
     /// These two chain have a common block at the end
     ///

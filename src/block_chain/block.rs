@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::{info,debug,trace};
 
 use super::node::server::{Event, MinerStuff, NewBlock};
-use super::transaction::{ Transaction, Utxo, Amount};
+use super::transaction::{ Transaction, Utxo, Amount, HashValue};
 
 //variable d'envirnement
 
@@ -25,9 +25,9 @@ pub const MINER_REWARD: Amount = 1; //the coin create for the miner
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
     /////////////////rendre private quand on aura imported mine extern du serveur
-    pub block_id: u64,                  //the hash of whole block
+    pub block_id: HashValue,                  //the hash of whole block
     pub block_height: u64,              //the number of the current block
-    pub parent_hash: u64,               //the id of last block (block are chain with that)
+    pub parent_hash: HashValue,               //the id of last block (block are chain with that)
     pub transactions: Vec<Transaction>, //the vector of all transaction validated with this block
     pub difficulty: u64, //the current difficulty fot the block (hash_proof <difficulty).
     pub quote: String,
