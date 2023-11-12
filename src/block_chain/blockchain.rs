@@ -1,10 +1,5 @@
 use core::fmt;
-use std::{
-    collections::{HashMap},
-    hash::{Hasher},
-    io::{Write},
-};
-
+use std::collections::HashMap;
 use dryoc::sign::PublicKey;
 use tracing::{debug, error, info, warn};
 
