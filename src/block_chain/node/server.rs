@@ -1,10 +1,9 @@
 use bincode::{deserialize, serialize};
 use dryoc::{
-    sign::{PublicKey, SignedMessage},
-    types::StackByteArray,
+    sign::{PublicKey},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Result};
 use std::{
     fs::File,
     io::{Read, Write},
@@ -17,17 +16,16 @@ use std::{
 use tracing::{debug, info, trace, warn};
 
 use crate::{
-    block_chain::acount::{Acount, Keypair},
+    block_chain::acount::{Keypair},
     friendly_name::*,
 };
 use crate::{
     block_chain::{
         block::{mine, Block},
         blockchain::Blockchain,
-        node::network::{Network, Packet, TypeBlock, TypeTransa},
+        node::network::{Network, Packet, TypeBlock},
         transaction::Transaction,
     },
-    Cli,
 };
 
 const path_save_json: &str = "path_save_json.save";
@@ -246,7 +244,7 @@ impl Server {
                     }
 
                     ClientEvent::ReqSave => {
-                        if path_save_json != "" {
+                        if !path_save_json.is_empty() {
                             let file_json = File::create(path_save_json).unwrap();
                             let chain = self
                                 .blockchain
@@ -256,7 +254,7 @@ impl Server {
                                 .collect();
                             save_chain_readable(&chain, file_json);
                         }
-                        if path_save != "" {
+                        if !path_save.is_empty() {
                             let file_json = File::create(path_save).unwrap();
                             let chain = self
                                 .blockchain
@@ -296,7 +294,7 @@ fn save_chain(chain: &Vec<Block>, mut file: File) {
 fn load_chain(mut file: File) -> Vec<Block> {
     let mut vec: Vec<Block> = vec![];
 
-    let mut buf_u64: [u8; 8] = (0 as u64).to_be_bytes();
+    let mut buf_u64: [u8; 8] = 0_u64.to_be_bytes();
 
     file.read_exact(&mut buf_u64).unwrap();
 

@@ -8,7 +8,7 @@ mod block_chain {
     pub mod transaction;
     pub mod acount;
 }
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use block_chain::{
     node::{
         client::{self, Client},
@@ -21,7 +21,6 @@ use block_chain::{
 use clap::Parser;
 use tracing::info;
 use std::{
-    default,
     net::{IpAddr, Ipv4Addr},
     str::FromStr,
 };

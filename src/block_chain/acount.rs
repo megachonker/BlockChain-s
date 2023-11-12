@@ -1,11 +1,10 @@
 use std::fmt::Display;
 
 use super::{
-    node::network::Packet,
     transaction::{Amount, Transaction, Utxo},
 };
 use anyhow::{Context, Error, Result};
-use dryoc::{auth::Key, keypair, sign::*, types::StackByteArray};
+use dryoc::{sign::*, types::StackByteArray};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -44,15 +43,15 @@ impl From<SigningKeyPair<PublicKey, SecretKey>> for Keypair {
     }
 }
 
-impl Into<PublicKey> for Keypair {
-    fn into(self) -> PublicKey {
-        self.0.public_key.clone()
+impl From<Keypair> for PublicKey {
+    fn from(val: Keypair) -> Self {
+        val.0.public_key.clone()
     }
 }
 
-impl Into<Keypair> for Acount {
-    fn into(self) -> Keypair {
-        self.keypair
+impl From<Acount> for Keypair {
+    fn from(val: Acount) -> Self {
+        val.keypair
     }
 }
 
@@ -124,8 +123,8 @@ impl Acount {
 
     fn sign_transa(&self, transa: Transaction) -> SignedMessage<StackByteArray<64>, Vec<u8>> {
         let data = bincode::serialize(&transa).unwrap();
-        let res = self.keypair.0.sign_with_defaults(data).unwrap();
-        res
+        
+        self.keypair.0.sign_with_defaults(data).unwrap()
     }
 }
 

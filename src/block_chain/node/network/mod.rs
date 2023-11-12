@@ -1,18 +1,16 @@
 use std::{
     collections::HashSet,
     fmt::Display,
-    io::Read,
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
     sync::{mpsc::Sender, Arc, Mutex},
     thread,
     time::Duration,
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use bincode::{deserialize, serialize};
 use dryoc::{
-    sign::{PublicKey, SignedMessage},
-    types::StackByteArray,
+    sign::{PublicKey},
 };
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
@@ -20,7 +18,7 @@ use tracing::{debug, error, info, warn};
 use crate::block_chain::{
     block::Block,
     node::server::ClientEvent,
-    transaction::{self, Transaction, Utxo},
+    transaction::{Transaction, Utxo},
 };
 
 use super::server::{Event, NewBlock};
@@ -156,7 +154,7 @@ impl Network {
     fn keepalive(&self, sender: SocketAddr) -> Result<()> {
         // do here the timestamp things
         // todo!();
-        self.send_packet(&Packet::Keepalive, &sender).map(|u| ())
+        self.send_packet(&Packet::Keepalive, &sender).map(|_u| ())
     }
 
     fn block(

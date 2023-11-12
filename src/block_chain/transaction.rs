@@ -1,16 +1,15 @@
 use dryoc::{
-    constants::CRYPTO_KX_SECRETKEYBYTES,
-    sign::{PublicKey, SecretKey, SignedMessage, SigningKeyPair},
-    types::{ByteArray, Bytes, StackByteArray},
+    sign::{PublicKey},
+    types::{Bytes},
 };
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_map::DefaultHasher,
-    fmt::{self, write},
-    hash::{BuildHasherDefault, Hash, Hasher},
+    fmt::{self},
+    hash::{Hash, Hasher},
 };
 
-use super::{blockchain::{Balance, Blockchain}, acount::Keypair};
+use super::{blockchain::{Balance}, acount::Keypair};
 use super::{block::MINER_REWARD, acount::Acount};
 
 pub type Amount = u32;
@@ -121,7 +120,7 @@ impl Transaction {
     /// all utxo is valid, the rx is present in the balence (can be use) and the ammont is positive
     pub fn check_utxo_valid(&self, balence: &Balance) -> bool {
         for utxo in self.rx.iter() {
-            if !balence.valid(&utxo) {
+            if !balence.valid(utxo) {
                 return false;
             }
         }
@@ -129,7 +128,7 @@ impl Transaction {
     }
     pub fn check(&self) -> bool {
         let mut ammount: i128 = 0;
-        if self.rx.len() == 0 && self.tx.len() == 1 {
+        if self.rx.is_empty() && self.tx.len() == 1 {
             return self.tx[0].check();
         }
 
@@ -197,7 +196,7 @@ impl Transaction {
         user.wallet.retain(|transa| !selected.contains(transa));
 
         // if ? ? ?
-        if user.wallet.len() == 0 || sendback == 0 {
+        if user.wallet.is_empty() || sendback == 0 {
             return Some(transaction);
         }
 
@@ -248,7 +247,7 @@ impl Transaction {
         let mut place_remove = None;
 
         for (i, t) in transas.iter().enumerate() {
-            if t.rx.len() == 0 && t.tx.len() == 1 {
+            if t.rx.is_empty() && t.tx.len() == 1 {
                 place_remove = Some(i)
             } else {
                 miner_reward += t.remains();
@@ -277,8 +276,6 @@ impl Transaction {
 mod tests {
 
     use crate::block_chain::{
-        block::{Block, Profile},
-        blockchain::{Blockchain, FIRST_DIFFICULTY},
         transaction::{Transaction, Utxo},
     };
     use rand::Rng;

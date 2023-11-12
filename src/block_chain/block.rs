@@ -2,14 +2,14 @@ use chrono::{TimeZone, Utc};
 use rand::Rng;
 
 use serde::{Deserialize, Serialize};
-use serde_json::{Deserializer as jDeserializer, Serializer as jSerializer};
+
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tracing::{info,debug,trace};
+use tracing::{info,trace};
 
 use super::node::server::{Event, MinerStuff, NewBlock};
 use super::transaction::{ Transaction, Utxo, Amount, HashValue};
@@ -161,7 +161,7 @@ impl Block {
         let mut miner_reward: Amount = 0;
         let mut transa_remain: Amount = 0;
         for t in &self.transactions {
-            if t.rx.len() == 0 && t.tx.len() == 1 {
+            if t.rx.is_empty() && t.tx.len() == 1 {
                 if already_see {
                     return false; //double miner transa
                 }

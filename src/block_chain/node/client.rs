@@ -6,11 +6,10 @@ use crate::{
         transaction::{Transaction, Amount},
         acount::Acount,
     },
-    friendly_name::get_friendly_name,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use dryoc::sign::PublicKey;
-use tracing::{info, debug,warn,trace};
+use tracing::{info, debug,trace};
 
 pub struct TransaInfo {
     pub ammount: Amount,
@@ -93,9 +92,9 @@ impl Client {
 
 #[cfg(test)]
 mod test {
-    use std::net::Ipv4Addr;
-    use crate::block_chain::{node::network::Network, acount::Acount};
-    use super::Client;
+    
+    
+    
 
     // #[test]
     // fn make_transaction() {

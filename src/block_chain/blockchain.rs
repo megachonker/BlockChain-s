@@ -1,16 +1,14 @@
 use core::fmt;
 use std::{
-    collections::{hash_map::DefaultHasher, HashMap},
-    f32::consts::E,
-    fs::File,
-    hash::{Hash, Hasher},
-    io::{Chain, Read, Write},
+    collections::{HashMap},
+    hash::{Hasher},
+    io::{Write},
 };
 
 use dryoc::sign::PublicKey;
 use tracing::{debug, error, info, warn};
 
-use crate::block_chain::block;
+
 
 use super::{block::Block, node::server::MinerStuff, transaction::Utxo};
 const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
@@ -97,7 +95,7 @@ impl Balance {
     }
 
     pub fn valid(&self, utxo: &Utxo) -> bool {
-        let u = self.utxo_hmap.get(&utxo);
+        let u = self.utxo_hmap.get(utxo);
         if let Some(statue) = u {
             statue == &Status::Avaible
         } else {
@@ -308,7 +306,7 @@ impl Blockchain {
                         //update the chain if there is the end of the new_chain is not valid
                         Ok(_) => {}
                         Err(last_ok) => {
-                            if last_ok == None {
+                            if last_ok.is_none() {
                                 return (None, None);
                             }
                             new_chain = self
@@ -377,7 +375,7 @@ impl Blockchain {
         self.potentials_top_block
             .erease_old(self.get_block(self.top_block_hash).unwrap().block_height);
 
-        return (Some(self.last_block()), None);
+        (Some(self.last_block()), None)
     }
 
     fn check_block_linked(&self, block_to_append: &Block, parent: &Block) -> bool {
@@ -409,7 +407,7 @@ impl Blockchain {
         let mut vec2: Vec<&Block> = vec![];
 
         let mut last = self.get_block(last_top).unwrap();
-        let mut new = self.get_block(new_top).expect(&format!("{}", new_top));
+        let mut new = self.get_block(new_top).unwrap_or_else(|| panic!("{}", new_top));
 
         while last.block_height != new.block_height {
             if last.block_height < new.block_height {
@@ -518,7 +516,7 @@ impl Blockchain {
             if index == 0 {
                 continue;
             }
-            if !self.check_parent(&b, new_chain[index - 1]) {
+            if !self.check_parent(b, new_chain[index - 1]) {
                 info!("two node can not be linked {} {}", b, new_chain[index - 1]);
                 return Err(last_ok);
             }
@@ -592,7 +590,7 @@ fn best_difficulty(chain1: &Vec<&Block>, chain2: &Vec<&Block>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_chain::{self, block::Profile, transaction::Transaction};
+    use crate::block_chain::{block::Profile};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
