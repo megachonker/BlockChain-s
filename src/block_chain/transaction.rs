@@ -12,6 +12,9 @@ use super::{acount::Keypair, blockchain::Balance};
 pub type Amount = u32;
 pub type HashValue = u64;
 
+/// Wrapper of Vec<Utxo>
+pub struct UtxoSet(Vec<Utxo>);
+
 
 /// Unspend tocken
 /// 
@@ -82,29 +85,37 @@ impl fmt::Display for Utxo {
     }
 }
 
-/// ## Short: Use Rx + Challenge => Gen Tx Utxo
-/// 
-/// ## Long: 
-/// 
-/// **Consume** Rx Utxo's owned by "A..Z" *ready* to be consumed by "NewOwner"
-/// 
-/// "NewOwner" can now and **create** Tx Utxo's *that* can be consumed by "NextOwner-A..Z"
-/// 
-/// ## Ownership:
-/// ### condition:
-/// Rx NextOwner == Tx NewOwner
-/// 
-/// **Rx** can be used only if target **Pubkey is same that Tx Pubkey** owner
-/// 
-/// ### proof of ownership: 
-/// *For creating new Tx we need to use our PrivKey*
-/// 
-/// **Tx creation proof PubKey** owner validity
-/// ## Fee:
-/// Sum(Rx)-Sum(Tx) => fee for the miner 
-/// 
-/// ### Challenge (future)
-/// will write in web asembly
+/// Represents a transaction involving the transfer of ownership from one set of entities to another.
+///
+/// # Short Description
+///
+/// The `Transaction` struct facilitates the transfer of Utxos (Unspent Transaction Outputs) from a group
+/// of owners (Rx) to a new owner (Tx). This process involves ownership conditions, proof of ownership, 
+/// fee calculation, and a future challenge mechanism.
+///
+/// # Ownership and Conditions
+///
+/// - **Condition:** To consume Rx Utxos, the NextOwner of Rx must match the NewOwner of Tx.
+/// - **Proof of Ownership:** Creation of new Tx Utxos requires the use of a private key, providing cryptographic
+///   proof of ownership based on the validity of the Tx owner's pubkey.
+///
+/// ## Multiple Owners Unlocking Rx Utxo for Tx
+///
+/// The transaction process involves multiple owners collaborating to unlock the Rx Utxos. Each input Utxo in
+/// the Rx set may require unlocking with a different public key. The transaction represents the collective
+/// effort of these owners, who unlock the NextOwner of Rx to create the Tx Utxos.
+///
+/// - To ensure the validity of the transaction, it is essential that all Utxos in the Rx set are successfully
+///   unlocked during the creation of Tx. To achieve this, private keys are employed by the respective owners.
+///   Each Tx Utxo is signed with all NextOwner private keys, providing cryptographic proof of their rightful ownership.
+/// - Given that there can be multiple inputs and outputs in a transaction, each input may be unlocked by a
+///   different target public key. This flexibility allows for diverse ownership structures within a single
+///   transaction.
+///
+/// ## Miner Reward
+///
+/// The miner receives the remaining amount of the transaction as a reward. This amount is calculated as the
+/// difference between the sum of Rx Utxos and the sum of Tx Utxos, constituting the transaction fee.
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Transaction {
     pub rx: Vec<Utxo>,
