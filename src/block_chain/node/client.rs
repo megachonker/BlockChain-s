@@ -56,6 +56,7 @@ impl Client {
         )?;
 
         // register utxo
+        // on pourait start un demon en background
         trace!("waiting receiving packet of wallet");
         let myutxo = self.networking.recv_packet_utxo_wallet()?;
         
@@ -72,10 +73,6 @@ impl Client {
 
         self.refresh_wallet()?;
         info!("Wallet:\n{}",self.user);
-
-
-        info!("sold: {}",self.user.get_sold());
-
 
         let transactionb = Transaction::create_transa_from(
             &mut self.user,

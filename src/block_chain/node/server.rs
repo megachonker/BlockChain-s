@@ -1,6 +1,10 @@
 use bincode::{deserialize, serialize};
-use dryoc::{sign::{SignedMessage, PublicKey}, types::StackByteArray};
+use dryoc::{
+    sign::{PublicKey, SignedMessage},
+    types::StackByteArray,
+};
 
+use anyhow::{Context, Result};
 use std::{
     fs::File,
     io::{Read, Write},
@@ -9,11 +13,13 @@ use std::{
     sync::{Arc, Mutex},
     thread,
 };
-use anyhow::{Context, Result};
 
-use tracing::{debug, info, warn,trace};
+use tracing::{debug, info, trace, warn};
 
-use crate::{friendly_name::*, block_chain::acount::{Acount, Keypair}};
+use crate::{
+    block_chain::acount::{Acount, Keypair},
+    friendly_name::*,
+};
 use crate::{
     block_chain::{
         block::{mine, Block},
@@ -24,9 +30,8 @@ use crate::{
     Cli,
 };
 
-
-const path_save_json:&str = "path_save_json.save";
-const path_save:&str = "path_save_json.save";
+const path_save_json: &str = "path_save_json.save";
+const path_save: &str = "path_save_json.save";
 
 use super::network::ClientPackect;
 
@@ -57,16 +62,16 @@ pub struct Server {
     network: Network, // blockchaine
     keypair: Keypair,
     blockchain: Blockchain,
-    number_miner: u16, //number of thread of miner to be spawn //<= use once 
-    // path_save_json: String,
-    // path_save: String,
+    number_miner: u16, //number of thread of miner to be spawn //<= use once
+                       // path_save_json: String,
+                       // path_save: String,
 }
 
 #[derive(Debug)]
 /// Structure that hold wat needed to mine
 /// IMPORTANT this structure is updated and locked
 pub struct MinerStuff {
-    /// curent block to 
+    /// curent block to
     pub cur_block: Block,
     /// all transaction to hash (already checked)
     pub transa: Vec<Transaction>,
@@ -76,7 +81,7 @@ pub struct MinerStuff {
 }
 
 impl Server {
-    pub fn new(network: Network,keypair: Keypair, thread:u16) -> Self {
+    pub fn new(network: Network, keypair: Keypair, thread: u16) -> Self {
         let name =
             get_friendly_name(network.get_socket()).expect("generation name from ip imposble");
 
@@ -88,7 +93,7 @@ impl Server {
             number_miner: thread,
         }
     }
-    pub fn start(mut self) -> Result<()>{
+    pub fn start(mut self) -> Result<()> {
         info!(
             "Server started {} facke id {} -> {:?}",
             &self.name,
@@ -101,7 +106,7 @@ impl Server {
 
         self.network.clone().start(event_channel.0.clone())?;
 
-        self.server_runtime( event_channel)?;
+        self.server_runtime(event_channel)?;
         Ok(())
     }
 
@@ -133,7 +138,6 @@ impl Server {
             //Routing Event
             match event_channels.1.recv().unwrap() {
                 Event::HashReq((hash, dest)) => {
-                    info!("Recieved Hash resquest");
                     // remplace -1 par un enum top block
                     if hash == -1 {
                         self.network.send_packet(
@@ -156,14 +160,20 @@ impl Server {
                 Event::NewBlock(new_block) => {
                     let new_block = match new_block {
                         NewBlock::Mined(b) => {
-                            debug!("Broadcast mined block h:{}",b.block_height);
+                            debug!("Export {}:{}", b.block_height,b.block_id);
                             self.network
                                 .broadcast(Packet::Block(TypeBlock::Block(b.clone())))?;
                             b
                         }
-                        NewBlock::Network(b) => b,
+                        NewBlock::Network(b) => {
+                            debug!(
+                                "Import {}:{}",
+                                b.block_height, b.block_id
+                            );
+
+                            b
+                        }
                     };
-                    debug!("recv new block h:{}", new_block.block_height);
                     let (new_top_block, block_need) = self.blockchain.try_append(&new_block);
 
                     // when blockain accept new block
@@ -195,7 +205,7 @@ impl Server {
                     if let Some(needed_block) = block_need {
                         self.network
                             .broadcast(Packet::Block(TypeBlock::Hash(needed_block as i128)))?;
-                        info!("{} is needed to complete another branch", needed_block);
+                        debug!("Req\t[{}] to complete a branch on Broadcast ", needed_block);
                     }
                 }
                 Event::Transaction(transa) => {
@@ -210,16 +220,28 @@ impl Server {
                         let utxos = self.blockchain.filter_utxo(id_client);
                         let nb_utxo = utxos.len();
 
-                        // si le client n'es pas trouve 
+                        // si le client n'es pas trouve
                         if utxos.is_empty() {
-                            self.network
-                                .send_packet(&Packet::Client(ClientPackect::RespUtxo((0,Default::default()))), & addr_client)?;
+                            self.network.send_packet(
+                                &Packet::Client(ClientPackect::RespUtxo((0, Default::default()))),
+                                &addr_client,
+                            )?;
                         }
 
                         for (index, utxo) in utxos.iter().enumerate() {
-                            trace!("Reply to {} by sending transa {} {}",addr_client,index,utxo);
-                            self.network
-                                .send_packet(&Packet::Client(ClientPackect::RespUtxo((nb_utxo -1 - index,utxo.clone()))), & addr_client)?;
+                            trace!(
+                                "Reply to {} by sending transa {} {}",
+                                addr_client,
+                                index,
+                                utxo
+                            );
+                            self.network.send_packet(
+                                &Packet::Client(ClientPackect::RespUtxo((
+                                    nb_utxo - 1 - index,
+                                    utxo.clone(),
+                                ))),
+                                &addr_client,
+                            )?;
                         }
                     }
 

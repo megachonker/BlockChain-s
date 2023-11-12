@@ -23,7 +23,7 @@ impl std::fmt::Display for Acount {
         for utxo in &self.wallet {
             writeln!(f, "{}", utxo)?;
         }
-        write!(f, "")
+        write!(f, "sold: {}",self.get_sold())
     }
 }
 
@@ -61,7 +61,7 @@ pub struct Acount {
     /// path were stored wallet
     path: String,
     /// fee to give to miner
-    pub miner_fee: f64,
+    pub miner_fee: u64,
     /// buch of non used transaction
     pub wallet: Vec<Utxo>,
     /// stuff to sign
@@ -88,7 +88,7 @@ impl Acount {
         Self {
             path: path.to_string(),
             keypair: SigningKeyPair::gen_with_defaults().into(),
-            miner_fee: 0.1,
+            miner_fee: 2,
             ..Default::default()
         }
     }
@@ -106,7 +106,7 @@ impl Acount {
             path: path.to_string(),
             wallet: user.wallet,
             keypair,
-            miner_fee: 0.1,
+            miner_fee: 2,
             ..Default::default()
         })
     }

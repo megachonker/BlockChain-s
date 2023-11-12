@@ -194,7 +194,7 @@ impl Block {
     /// using profile infinit can be use to not create a loop calling find next for test
     pub fn find_next_block(
         &self,
-        mut transactions: Vec<Transaction>,
+        transactions: Vec<Transaction>,
         profile: Profile,
         difficulty: u64,
     ) -> Option<Block> {
@@ -236,7 +236,6 @@ impl Block {
             }
 
             if nonce_to_test % number_iter == 0 {
-                trace!("founded nothing");
                 return None;
             }
 
@@ -295,6 +294,8 @@ pub fn mine(miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Event>) {
             sender
                 .send(Event::NewBlock(NewBlock::Mined(mined_block)))
                 .unwrap();
+        }else {
+            trace!("{:?}, found nothing for {}:{}",std::thread::current().id(),block.block_height,block.block_id);
         }
     }
 }

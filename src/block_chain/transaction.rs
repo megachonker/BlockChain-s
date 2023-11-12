@@ -23,6 +23,8 @@ pub struct Utxo {
     pub hash: u64,
     pub onwer: PublicKey,
     pub amount: u64,
+
+    // need to hash of block
     pub come_from: u64, //the hash of the utxo which come from (permit to the utxo to unique), hash of the list of transactions validated if it is the utxo create by miner.
 }
 
@@ -62,7 +64,7 @@ impl Utxo {
 //do no show the come_from (useless to show)
 impl fmt::Display for Utxo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "|#{}->({:?},{}$)|", self.hash,self.onwer.to_vec().get(..5).unwrap(), self.amount)
+        write!(f, "#{}->({:?},{}$)", self.hash,self.onwer.to_vec().get(..5).unwrap(), self.amount)
     }
 }
 
@@ -78,15 +80,33 @@ pub struct Transaction {
 
 impl fmt::Display for Transaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[")?;
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        let hash = hasher.finish();
+
+        write!(f,"Hash:{}",hash)?;
+        write!(f, "\n║Input:\t")?;
+        let mut c = 0;
         for transrx in &self.rx {
             write!(f, "{} ", transrx)?;
+            c+=1;
+            if c == 3 {
+                write!(f,"\n║\t")?;
+                c=0;
+
+            }
         }
-        write!(f, "==> ").unwrap();
+        write!(f, "\n║Output:\t")?;
+        c = 0;
         for transtx in &self.tx {
             write!(f, "{} ", transtx)?;
+            c+=1;
+            if c == 3 {
+                write!(f,"\n║\t")?;
+                c=0;
+            }
         }
-        write!(f, "]")
+        write!(f, "")
     }
 }
 
@@ -157,8 +177,10 @@ impl Transaction {
     /// search a utxo combinaison from user wallet
     /// introduce miner fee
     /// send back to owner surplus
+    /// ///// NEED TEST
     pub fn create_transa_from(user: &mut Acount, amount: u64, destination: PublicKey) -> Option<Self> {
-        let total_ammount = (amount as f64 * (1.0 + user.miner_fee)) as u64;
+        let total_ammount = amount + user.miner_fee;//// on veuux pas taxer sur des pourcent mais pour pas abu
+        // je send 1 milliard si je me fait taxer 10% le miner recois 10Million autant faire moi meme un noeud lol
         let (selected, sendback) = Self::select_utxo_from_vec(&user.wallet, total_ammount)?;
 
         let mut hasher = DefaultHasher::new();
@@ -216,6 +238,7 @@ impl Transaction {
         None
     }
 
+    /// NEED TEST
     pub fn transform_for_miner(
         mut transas: Vec<Transaction>,
         key:Keypair,

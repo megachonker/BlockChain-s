@@ -99,7 +99,7 @@ impl Network {
 
     /// append transaction when enought transa send it to miner to create a new block
     fn transaction(transa: TypeTransa, net_transa_tx: &Sender<Event>) {
-        info!("Recv transa");
+        info!("Recv a newtransaction: {:?}",net_transa_tx);
         match transa {
             TypeTransa::Ans(_utxos) => { /* array of all utxo append */ }
             TypeTransa::Push(transaction) => {
@@ -305,7 +305,7 @@ impl Network {
     ) -> Result<()> {
         match client_packet {
             ClientPackect::ReqUtxo(id_client) => {
-                info!("Received client ({:?}) request UTXO ", id_client);
+                info!("Client ask utxo own by ({:?}) request UTXO ", id_client.to_vec().get(..5).unwrap());
                 event_tx.send(Event::ClientEvent(ClientEvent::ReqUtxo(id_client), sender))?;
             }
             ClientPackect::RespUtxo(_) => {
