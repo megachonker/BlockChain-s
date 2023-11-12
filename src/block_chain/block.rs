@@ -9,7 +9,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tracing::info;
+use tracing::{info,debug,trace};
 
 use super::node::server::{Event, MinerStuff, NewBlock};
 use super::transaction::{ Transaction, Utxo};
@@ -236,7 +236,7 @@ impl Block {
             }
 
             if nonce_to_test % number_iter == 0 {
-                info!("Refersh");
+                trace!("founded nothing");
                 return None;
             }
 
@@ -260,27 +260,6 @@ impl Block {
             .flat_map(|t| t.find_used_utxo())
             .collect()
     }
-
-    /*/// return a list of all utxo for a address
-        pub fn search_utxos(&self, addr: u64) -> Vec<Utxo> {
-           self.transactions
-               .iter()
-               .filter(|transa| transa.target_pubkey == addr)
-               .flat_map(|transa| transa.find_new_utxo(self.block_id))
-               .collect()
-       }
-    */
-    // Bad name what it does ?? where need to be used ?
-    // pub fn utxo_owned(&self, utxo: &Utxo) -> u64 {
-    //     let transa = self
-    //         .transactions
-    //         .iter()
-    //         .find(|&transa| transa.hash_id() == utxo.transa_id)
-    //         .expect("the block do not contains the transa");
-
-    //     //simple why calling a function to access to a public field
-    //     transa.target_pubkey
-    // }
 }
 
 fn get_id_block(new_block: &Block, hash_proof_work: u64) -> u64 {
@@ -290,17 +269,6 @@ fn get_id_block(new_block: &Block, hash_proof_work: u64) -> u64 {
     hasher.finish()
 }
 
-/* impl Hash for Block {
-    //implement the Hash's trait for Block
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.block_height.hash(state);
-        self.parent_hash.hash(state);
-        self.transactions.hash(state);
-        self.finder.hash(state);
-        self.quote.hash(state);
-        self.answer.hash(state);
-    }
-} */
 
 //exelent!
 impl PartialEq for Block {
@@ -312,21 +280,18 @@ impl PartialEq for Block {
 /// # Mining Runner
 /// never ending function that feeded in transaction and block;
 pub fn mine(miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Event>) {
-    info!("Begining mining operation");
+    info!("Miner task started");
     loop {
+        // copy localy miner stuff 
         let miner_stuff_lock = miner_stuff.lock().unwrap();
         let block = miner_stuff_lock.cur_block.clone(); //presque toujour blocker
         let transa = miner_stuff_lock.transa.clone();
         let difficulty = miner_stuff_lock.difficulty;
         drop(miner_stuff_lock);
 
-        // do the same things
-        // block
-        //     .find_next_block(finder, transaction)
-        //     .map(|block| sender.send(block))
-        //     .unwrap();
-
+        // lunch mining one time
         if let Some(mined_block) = block.find_next_block(transa, Profile::Normal, difficulty) {
+            // if found send directly result
             sender
                 .send(Event::NewBlock(NewBlock::Mined(mined_block)))
                 .unwrap();
@@ -354,7 +319,6 @@ mod tests {
             cur_block: Block::default(),
             transa: Transaction::transform_for_miner(vec![], Default::default(),1),
             difficulty: crate::block_chain::blockchain::FIRST_DIFFICULTY,
-            miner_id: Default::default(),
         }));
 
         thread::spawn(move || {
