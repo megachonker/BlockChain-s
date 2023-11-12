@@ -1,44 +1,77 @@
-use dryoc::{sign::PublicKey, types::Bytes};
+use anyhow::Result;
+use dryoc::{sign::{PublicKey, Signature}, types::Bytes};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_map::DefaultHasher,
-    fmt::{self},
-    hash::{Hash, Hasher},
+    fmt::{self, Display},
+    hash::{Hash, Hasher}, iter::Empty,
 };
 
 use super::{acount::Acount, block::MINER_REWARD};
 use super::{acount::Keypair, blockchain::Balance};
 
+pub trait UtxoValidator {
+    fn valid(&self) -> bool;
+}
+
 pub type Amount = u32;
 pub type HashValue = u64;
 
 /// Wrapper of Vec<Utxo>
+#[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct UtxoSet(Vec<Utxo>);
 
+impl UtxoValidator for UtxoSet {
+    fn valid(&self) -> bool {
+        self.0.iter().all(|utxo| utxo.valid())
+    }
+}
+
+impl UtxoSet {
+    pub fn value(&self) -> Amount{
+        self.0.iter().map(|utxo|utxo.amount).sum()
+    }
+}
+
+impl From<Vec<Utxo>> for UtxoSet {
+    fn from(value: Vec<Utxo>) -> Self {
+        Self(value)
+    }
+}
+
+impl Display for UtxoSet{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut c = 0;
+        for transrx in &self.0 {
+            write!(f, "{} ", transrx)?;
+
+            c += 1;
+            if c % 3 == 0 {
+                write!(f, "\n║\t")?;
+            }
+        }
+        Ok(())
+    }
+}
 
 /// Unspend tocken
 /// 
 /// it contain a Challenge (need implement wasm)
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Utxo {
+    pub amount: Amount,
+    pub target: PublicKey,///XMRIG have  multiple targt (i gess)
+    pub come_from: HashValue,  
+    onwers_signature: Vec<(PublicKey,Signature)>
     //owner
     //target
 
     // pub hash: HashValue,
-    pub onwer: PublicKey,
-    pub amount: Amount,
-
     // need to hash of block
-    pub come_from: HashValue, //the hash of the utxo which come from (permit to the utxo to unique), hash of the list of transactions validated if it is the utxo create by miner.
 }
 
 
 impl Utxo {
-    /// check validity of the utxo
-    fn check(&self) -> bool {
-        self.amount > 0
-    }
-
     /// use trait hash and create hash
     /// overhead cuz it init the hasher each call
     fn get_hash(&self) -> u64 {
@@ -61,6 +94,12 @@ impl Utxo {
     /// at term will be used to run contract
     fn unlock(){
 
+    }
+}
+
+impl UtxoValidator for Utxo {
+    fn valid(&self) -> bool {
+        self.amount > 0
     }
 }
 
@@ -118,11 +157,9 @@ impl fmt::Display for Utxo {
 /// difference between the sum of Rx Utxos and the sum of Tx Utxos, constituting the transaction fee.
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Transaction {
-    pub rx: Vec<Utxo>,
-    pub tx: Vec<Utxo>,
-
+    pub rx: UtxoSet,
+    pub tx: UtxoSet,
     //// WASM challenge
-    // challenge:Bytes,
 }
 
 
@@ -143,6 +180,7 @@ impl Transaction {
         }
         true
     }
+
     pub fn check(&self) -> bool {
         let mut ammount: i128 = 0;
         if self.rx.is_empty() && self.tx.len() == 1 {
@@ -288,13 +326,16 @@ impl Transaction {
     }
 
     /// Combien Input Utcxo - OutputUtxo => Pour  le miner
-    pub fn remains(&self) -> Amount {
-        let input: Amount = self.rx.iter().map(|u| u.amount).sum();
-        let output: Amount = self.tx.iter().map(|u| u.amount).sum();
-        input - output
+    pub fn remains(&self) -> i128 {
+        self.rx.value() as i128 - self.tx.value() as i128
     }
 }
 
+impl UtxoValidator for Transaction {
+    fn valid(&self) -> bool {
+        self.rx.valid() && self.tx.valid() && self.remains().is_positive()
+    }
+}
 
 impl fmt::Display for Transaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -303,25 +344,9 @@ impl fmt::Display for Transaction {
         let hash = hasher.finish();
         write!(f, "Hash:{}", hash)?;
         write!(f, "\n║Input:\t")?;
-        let mut c = 0;
-        for transrx in &self.rx {
-            write!(f, "{} ", transrx)?;
-            c += 1;
-            if c == 3 {
-                write!(f, "\n║\t")?;
-                c = 0;
-            }
-        }
+        write!(f,"{}",self.rx)?;
         write!(f, "\n║Output:\t")?;
-        c = 0;
-        for transtx in &self.tx {
-            write!(f, "{} ", transtx)?;
-            c += 1;
-            if c == 3 {
-                write!(f, "\n║\t")?;
-                c = 0;
-            }
-        }
+        write!(f,"{}",self.tx)?;   
         write!(f,"For the miner: {}",self.remains())?;
         write!(f, "")
     }
@@ -443,3 +468,9 @@ mod tests {
         assert!(true)
     } */
 }
+
+
+// need to test:
+// merge 3:2
+// transition 2:2 
+// split 2:3
