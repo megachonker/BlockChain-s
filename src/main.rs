@@ -125,7 +125,7 @@ fn parse_args(cli: Cli) -> Result<NewNode> {
     let networking = Network::new(bootstrap.unwrap(), binding.unwrap());
 
     // si doit send
-    if !cli.path.is_empty() || cli.destination != 0 {
+    if cli.destination != 0 || cli.ammount !=0 {
         // si manque un arg pour send
         if cli.ammount == 0 {
             bail!("missing amount")
@@ -144,7 +144,7 @@ fn parse_args(cli: Cli) -> Result<NewNode> {
         )))
     } else {
         //create server worker
-        Ok(NewNode::Srv(Server::new(networking, cli)))
+        Ok(NewNode::Srv(Server::new(networking, user.get_key().clone(),cli.threads)))
     }
 }
 

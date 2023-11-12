@@ -57,7 +57,7 @@ impl Client {
 
         // register utxo
         trace!("waiting receiving packet of wallet");
-        let myutxo = self.networking.recv_packet_utxo_wallet();
+        let myutxo = self.networking.recv_packet_utxo_wallet()?;
 
         self.user.refresh_wallet(myutxo);
         Ok(())

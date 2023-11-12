@@ -1,9 +1,11 @@
 use std::{
     collections::HashSet,
+    fmt::Display,
     io::Read,
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
     sync::{mpsc::Sender, Arc, Mutex},
     thread,
+    time::Duration,
 };
 
 use anyhow::{bail, Context, Result};
@@ -28,6 +30,19 @@ pub struct Network {
     pub bootstrap: SocketAddr,
     binding: UdpSocket,
     peers: Arc<Mutex<HashSet<SocketAddr>>>,
+}
+
+impl Display for Network {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "initial bootstrap: {}", self.bootstrap)?;
+        writeln!(f, "socket binded: {:?}", self.binding)?;
+        writeln!(f, "Peers list:")?;
+        let socketlist = self.peers.lock().unwrap().clone();
+        for peer in socketlist {
+            write!(f, "{}", peer)?;
+        }
+        write!(f, "")
+    }
 }
 
 impl Clone for Network {
@@ -64,7 +79,6 @@ pub enum TypeTransa {
 pub enum ClientPackect {
     ReqUtxo(PublicKey),      //Request for the UTXO of u64
     RespUtxo((usize, Utxo)), //the response of RqUtxo : (number of utxo remains, the utxo -> (0,utxo..) is the last)
-    
     ReqSave,                 //force save (debug)
 }
 
@@ -234,11 +248,12 @@ impl Network {
     /// awsome send a packet broadcast
     pub fn broadcast(&self, packet: Packet) -> Result<()> {
         let peers = self.peers.lock().unwrap();
-        
+
         for dest in peers.iter().filter(|&&x| x != self.get_socket()) {
-            self.send_packet(&packet, dest).context(format!("Failed to send to {}", dest))?;
+            self.send_packet(&packet, dest)
+                .context(format!("Failed to send to {}", dest))?;
         }
-        
+
         Ok(())
     }
 
@@ -259,16 +274,23 @@ impl Network {
     }
 
     /// wait for a wallet
-    pub fn recv_packet_utxo_wallet(&self) -> Vec<Utxo> {
+    pub fn recv_packet_utxo_wallet(&self) -> Result<Vec<Utxo>> {
         let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
         let allutxo = vec![];
         loop {
-            self.binding.recv_from(&mut buf).expect("Error recv block");
+            self.binding
+                .set_read_timeout(Some(Duration::from_secs(1)))?;
+            self.binding.recv_from(&mut buf).with_context(|| {
+                format!(
+                    "time out receiving wallet all server down ?\n\nDUMP Network:\n{}",
+                    self
+                )
+            })?;
             let answer: Packet = deserialize(&mut buf).expect("Can not deserilize block");
-            debug!("rev some wallet info");
             if let Packet::Client(ClientPackect::RespUtxo((size, utxo))) = answer {
+                debug!("rev some wallet info: {} {}",size,utxo);
                 if size == 0 {
-                    return allutxo;
+                    return Ok(allutxo);
                 }
             }
         }
