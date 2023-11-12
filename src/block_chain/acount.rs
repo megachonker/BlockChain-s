@@ -14,7 +14,7 @@ pub struct ToSave {
     privkey: SecretKey,
 }
 
-impl std::fmt::Display for User {
+impl std::fmt::Display for Acount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Path: {}", self.path)?;
         writeln!(f, "Key: {}", self.keypair)?;
@@ -50,14 +50,14 @@ impl Into<PublicKey> for Keypair {
     }
 }
 
-impl Into<Keypair> for User {
+impl Into<Keypair> for Acount {
     fn into(self) -> Keypair {
         self.keypair
     }
 }
 
 #[derive(Debug, PartialEq, Clone, Default)]
-pub struct User {
+pub struct Acount {
     /// path were stored wallet
     path: String,
     /// fee to give to miner
@@ -68,17 +68,17 @@ pub struct User {
     keypair: Keypair,
 }
 
-impl TryFrom<&str> for User {
+impl TryFrom<&str> for Acount {
     type Error = Error;
     fn try_from(path: &str) -> std::result::Result<Self, Self::Error> {
-        User::load(path)
+        Acount::load(path)
     }
 }
 
 
 
 
-impl User {
+impl Acount {
     pub fn get_key(&self) -> &Keypair {
         &self.keypair //double clone
     }
@@ -131,13 +131,13 @@ impl User {
 
 #[cfg(test)]
 mod test {
-    use super::User;
+    use super::Acount;
 
     #[test]
     fn serialize_unserialize_key() {
-        let user1 = User::new_user("test.usr");
+        let user1 = Acount::new_user("test.usr");
         user1.clone().save().unwrap();
-        let user2 = User::load("test.usr").unwrap();
+        let user2 = Acount::load("test.usr").unwrap();
         assert_eq!(user1, user2)
     }
 

@@ -10,8 +10,8 @@ use std::{
     hash::{BuildHasherDefault, Hash, Hasher},
 };
 
-use super::{blockchain::{Balance, Blockchain}, user::Keypair};
-use super::{block::MINER_REWARD, user::User};
+use super::{blockchain::{Balance, Blockchain}, acount::Keypair};
+use super::{block::MINER_REWARD, acount::Acount};
 
 type amount = u32;
 type hash = u64;
@@ -155,7 +155,7 @@ impl Transaction {
     /// search a utxo combinaison from user wallet
     /// introduce miner fee
     /// send back to owner surplus
-    pub fn create_transa_from(user: &mut User, amount: u64, destination: PublicKey) -> Option<Self> {
+    pub fn create_transa_from(user: &mut Acount, amount: u64, destination: PublicKey) -> Option<Self> {
         let total_ammount = (amount as f64 * (1.0 + user.miner_fee)) as u64;
         let (selected, sendback) = Self::select_utxo_from_vec(&user.wallet, total_ammount)?;
 

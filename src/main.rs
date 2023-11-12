@@ -6,7 +6,7 @@ mod block_chain {
     pub mod blockchain;
     pub mod node;
     pub mod transaction;
-    pub mod user;
+    pub mod acount;
 }
 use anyhow::{bail, Context, Result};
 use block_chain::{
@@ -16,7 +16,7 @@ use block_chain::{
         server::Server,
         NewNode,
     },
-    user::User,
+    acount::Acount,
 };
 use clap::Parser;
 use tracing::info;
@@ -102,7 +102,7 @@ fn main() -> Result<()> {
 /// parsing argument
 fn parse_args(cli: Cli) -> Result<NewNode> {
     //create user
-    let user = User::load(&cli.path)?;
+    let user = Acount::load(&cli.path)?;
     
     
     // check un bootstrap spésifier

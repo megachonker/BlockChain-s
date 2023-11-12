@@ -1,10 +1,10 @@
-use super::super::user;
+use super::super::acount;
 use super::network::Network;
 use crate::{
     block_chain::{
         node::network::{ClientPackect, Packet, TypeTransa},
         transaction::Transaction,
-        user::User,
+        acount::Acount,
     },
     friendly_name::get_friendly_name,
 };
@@ -18,13 +18,13 @@ pub struct TransaInfo {
 }
 
 pub struct Client {
-    user: User,
+    user: Acount,
     networking: Network,
     transa_info: TransaInfo,
 }
 
 impl Client {
-    pub fn new(networking: Network, user: User, destination: PublicKey, ammount: u64) -> Self{
+    pub fn new(networking: Network, user: Acount, destination: PublicKey, ammount: u64) -> Self{
         Self {
             user,
             networking,
@@ -37,7 +37,7 @@ impl Client {
 
     /// create empty wallet annd write it
     pub fn new_wallet(path: &str) -> Result<()> {
-        let user = user::User::new_user(path);
+        let user = acount::Acount::new_user(path);
         debug!("new wallet:\n{}",user);
         user.save()
     }
@@ -70,8 +70,6 @@ impl Client {
             &self.networking.bootstrap,
         )?;
 
-        
-        
         self.refresh_wallet()?;
         info!("Wallet: {}",self.user);
 
@@ -95,7 +93,7 @@ impl Client {
 #[cfg(test)]
 mod test {
     use std::net::Ipv4Addr;
-    use crate::block_chain::{node::network::Network, user::User};
+    use crate::block_chain::{node::network::Network, acount::Acount};
     use super::Client;
 
     #[test]
@@ -104,7 +102,7 @@ mod test {
         let bootstrap = std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0));
 
         let net = Network::new(bootstrap, bind);
-        let user = User::default();
+        let user = Acount::default();
 
         let cli = Client::new(net, user, Default::default(), 1);
         cli.start().unwrap();

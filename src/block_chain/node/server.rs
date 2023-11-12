@@ -13,7 +13,7 @@ use anyhow::{Context, Result};
 
 use tracing::{debug, info, warn,trace};
 
-use crate::{friendly_name::*, block_chain::user::{User, Keypair}};
+use crate::{friendly_name::*, block_chain::acount::{Acount, Keypair}};
 use crate::{
     block_chain::{
         block::{mine, Block},
@@ -156,9 +156,9 @@ impl Server {
                 Event::NewBlock(new_block) => {
                     let new_block = match new_block {
                         NewBlock::Mined(b) => {
+                            debug!("Broadcast mined block h:{}",b.block_height);
                             self.network
                                 .broadcast(Packet::Block(TypeBlock::Block(b.clone())))?;
-                            debug!("Broadcast mined block");
                             b
                         }
                         NewBlock::Network(b) => b,
@@ -217,7 +217,7 @@ impl Server {
                         }
 
                         for (index, utxo) in utxos.iter().enumerate() {
-                            trace!("send back to {} transaction {} {}",addr_client,index,utxo);
+                            trace!("Reply to {} by sending transa {} {}",addr_client,index,utxo);
                             self.network
                                 .send_packet(&Packet::Client(ClientPackect::RespUtxo((nb_utxo -1 - index,utxo.clone()))), & addr_client)?;
                         }
