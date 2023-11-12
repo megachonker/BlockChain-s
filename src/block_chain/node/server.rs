@@ -1,9 +1,7 @@
 use bincode::{deserialize, serialize};
-use dryoc::{
-    sign::{PublicKey},
-};
+use dryoc::sign::PublicKey;
 
-use anyhow::{Result};
+use anyhow::Result;
 use std::{
     fs::File,
     io::{Read, Write},
@@ -15,18 +13,13 @@ use std::{
 
 use tracing::{debug, info, trace, warn};
 
-use crate::{
-    block_chain::acount::{Keypair},
-    friendly_name::*,
+use crate::block_chain::{
+    block::{mine, Block},
+    blockchain::Blockchain,
+    node::network::{Network, Packet, TypeBlock},
+    transaction::Transaction,
 };
-use crate::{
-    block_chain::{
-        block::{mine, Block},
-        blockchain::Blockchain,
-        node::network::{Network, Packet, TypeBlock},
-        transaction::Transaction,
-    },
-};
+use crate::{block_chain::acount::Keypair, friendly_name::*};
 
 const path_save_json: &str = "path_save_json.save";
 const path_save: &str = "path_save_json.save";
@@ -158,16 +151,13 @@ impl Server {
                 Event::NewBlock(new_block) => {
                     let new_block = match new_block {
                         NewBlock::Mined(b) => {
-                            debug!("Export {}:{}", b.block_height,b.block_id);
+                            debug!("Export {}:{}", b.block_height, b.block_id);
                             self.network
                                 .broadcast(Packet::Block(TypeBlock::Block(b.clone())))?;
                             b
                         }
                         NewBlock::Network(b) => {
-                            debug!(
-                                "Import {}:{}",
-                                b.block_height, b.block_id
-                            );
+                            debug!("Import {}:{}", b.block_height, b.block_id);
 
                             b
                         }

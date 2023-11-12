@@ -1,15 +1,13 @@
 use super::super::acount;
 use super::network::Network;
-use crate::{
-    block_chain::{
-        node::network::{ClientPackect, Packet, TypeTransa},
-        transaction::{Transaction, Amount},
-        acount::Acount,
-    },
+use crate::block_chain::{
+    acount::Acount,
+    node::network::{ClientPackect, Packet, TypeTransa},
+    transaction::{Amount, Transaction},
 };
 use anyhow::{anyhow, Result};
 use dryoc::sign::PublicKey;
-use tracing::{info, debug,trace};
+use tracing::{debug, info, trace};
 
 pub struct TransaInfo {
     pub ammount: Amount,
@@ -23,7 +21,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(networking: Network, user: Acount, destination: PublicKey, ammount: Amount) -> Self{
+    pub fn new(networking: Network, user: Acount, destination: PublicKey, ammount: Amount) -> Self {
         Self {
             user,
             networking,
@@ -37,7 +35,7 @@ impl Client {
     /// create empty wallet annd write it
     pub fn new_wallet(path: &str) -> Result<()> {
         let user = acount::Acount::new_user(path);
-        debug!("new wallet:\n{}",user);
+        debug!("new wallet:\n{}", user);
         user.save()
     }
 
@@ -45,12 +43,10 @@ impl Client {
     fn refresh_wallet(&mut self) -> Result<()> {
         // pull utxo avaible
 
-        let pubkey:PublicKey= self.user.get_key().clone().into();
-        debug!("Ask for wallet value for {:?}",pubkey);
+        let pubkey: PublicKey = self.user.get_key().clone().into();
+        debug!("Ask for wallet value for {:?}", pubkey);
         self.networking.send_packet(
-            &Packet::Client(ClientPackect::ReqUtxo(
-                pubkey,
-            )),
+            &Packet::Client(ClientPackect::ReqUtxo(pubkey)),
             &self.networking.bootstrap,
         )?;
 
@@ -58,7 +54,7 @@ impl Client {
         // on pourait start un demon en background
         trace!("waiting receiving packet of wallet");
         let myutxo = self.networking.recv_packet_utxo_wallet()?;
-        
+
         self.user.refresh_wallet(myutxo);
         Ok(())
     }
@@ -71,7 +67,7 @@ impl Client {
         )?;
 
         self.refresh_wallet()?;
-        info!("Wallet:\n{}",self.user);
+        info!("Wallet:\n{}", self.user);
 
         let transactionb = Transaction::create_transa_from(
             &mut self.user,
@@ -92,9 +88,6 @@ impl Client {
 
 #[cfg(test)]
 mod test {
-    
-    
-    
 
     // #[test]
     // fn make_transaction() {

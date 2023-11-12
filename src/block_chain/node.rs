@@ -4,7 +4,7 @@ use server::Server;
 pub mod client;
 pub mod network;
 pub mod server;
-use anyhow::{Result};
+use anyhow::Result;
 
 pub enum NewNode {
     Srv(Server),

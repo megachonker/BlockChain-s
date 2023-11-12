@@ -2,28 +2,29 @@ mod friendly_name;
 
 mod block_chain {
     // pub mod shared;
+    pub mod acount;
     pub mod block;
     pub mod blockchain;
     pub mod node;
     pub mod transaction;
-    pub mod acount;
 }
 use anyhow::{bail, Result};
 use block_chain::{
+    acount::Acount,
     node::{
         client::{self, Client},
         network::Network,
         server::Server,
         NewNode,
     },
-    acount::Acount, transaction::Amount,
+    transaction::Amount,
 };
 use clap::Parser;
-use tracing::info;
 use std::{
     net::{IpAddr, Ipv4Addr},
     str::FromStr,
 };
+use tracing::info;
 
 #[derive(Parser)]
 pub struct Cli {
@@ -83,7 +84,7 @@ fn main() -> Result<()> {
 
     // si doit recrée un compte
     if arg.jouvance {
-        if arg.path.is_empty(){
+        if arg.path.is_empty() {
             bail!("missing path for create new user !");
         }
         client::Client::new_wallet(arg.path.as_str())?;
@@ -102,8 +103,7 @@ fn main() -> Result<()> {
 fn parse_args(cli: Cli) -> Result<NewNode> {
     //create user
     let user = Acount::load(&cli.path)?;
-    
-    
+
     // check un bootstrap spésifier
     let bootstrap;
     if cli.bind.is_none() {
@@ -124,7 +124,7 @@ fn parse_args(cli: Cli) -> Result<NewNode> {
     let networking = Network::new(bootstrap.unwrap(), binding.unwrap());
 
     // si doit send
-    if cli.destination != 0 || cli.ammount !=0 {
+    if cli.destination != 0 || cli.ammount != 0 {
         // si manque un arg pour send
         if cli.ammount == 0 {
             bail!("missing amount")
@@ -143,7 +143,11 @@ fn parse_args(cli: Cli) -> Result<NewNode> {
         )))
     } else {
         //create server worker
-        Ok(NewNode::Srv(Server::new(networking, user.get_key().clone(),cli.threads)))
+        Ok(NewNode::Srv(Server::new(
+            networking,
+            user.get_key().clone(),
+            cli.threads,
+        )))
     }
 }
 
@@ -163,7 +167,7 @@ mod tests {
         let cli = Cli {
             bind,
             bootstrap,
-            path:"test.usr".to_string(),
+            path: "test.usr".to_string(),
             ..Default::default()
         };
         parse_args(cli).unwrap();
@@ -175,7 +179,7 @@ mod tests {
         let cli = Cli {
             bind,
             bootstrap,
-            path:"test.usr".to_string(),
+            path: "test.usr".to_string(),
             ..Default::default()
         };
         parse_args(cli).unwrap();

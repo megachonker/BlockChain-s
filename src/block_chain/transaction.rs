@@ -1,7 +1,4 @@
-use dryoc::{
-    sign::{PublicKey},
-    types::{Bytes},
-};
+use dryoc::{sign::PublicKey, types::Bytes};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_map::DefaultHasher,
@@ -9,13 +6,11 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use super::{blockchain::{Balance}, acount::Keypair};
-use super::{block::MINER_REWARD, acount::Acount};
+use super::{acount::Acount, block::MINER_REWARD};
+use super::{acount::Keypair, blockchain::Balance};
 
 pub type Amount = u32;
-pub  type HashValue = u64;
-
-
+pub type HashValue = u64;
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Utxo {
@@ -63,11 +58,15 @@ impl Utxo {
 //do no show the come_from (useless to show)
 impl fmt::Display for Utxo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "#{}->({:?},{}$)", self.hash,self.onwer.to_vec().get(..5).unwrap(), self.amount)
+        write!(
+            f,
+            "#{}->({:?},{}$)",
+            self.hash,
+            self.onwer.to_vec().get(..5).unwrap(),
+            self.amount
+        )
     }
 }
-
-
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 /// Structure That Be Signed
@@ -82,26 +81,25 @@ impl fmt::Display for Transaction {
         self.hash(&mut hasher);
         let hash = hasher.finish();
 
-        write!(f,"Hash:{}",hash)?;
+        write!(f, "Hash:{}", hash)?;
         write!(f, "\n║Input:\t")?;
         let mut c = 0;
         for transrx in &self.rx {
             write!(f, "{} ", transrx)?;
-            c+=1;
+            c += 1;
             if c == 3 {
-                write!(f,"\n║\t")?;
-                c=0;
-
+                write!(f, "\n║\t")?;
+                c = 0;
             }
         }
         write!(f, "\n║Output:\t")?;
         c = 0;
         for transtx in &self.tx {
             write!(f, "{} ", transtx)?;
-            c+=1;
+            c += 1;
             if c == 3 {
-                write!(f,"\n║\t")?;
-                c=0;
+                write!(f, "\n║\t")?;
+                c = 0;
             }
         }
         write!(f, "")
@@ -176,9 +174,13 @@ impl Transaction {
     /// introduce miner fee
     /// send back to owner surplus
     /// ///// NEED TEST
-    pub fn create_transa_from(user: &mut Acount, amount: Amount, destination: PublicKey) -> Option<Self> {
-        let total_ammount = amount + user.miner_fee;//// on veuux pas taxer sur des pourcent mais pour pas abu
-        // je send 1 milliard si je me fait taxer 10% le miner recois 10Million autant faire moi meme un noeud lol
+    pub fn create_transa_from(
+        user: &mut Acount,
+        amount: Amount,
+        destination: PublicKey,
+    ) -> Option<Self> {
+        let total_ammount = amount + user.miner_fee; //// on veuux pas taxer sur des pourcent mais pour pas abu
+                                                     // je send 1 milliard si je me fait taxer 10% le miner recois 10Million autant faire moi meme un noeud lol
         let (selected, sendback) = Self::select_utxo_from_vec(&user.wallet, total_ammount)?;
 
         let mut hasher = DefaultHasher::new();
@@ -186,10 +188,10 @@ impl Transaction {
         let hash_come_from = hasher.finish();
 
         let mut transaction = Self {
-            rx: selected.clone(),///
+            rx: selected.clone(),
+            ///
             tx: vec![Utxo::new(amount, destination, hash_come_from)],
         };
-
 
         // Update wallet
         // can triguerre here a hanndler to know were transa done
@@ -201,9 +203,11 @@ impl Transaction {
         }
 
         //send back the money to the owner of input
-        transaction
-            .tx
-            .push(Utxo::new(sendback, user.wallet[0].onwer.clone(), hash_come_from));
+        transaction.tx.push(Utxo::new(
+            sendback,
+            user.wallet[0].onwer.clone(),
+            hash_come_from,
+        ));
         Some(transaction)
     }
 
@@ -239,7 +243,7 @@ impl Transaction {
     /// NEED TEST
     pub fn transform_for_miner(
         mut transas: Vec<Transaction>,
-        key:Keypair,
+        key: Keypair,
         block_heigt: u64,
     ) -> Vec<Transaction> {
         let mut miner_reward = MINER_REWARD;
@@ -275,9 +279,7 @@ impl Transaction {
 #[cfg(test)]
 mod tests {
 
-    use crate::block_chain::{
-        transaction::{Transaction, Utxo},
-    };
+    use crate::block_chain::transaction::{Transaction, Utxo};
     use rand::Rng;
 
     use super::*;

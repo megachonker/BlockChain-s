@@ -1,8 +1,6 @@
 use std::fmt::Display;
 
-use super::{
-    transaction::{Amount, Transaction, Utxo},
-};
+use super::transaction::{Amount, Transaction, Utxo};
 use anyhow::{Context, Error, Result};
 use dryoc::{sign::*, types::StackByteArray};
 use serde::{Deserialize, Serialize};
@@ -22,7 +20,7 @@ impl std::fmt::Display for Acount {
         for utxo in &self.wallet {
             writeln!(f, "{}", utxo)?;
         }
-        write!(f, "sold: {}",self.get_sold())
+        write!(f, "sold: {}", self.get_sold())
     }
 }
 
@@ -80,7 +78,9 @@ impl Acount {
     }
 
     pub fn get_sold(&self) -> Amount {
-        self.wallet.iter().fold(Default::default(),|sum,x| x.amount+sum )
+        self.wallet
+            .iter()
+            .fold(Default::default(), |sum, x| x.amount + sum)
     }
 
     pub fn new_user(path: &str) -> Self {
@@ -98,7 +98,12 @@ impl Acount {
 
     pub fn load(path: &str) -> Result<Self> {
         //need  err handling
-        let conf = std::fs::read(path).with_context( || format!( "I/O impossible de charger le wallet [{}] (non existing file ?)",path))?;
+        let conf = std::fs::read(path).with_context(|| {
+            format!(
+                "I/O impossible de charger le wallet [{}] (non existing file ?)",
+                path
+            )
+        })?;
         let user: ToSave = serde_json::from_slice(&conf).context("la conf lut est broken")?;
         let keypair: Keypair = SigningKeyPair::from_secret_key(user.privkey).into();
         Ok(Self {
@@ -123,7 +128,7 @@ impl Acount {
 
     fn sign_transa(&self, transa: Transaction) -> SignedMessage<StackByteArray<64>, Vec<u8>> {
         let data = bincode::serialize(&transa).unwrap();
-        
+
         self.keypair.0.sign_with_defaults(data).unwrap()
     }
 }

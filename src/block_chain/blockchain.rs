@@ -1,9 +1,7 @@
 use core::fmt;
-use std::collections::HashMap;
 use dryoc::sign::PublicKey;
+use std::collections::HashMap;
 use tracing::{debug, error, info, warn};
-
-
 
 use super::{block::Block, node::server::MinerStuff, transaction::Utxo};
 const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
@@ -386,7 +384,7 @@ impl Blockchain {
              // these block is needed from a higher block 
             && child.timestamp > parent.timestamp
     }
-    
+
     /// Return two chains which are the link between last_top and new_top.
     /// These two chain have a common block at the end
     ///
@@ -402,7 +400,9 @@ impl Blockchain {
         let mut vec2: Vec<&Block> = vec![];
 
         let mut last = self.get_block(last_top).unwrap();
-        let mut new = self.get_block(new_top).unwrap_or_else(|| panic!("{}", new_top));
+        let mut new = self
+            .get_block(new_top)
+            .unwrap_or_else(|| panic!("{}", new_top));
 
         while last.block_height != new.block_height {
             if last.block_height < new.block_height {
@@ -585,7 +585,7 @@ fn best_difficulty(chain1: &Vec<&Block>, chain2: &Vec<&Block>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_chain::{block::Profile};
+    use crate::block_chain::block::Profile;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]

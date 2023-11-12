@@ -9,10 +9,10 @@ use std::hash::{Hash, Hasher};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tracing::{info,trace};
+use tracing::{info, trace};
 
 use super::node::server::{Event, MinerStuff, NewBlock};
-use super::transaction::{ Transaction, Utxo, Amount, HashValue};
+use super::transaction::{Amount, HashValue, Transaction, Utxo};
 
 //variable d'envirnement
 
@@ -25,9 +25,9 @@ pub const MINER_REWARD: Amount = 1; //the coin create for the miner
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
     /////////////////rendre private quand on aura imported mine extern du serveur
-    pub block_id: HashValue,                  //the hash of whole block
+    pub block_id: HashValue,            //the hash of whole block
     pub block_height: u64,              //the number of the current block
-    pub parent_hash: HashValue,               //the id of last block (block are chain with that)
+    pub parent_hash: HashValue,         //the id of last block (block are chain with that)
     pub transactions: Vec<Transaction>, //the vector of all transaction validated with this block
     pub difficulty: u64, //the current difficulty fot the block (hash_proof <difficulty).
     pub quote: String,
@@ -156,7 +156,6 @@ impl Block {
     pub fn check(&self) -> bool {
         let answer = self.get_block_hash_proof_work();
 
-
         let mut already_see = false;
         let mut miner_reward: Amount = 0;
         let mut transa_remain: Amount = 0;
@@ -268,7 +267,6 @@ fn get_id_block(new_block: &Block, hash_proof_work: u64) -> u64 {
     hasher.finish()
 }
 
-
 //exelent!
 impl PartialEq for Block {
     fn eq(&self, block: &Block) -> bool {
@@ -281,7 +279,7 @@ impl PartialEq for Block {
 pub fn mine(miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Event>) {
     info!("Miner task started");
     loop {
-        // copy localy miner stuff 
+        // copy localy miner stuff
         let miner_stuff_lock = miner_stuff.lock().unwrap();
         let block = miner_stuff_lock.cur_block.clone(); //presque toujour blocker
         let transa = miner_stuff_lock.transa.clone();
@@ -294,8 +292,13 @@ pub fn mine(miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Event>) {
             sender
                 .send(Event::NewBlock(NewBlock::Mined(mined_block)))
                 .unwrap();
-        }else {
-            trace!("{:?}, found nothing for {}:{}",std::thread::current().id(),block.block_height,block.block_id);
+        } else {
+            trace!(
+                "{:?}, found nothing for {}:{}",
+                std::thread::current().id(),
+                block.block_height,
+                block.block_id
+            );
         }
     }
 }
@@ -318,7 +321,7 @@ mod tests {
 
         let miner_stuff = Arc::new(Mutex::new(MinerStuff {
             cur_block: Block::default(),
-            transa: Transaction::transform_for_miner(vec![], Default::default(),1),
+            transa: Transaction::transform_for_miner(vec![], Default::default(), 1),
             difficulty: crate::block_chain::blockchain::FIRST_DIFFICULTY,
         }));
 
@@ -346,7 +349,7 @@ mod tests {
         let b0 = Block::default();
 
         let b1 = b0
-            .find_next_block( vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
         let b2 = b1
             .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
@@ -363,7 +366,7 @@ mod tests {
         let block = Block::default();
         loop {
             if let Some(block_to_test) = block.find_next_block(
-                Transaction::transform_for_miner(vec![], Default::default(),1),
+                Transaction::transform_for_miner(vec![], Default::default(), 1),
                 Profile::Normal,
                 FIRST_DIFFICULTY,
             ) {

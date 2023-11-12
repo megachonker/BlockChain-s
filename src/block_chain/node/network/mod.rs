@@ -9,9 +9,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use bincode::{deserialize, serialize};
-use dryoc::{
-    sign::{PublicKey},
-};
+use dryoc::sign::PublicKey;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
 
@@ -97,7 +95,7 @@ impl Network {
 
     /// append transaction when enought transa send it to miner to create a new block
     fn transaction(transa: TypeTransa, net_transa_tx: &Sender<Event>) {
-        info!("Recv a newtransaction: {:?}",net_transa_tx);
+        info!("Recv a newtransaction: {:?}", net_transa_tx);
         match transa {
             TypeTransa::Ans(_utxos) => { /* array of all utxo append */ }
             TypeTransa::Push(transaction) => {
@@ -286,7 +284,7 @@ impl Network {
             })?;
             let answer: Packet = deserialize(&mut buf).expect("Can not deserilize block");
             if let Packet::Client(ClientPackect::RespUtxo((size, utxo))) = answer {
-                debug!("rev some wallet utxo: {} {}",size,utxo);
+                debug!("rev some wallet utxo: {} {}", size, utxo);
                 allutxo.push(utxo);
                 if size == 0 {
                     return Ok(allutxo);
@@ -303,7 +301,10 @@ impl Network {
     ) -> Result<()> {
         match client_packet {
             ClientPackect::ReqUtxo(id_client) => {
-                info!("Client ask utxo own by ({:?}) request UTXO ", id_client.to_vec().get(..5).unwrap());
+                info!(
+                    "Client ask utxo own by ({:?}) request UTXO ",
+                    id_client.to_vec().get(..5).unwrap()
+                );
                 event_tx.send(Event::ClientEvent(ClientEvent::ReqUtxo(id_client), sender))?;
             }
             ClientPackect::RespUtxo(_) => {
