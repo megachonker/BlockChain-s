@@ -10,9 +10,11 @@ use std::{
     hash::{BuildHasherDefault, Hash, Hasher},
 };
 
-use super::blockchain::{Balance, Blockchain};
+use super::{blockchain::{Balance, Blockchain}, user::Keypair};
 use super::{block::MINER_REWARD, user::User};
 
+type amount = u32;
+type hash = u64;
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Utxo {
@@ -58,7 +60,7 @@ impl Utxo {
 //do no show the come_from (useless to show)
 impl fmt::Display for Utxo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "|#{}->({:?},{}$)|", self.hash, self.onwer, self.ammount)
+        write!(f, "|#{}->({:?},{}$)|", self.hash,self.onwer.to_vec().get(..5).unwrap(), self.ammount)
     }
 }
 
@@ -214,7 +216,7 @@ impl Transaction {
 
     pub fn transform_for_miner(
         mut transas: Vec<Transaction>,
-        miner_id: PublicKey,
+        key:Keypair,
         block_heigt: u64,
     ) -> Vec<Transaction> {
         let mut miner_reward = MINER_REWARD;
@@ -234,7 +236,7 @@ impl Transaction {
 
         transas.push(Transaction {
             rx: vec![],
-            tx: vec![Utxo::new(miner_reward, miner_id, block_heigt)],
+            tx: vec![Utxo::new(miner_reward, key.into(), block_heigt)],
         });
         transas
     }
