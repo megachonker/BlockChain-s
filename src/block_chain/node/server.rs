@@ -13,7 +13,7 @@ use anyhow::{Context, Result};
 
 use tracing::{debug, info, warn,trace};
 
-use crate::friendly_name::*;
+use crate::{friendly_name::*, block_chain::user::{User, Keypair}};
 use crate::{
     block_chain::{
         block::{mine, Block},
@@ -55,8 +55,7 @@ pub enum Event {
 pub struct Server {
     name: String,
     network: Network, // blockchaine
-    //miner
-    miner_pubkey: PublicKey,
+    keypair: Keypair,
     blockchain: Blockchain,
     number_miner: u16, //number of thread of miner to be spawn //<= use once 
     // path_save_json: String,
@@ -64,26 +63,29 @@ pub struct Server {
 }
 
 #[derive(Debug)]
+/// Structure that hold wat needed to mine
+/// IMPORTANT this structure is updated and locked
 pub struct MinerStuff {
+    /// curent block to 
     pub cur_block: Block,
+    /// all transaction to hash (already checked)
     pub transa: Vec<Transaction>,
+    /// actual difficulty
     pub difficulty: u64,
-    pub miner_id: PublicKey,
+    // pub miner_id: PublicKey,
 }
 
 impl Server {
-    pub fn new(network: Network, cli: Cli) -> Self {
+    pub fn new(network: Network,keypair: Keypair, thread:u16) -> Self {
         let name =
             get_friendly_name(network.get_socket()).expect("generation name from ip imposble");
 
-        /////////////////// NEED TO READ KEY !!!!!!!!!!!!!!!
-        
         Self {
             name,
             network,
-            miner_pubkey: Default::default(),
+            keypair,
             blockchain: Blockchain::new(),
-            number_miner: cli.threads,
+            number_miner: thread,
         }
     }
     pub fn start(mut self) -> Result<()>{
@@ -109,12 +111,12 @@ impl Server {
 
         let miner_stuff = Arc::new(Mutex::new(MinerStuff {
             cur_block: self.blockchain.last_block(),
-            transa: Transaction::transform_for_miner(vec![], self.miner_pubkey.clone(), 1),
+            transa: Transaction::transform_for_miner(vec![], self.keypair.clone(), 1),
             difficulty: self.blockchain.difficulty,
-            miner_id:self.miner_pubkey.clone(),
+            // miner_id:self.miner_pubkey.clone(),
         }));
 
-        // manny whay to do better
+        // manny whay to do better <== need to me move  in mine !!
         for _ in 0..self.number_miner {
             let miner_stuff_cpy = miner_stuff.clone();
             let event_cpy = event_channels.0.clone();
@@ -172,11 +174,13 @@ impl Server {
 
                         let new_difficulty = self.blockchain.new_difficutly();
 
+                        // update the miner stuff
                         let mut lock_miner_stuff = miner_stuff.lock().unwrap();
                         lock_miner_stuff.cur_block = top_block.clone();
+
                         lock_miner_stuff.transa = Transaction::transform_for_miner(
                             vec![],
-                            lock_miner_stuff.miner_id.clone(),
+                            self.keypair.clone(),
                             top_block.block_height + 1,
                         ); //for the moment reset transa not taken     //maybe check transa not accpted and already available
                         lock_miner_stuff.difficulty = new_difficulty; //for the moment reset transa not taken     //maybe check transa not accpted and already available
