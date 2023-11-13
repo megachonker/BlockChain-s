@@ -1,9 +1,14 @@
+use anyhow::Result;
 use core::fmt;
 use dryoc::sign::PublicKey;
 use std::collections::HashMap;
 use tracing::{debug, error, info, warn};
 
-use super::{block::Block, node::server::MinerStuff, transaction::Utxo};
+use super::{
+    block::Block,
+    node::server::MinerStuff,
+    transaction::{HashValue, TxIn, Utxo, UtxoLocation},
+};
 const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
 const TIME_N_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
 pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
@@ -87,6 +92,7 @@ impl Balance {
         dst.last().expect("dst empty")
     }
 
+    /// check  if the utxo is Avaible
     pub fn valid(&self, utxo: &Utxo) -> bool {
         let u = self.utxo_hmap.get(utxo);
         if let Some(statue) = u {
@@ -160,8 +166,8 @@ impl Balance {
 }
 
 pub struct Blockchain {
-    hash_map_block: HashMap<u64, Block>,
-    top_block_hash: u64,
+    hash_map_block: HashMap<HashValue, Block>,
+    top_block_hash: HashValue,
     potentials_top_block: PotentialsTopBlock, // block need to finish the chain)
     pub balance: Balance,
     pub difficulty: u64,
@@ -184,11 +190,43 @@ impl Default for Blockchain {
 }
 
 impl Blockchain {
+
+    /// Cherche Utxo depuis une `UtxoLocation`
+    pub fn get_utxo_from_location(&self, location: UtxoLocation) -> Option<&Utxo> {
+        self.hash_map_block
+            .iter()
+            .flat_map(|f| f.1.transactions)
+            .find(|transa| transa.get_hash() == location.0)
+            .map(|t| t.tx.get(location.1))?
+    }
+
+    /// check if utxo at input is valide
+    /// iter over the blockaine hashmap block
+    /// over each block search for Tx utxo
+    /// compare local and remote utxo
+    /// if match we are happy we construct where we saw the location of the utcxo
+    pub fn get_utxo_location(&self, utxo: &Utxo) -> Option<UtxoLocation> {
+        if self.balance.valid(utxo) {
+            return self.hash_map_block.iter().find_map(|block| {
+                block.1.transactions.iter().find_map(|transa| {
+                    transa
+                        .tx
+                        .iter()
+                        .enumerate()
+                        .find_map(|(index, block_in_txo)| {
+                            block_in_txo.eq(utxo).then(|| (transa.get_hash(), index))
+                        })
+                })
+            });
+        }
+        None
+    }
+
     pub fn filter_utxo(&self, addr: PublicKey) -> Vec<Utxo> {
         self.balance
             .utxo_hmap
             .iter()
-            .filter(|(utxo, statue)| statue == &&Status::Avaible && utxo.onwer == addr)
+            .filter(|(utxo, statue)| statue == &&Status::Avaible && utxo.target == addr)
             .map(|(utxo, _)| utxo)
             .cloned()
             .collect()

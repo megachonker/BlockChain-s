@@ -128,7 +128,6 @@ impl Acount {
 
     fn sign_transa(&self, transa: Transaction) -> SignedMessage<StackByteArray<64>, Vec<u8>> {
         let data = bincode::serialize(&transa).unwrap();
-
         self.keypair.0.sign_with_defaults(data).unwrap()
     }
 }
