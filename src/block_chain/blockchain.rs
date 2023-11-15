@@ -7,7 +7,7 @@ use tracing::{debug, error, info, warn};
 use super::{
     block::Block,
     node::server::MinerStuff,
-    transaction::{HashValue, TxIn, Utxo, UtxoLocation, UtxoValidator},
+    transaction::{HashValue, Utxo, UtxoLocation, UtxoValidator},
 };
 const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
 const TIME_N_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds

@@ -1,21 +1,19 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Result};
 use dryoc::{
-    sign::{PublicKey, Signature, SignedMessage, SigningKeyPair, VecSignedMessage},
-    types::{Bytes, StackByteArray},
+    sign::{PublicKey, Signature, SignedMessage},
+    types::{Bytes},
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{hash_map::DefaultHasher, HashSet},
-    default,
+    collections::{hash_map::DefaultHasher},
     fmt::{self, Display},
     hash::{Hash, Hasher},
-    iter::Empty,
 };
 
 use super::{
     acount::Acount,
-    block::{Block, MINER_REWARD},
-    blockchain::{self, Blockchain},
+    block::{MINER_REWARD},
+    blockchain::{Blockchain},
 };
 use super::{acount::Keypair, blockchain::Balance};
 
@@ -118,7 +116,7 @@ impl Utxo {
     }
 
     pub fn new(ammount: Amount, target: PublicKey) -> Utxo {
-        let mut utxo = Self {
+        let utxo = Self {
             amount: ammount,
             target,
         };
@@ -212,7 +210,7 @@ impl Transaction {
     }
 
     /// need to have multiple key
-    fn sign(&mut self,blockaine: &Blockchain,key:Keypair)-> Result<Signature>{
+    fn sign(&mut self,_blockaine: &Blockchain,key:Keypair)-> Result<Signature>{
         // get all needed key
         // let mut need_pubkey = HashSet::new();
         // for utxo in self.rx{
@@ -252,7 +250,7 @@ impl Transaction {
         let s = bincode::serialize(&tx).unwrap();
         let signatures = acount.get_key().0.sign_with_defaults(s).unwrap().into_parts().0;
 
-        let mut transaction = Self { rx, tx, signatures: bincode::serialize(&signatures).unwrap() };
+        let transaction = Self { rx, tx, signatures: bincode::serialize(&signatures).unwrap() };
 
 
         // Update wallet
@@ -265,10 +263,10 @@ impl Transaction {
     /// if we just have TxIn bacily we are server
     pub fn sign_set(
         utxos: Vec<(UtxoLocation,Utxo)>,
-        blockaine: Blockchain,
+        _blockaine: Blockchain,
         keypair: Vec<Keypair>,
     ) -> Result<Option<Vec<TxIn>>> {
-        let mut result = vec![];
+        let result = vec![];
         for (postision,utxo) in utxos {
             //find coresponding keypair
             let keypair = keypair.iter().find(|t| t.0.public_key == utxo.target);
@@ -327,7 +325,7 @@ impl Transaction {
     pub fn transform_for_miner(
         mut transas: Vec<Transaction>,
         key: Keypair,
-        block_heigt: u64,
+        _block_heigt: u64,
         blockaine: &Blockchain
     ) -> Vec<Transaction> {
         let mut miner_reward = MINER_REWARD;
@@ -401,7 +399,7 @@ impl fmt::Display for Transaction {
 mod tests {
 
     use crate::block_chain::transaction::{Transaction, Utxo};
-    use rand::Rng;
+    
 
     use super::*;
 

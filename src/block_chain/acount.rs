@@ -10,7 +10,7 @@ pub struct ToSave {
     wallet: Vec<(Amount, TxIn)>,
     privkey: SecretKey,
 }
-use tracing::{debug, info, trace, warn};
+use tracing::{warn};
 
 impl std::fmt::Display for Acount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

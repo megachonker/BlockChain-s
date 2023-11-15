@@ -307,7 +307,7 @@ pub fn mine(miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Event>) {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::mpsc, thread};
+    
 
     use super::*;
     use crate::block_chain::blockchain::FIRST_DIFFICULTY;
