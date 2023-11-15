@@ -249,7 +249,7 @@ impl Block {
     pub fn find_created_utxo(&self) -> Vec<Utxo> {
         self.transactions
             .iter()
-            .flat_map(|t| t.tx)
+            .flat_map(|t| t.tx.clone())
             .collect()
     }
 
@@ -257,7 +257,7 @@ impl Block {
     pub fn find_used_utxo(&self) -> Vec<TxIn> {
         self.transactions
             .iter()
-            .flat_map(|t| t.rx)
+            .flat_map(|t| t.rx.clone())
             .collect()
     }
 }

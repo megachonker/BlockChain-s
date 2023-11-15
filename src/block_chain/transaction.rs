@@ -48,20 +48,20 @@ impl TxIn {
     /// Vérifie la signature
     pub fn check_sig(&self, utxo: &Utxo) -> bool {
         let message = bincode::serialize(&utxo).unwrap();
-        SignedMessage::from_parts(self.signed, message)
+        SignedMessage::from_parts(self.signed.clone(), message)
             .verify(&utxo.target)
             .is_ok()
     }
 
     /// convertie en Utxo utilisant la blockaine
-    pub fn to_utxo(self, blockaine: &Blockchain) -> Option<&Utxo> {
+    pub fn to_utxo(self, blockaine: &Blockchain) -> Option<Utxo> {
         blockaine.get_utxo_from_location(self.location)
     }
 }
 
 impl UtxoValidator<&Blockchain> for TxIn {
     fn valid(&self, arg: &Blockchain) -> Option<bool> {
-        Some(self.check_sig(self.to_utxo(arg)?))
+        Some(self.check_sig(&self.clone().to_utxo(arg)?).to_owned().clone())
     }
 }
 
@@ -93,7 +93,7 @@ impl Utxo {
     /// TxIn peut être stoquer ou directement utilsier pour une transaction
     ///
     /// On connais la clef secrette a utiliser vu qu'on a déja désérialiser
-    pub fn sign(self, location: UtxoLocation, key: &Keypair) -> Option<TxIn> {
+    pub fn sign(&self, location: UtxoLocation, key: &Keypair) -> Option<TxIn> {
         let message = bincode::serialize(&self).unwrap();
         let signature = key
             .0
@@ -235,7 +235,7 @@ impl Transaction {
     /// send back to owner surplus
     /// ///// NEED TEST
     pub fn new_transaction(
-        acount:&Acount,
+        acount:&mut Acount,
         amount: Amount,
         destination: PublicKey,
     ) -> Option<Self> {
@@ -358,7 +358,7 @@ impl Transaction {
     /// Need to be opti
     pub fn remains(&self, blockaine: &Blockchain) -> Option<i128> {
         let input = self.rx.iter().try_fold(0, |acc, txin| {
-            txin.to_utxo(blockaine).map(|f| acc + f.amount as i128)
+            txin.clone().to_utxo(blockaine).map(|f| acc + f.amount as i128)
         });
 
         let output: Amount = self.tx.iter().map(|t| t.amount).sum();
@@ -385,11 +385,11 @@ impl fmt::Display for Transaction {
         let hash = hasher.finish();
         write!(f, "Hash:{}", hash)?;
         write!(f, "\n║Input:\t")?;
-        for rx in self.rx {
+        for rx in &self.rx {
             write!(f, "{}", rx)?;
         }
         write!(f, "\n║Output:\t")?;
-        for tx in self.tx {
+        for tx in &self.tx {
             write!(f, "{}", tx)?;
         }
         // write!(f, "For the miner: {}", self.remains())?;

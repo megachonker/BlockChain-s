@@ -69,7 +69,7 @@ impl Client {
         // self.refresh_wallet()?;
 
         info!("Wallet:\n{}", self.user);
-        let transactionb = Transaction::new_transaction(&self.user,self.transa_info.ammount, self.transa_info.destination).context("You not have enought money")?;
+        let transactionb = Transaction::new_transaction(&mut self.user,self.transa_info.ammount, self.transa_info.destination).context("You not have enought money")?;
 
         info!("Transaction created : {}", transactionb);
 

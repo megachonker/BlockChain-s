@@ -79,7 +79,7 @@ impl Acount {
     }
 
     pub fn get_pubkey(&self)->PublicKey{
-        self.keypair.0.public_key
+        self.keypair.0.public_key.clone()
     }
 
     pub fn get_sold(&self) -> Amount {
@@ -170,10 +170,10 @@ impl Acount {
         let mut value_total = 0;
         let mut vec_utxo = vec![];
 
-        for (amount,utxo) in self.wallet {
+        for (amount,utxo) in &self.wallet {
             value_total += amount;
             vec_utxo.push(utxo.clone());
-            if value_total >= amount {
+            if value_total >= amount.clone() {
                 return Some((vec_utxo, value_total - amount));
             }
         }

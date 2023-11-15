@@ -99,7 +99,9 @@ impl Balance {
     fn sub(&mut self, block: &Block,blockaine:&Blockchain) -> bool {
         let to_remove = block.find_created_utxo();
 
-        let to_append = block.find_used_utxo().iter().map(|f|f.to_utxo(blockaine).unwrap());
+        let binding = block.find_used_utxo();
+        let to_append = binding.iter().map(|f|f.clone().to_utxo(blockaine).unwrap());
+        // let to_append = block.find_used_utxo().iter().map(|f|f.to_utxo(blockaine).unwrap());
 
         for utxo in to_append {
             self.utxo_hmap.insert(utxo.clone(), Status::Avaible);
@@ -124,8 +126,9 @@ impl Balance {
         let to_append = block.find_created_utxo();
 
         //get utxo to remove
-        let to_remove = block.find_used_utxo().iter().map(|f|f.to_utxo(blockaine).unwrap().clone());
-
+        let binding = block.find_used_utxo();
+        let to_remove = binding.iter().map(|f|f.clone().to_utxo(blockaine).unwrap().clone());
+        
         // Append transaction
         for utxo in to_append {
             if let std::collections::hash_map::Entry::Vacant(e) = self.utxo_hmap.entry(utxo) {
@@ -188,12 +191,13 @@ impl Default for Blockchain {
 
 impl Blockchain {
     /// Cherche Utxo depuis une `UtxoLocation`
-    pub fn get_utxo_from_location(&self, location: UtxoLocation) -> Option<&Utxo> {
-        self.hash_map_block
+    pub fn get_utxo_from_location(&self, location: UtxoLocation) -> Option<Utxo> {
+        let r = self.hash_map_block
             .iter()
-            .flat_map(|f| f.1.transactions)
-            .find(|transa| transa.get_hash() == location.0)
-            .map(|t| t.tx.get(location.1))?
+            .flat_map(|f| f.1.clone().transactions)
+            .find(|transa| transa.get_hash() == location.0)?;
+            let bb = r.tx.get(location.1)?;
+            Some(bb.clone())
     }
 
     /// check if utxo at input is valide
