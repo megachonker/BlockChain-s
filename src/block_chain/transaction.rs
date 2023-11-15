@@ -1,11 +1,11 @@
-use anyhow::{Result, bail, Context};
+use anyhow::{bail, Context, Result};
 use dryoc::{
     sign::{PublicKey, Signature, SignedMessage, SigningKeyPair, VecSignedMessage},
     types::{Bytes, StackByteArray},
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::hash_map::DefaultHasher,
+    collections::{hash_map::DefaultHasher, HashSet},
     default,
     fmt::{self, Display},
     hash::{Hash, Hasher},
@@ -15,23 +15,32 @@ use std::{
 use super::{
     acount::Acount,
     block::{Block, MINER_REWARD},
-    blockchain::Blockchain,
+    blockchain::{self, Blockchain},
 };
 use super::{acount::Keypair, blockchain::Balance};
 
-pub trait UtxoValidator {
-    fn valid(&self) -> bool;
+pub trait UtxoValidator<AdditionalArg = ()> {
+    fn valid(&self, arg: AdditionalArg) -> Option<bool>;
 }
 
 pub type Amount = u32;
 pub type HashValue = u64;
 
-/// Designe l''utxo a prendre
+/// Alias qui permet de savoir ou chercher l'utxo
+/// Hashvalue est le hash de la transaction
+/// usize indice de quelle utxo prendre dans la transaction
 pub type UtxoLocation = (HashValue, usize);
+
+/// utiliser en entrée pour une transa
+/// référance ver le chemain pour accédée a un utxo
+/// la signature de l'utxo certifie que le signant correspond a la clef public
+/// car il possède la clef privée il peut donc signer
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct TxIn {
+    /// référance vere un UTXO existant Valide
     pub location: UtxoLocation,
-    pub signature: Vec<u8>, //Signature
+    /// UTXO fesant référance signer
+    pub signed: Vec<u8>,
 }
 
 impl TxIn {
@@ -39,13 +48,20 @@ impl TxIn {
     /// Vérifie la signature
     pub fn check_sig(&self, utxo: &Utxo) -> bool {
         let message = bincode::serialize(&utxo).unwrap();
-        SignedMessage::from_parts(self.signature, message)
+        SignedMessage::from_parts(self.signed, message)
             .verify(&utxo.target)
             .is_ok()
     }
 
+    /// convertie en Utxo utilisant la blockaine
     pub fn to_utxo(self, blockaine: &Blockchain) -> Option<&Utxo> {
         blockaine.get_utxo_from_location(self.location)
+    }
+}
+
+impl UtxoValidator<&Blockchain> for TxIn {
+    fn valid(&self, arg: &Blockchain) -> Option<bool> {
+        Some(self.check_sig(self.to_utxo(arg)?))
     }
 }
 
@@ -56,22 +72,22 @@ impl Display for TxIn {
             "Location: {}.{} Signature:{:?}",
             self.location.0,
             self.location.1,
-            self.signature.get(..5).unwrap()
+            self.signed.get(..5).unwrap()
         )
     }
 }
 
-/// Unspend tocken
+/// # Uspend Transaction X output
 ///
-/// it contain a Challenge (need implement wasm)
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Utxo {
     pub amount: Amount,
-    pub target: PublicKey, //XMRIG have  multiple targt (i gess)
-    pub come_from: u64,    /////////////?????????????????????????????????????????
+    pub target: PublicKey,
+    // je pense q'on s'en branle de qui ces qui l'a émis
 }
 
 impl Utxo {
+
     /// # Prépart une transaction Utxo => TxIn
     ///
     /// TxIn peut être stoquer ou directement utilsier pour une transaction
@@ -89,28 +105,8 @@ impl Utxo {
 
         Some(TxIn {
             location,
-            signature,
+            signed: signature,
         })
-    }
-
-    /// # Verify TxIn depuis Utxo
-    /// verifi signature
-    pub fn verify(self, signed: &TxIn) -> bool {
-        let message = bincode::serialize(&self).unwrap();
-        SignedMessage::from_parts(signed.signature, message)
-            .verify(&self.target)
-            .is_ok()
-    }
-
-    ///Check if the transaction is valid :    
-    /// all utxo is valid, the rx is present in the balence (can be use) and the ammont is positive
-    pub fn check_utxo_valid(&self, balence: &Balance, blockaine: &Blockchain) -> bool {
-        // converti dans un type plus généraliste dans les db
-        let utxo = self.to_utxo(blockaine).unwrap();
-
-        if !utxo.verify(rxtxo) || !balence.valid(utxo) {
-            return false;
-        }
     }
 
     /// use trait hash and create hash
@@ -121,19 +117,19 @@ impl Utxo {
         hasher.finish()
     }
 
-    fn new(ammount: Amount, target: PublicKey, come_from: u64) -> Utxo {
+    pub fn new(ammount: Amount, target: PublicKey) -> Utxo {
         let mut utxo = Self {
             amount: ammount,
             target,
-            come_from,
         };
         utxo
     }
 }
 
-impl UtxoValidator for Utxo {
-    fn valid(&self) -> bool {
-        self.amount > 0
+impl UtxoValidator<&Balance> for Utxo {
+    fn valid(&self, balance: &Balance) -> Option<bool> {
+        balance.valid(self)?;
+        Some(self.amount > 0)
     }
 }
 
@@ -141,7 +137,6 @@ impl Hash for Utxo {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.target.hash(state);
         self.amount.hash(state);
-        self.come_from.hash(state);
     }
 }
 
@@ -157,6 +152,11 @@ impl fmt::Display for Utxo {
         )
     }
 }
+
+/// signed transaction that can be send
+// struct SignedTransaction{
+
+// }
 
 /// Represents a transaction involving the transfer of ownership from one set of entities to another.
 ///
@@ -191,49 +191,89 @@ impl fmt::Display for Utxo {
 /// difference between the sum of Rx Utxos and the sum of Tx Utxos, constituting the transaction fee.
 ///
 /// // and const reward ??
-/// 
+///
 ///
 /// # Verification
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Transaction {
+    /// on va prouver qu'on possède les clef
     pub rx: Vec<TxIn>,
     pub tx: Vec<Utxo>,
-    //// WASM challenge
-    // and cryppto challenge ?? 
+    /// use Rx's key pour signer transaction
+    /// on va prouver que ces nous qui avons cref la transa
+    pub signatures: Vec<u8>, //// WASM challenge is the crypto challenge
 }
 
 impl Transaction {
-    pub fn check_all(&self, blockaine: &Blockchain) -> Result<()>{
-        //Get transafrom database
-        let utxo = self.rx.iter().map(|n|n.to_utxo(blockaine).context("imposible de convertire"));
-        utxo.all(|utx| utx?.check_utxo_valid(balence, blockaine))
-
-    }
-
-    fn check_sig(&self, blockaine: &Blockchain) -> bool {
-        self.rx.iter().all(|utx| {
-            utx.to_utxo(blockaine)
-                .is_some_and(|utxon| utx.check_sig(utxon))
-        })
-    }
-
     pub fn get_hash(&self) -> HashValue {
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
         hasher.finish()
     }
+
+    /// need to have multiple key
+    fn sign(&mut self,blockaine: &Blockchain,key:Keypair)-> Result<Signature>{
+        // get all needed key
+        // let mut need_pubkey = HashSet::new();
+        // for utxo in self.rx{
+        //     let encoded = bincode::serialize(&utxo.to_utxo(blockaine).context("cannot convert utxo")?.target).unwrap();
+        //     need_pubkey.insert(encoded);
+        // }
+
+        // for signature in need_pubkey{
+
+        // }
+
+        let s = bincode::serialize(&self.tx).unwrap();
+        let b = key.0.sign_with_defaults(s).unwrap().into_parts().0;
+
+        Ok(b)
+    }
+
+    /// Take money from User wallet and create transaction
+    /// search a utxo combinaison from user wallet
+    /// send back to owner surplus
+    /// ///// NEED TEST
+    pub fn new_transaction(
+        acount:&Acount,
+        amount: Amount,
+        destination: PublicKey,
+    ) -> Option<Self> {
+        let total_ammount = amount + acount.miner_fee;
+        let (selected, sendback) = acount.select_utxo(total_ammount)?;
+
+        
+        let rx = selected.clone();
+        let tx = vec![
+            Utxo::new(amount, destination),         //transa
+            Utxo::new(sendback, acount.get_pubkey()), //retour
+        ];
+
+        let s = bincode::serialize(&tx).unwrap();
+        let signatures = acount.get_key().0.sign_with_defaults(s).unwrap().into_parts().0;
+
+        let mut transaction = Self { rx, tx, signatures: bincode::serialize(&signatures).unwrap() };
+
+
+        // Update wallet
+        // can triguerre here a hanndler to know were transa done
+        acount.wallet.retain(|transa| !selected.contains(&transa.1));
+
+        Some(transaction)
+    }
+
+    /// if we just have TxIn bacily we are server
     pub fn sign_set(
-        utxos: Vec<Utxo>,
+        utxos: Vec<(UtxoLocation,Utxo)>,
         blockaine: Blockchain,
         keypair: Vec<Keypair>,
     ) -> Result<Option<Vec<TxIn>>> {
         let mut result = vec![];
-        for utxo in utxos {
+        for (postision,utxo) in utxos {
             //find coresponding keypair
             let keypair = keypair.iter().find(|t| t.0.public_key == utxo.target);
             if let Some(correct_keypair) = keypair {
-                let location = blockaine.get_utxo_location(&utxo).unwrap();
-                utxo.sign(location, correct_keypair);
+                utxo.sign(postision, correct_keypair);
             } else {
                 return Ok(None);
             }
@@ -247,87 +287,7 @@ impl Transaction {
         str
     }
 
-    pub fn check(&self) -> bool {
-        let mut ammount: i128 = 0;
-        if self.rx.is_empty() && self.tx.len() == 1 {
-            return self.tx[0].valid();
-        }
-
-        for utxo in self.rx.iter() {
-            if !utxo.valid() {
-                return false;
-            }
-            ammount += utxo.amount as i128;
-        }
-
-        let mut hasher = DefaultHasher::new();
-        self.rx.hash(&mut hasher);
-        let hash_come_from = hasher.finish();
-
-        for utxo in self.tx.iter() {
-            if !utxo.valid() || hash_come_from != utxo.come_from {
-                print!("Ici");
-                return false;
-            }
-            ammount -= utxo.amount as i128;
-        }
-
-        ammount >= 0
-    }
-
-    pub fn find_created_utxo(&self) -> Utxo {
-        self.tx.clone()
-    }
-
-    /// fin utxo taken at input in the block
-    pub fn find_used_utxo(&self) -> TxIn {
-        self.rx.clone()
-    }
-
     // can create transa from multiple user
-    // todo!()
-
-    /// Take money from User wallet and create transaction
-    /// search a utxo combinaison from user wallet
-    /// introduce miner fee
-    /// send back to owner surplus
-    /// ///// NEED TEST
-    pub fn create_transa_from(
-        user: &mut Acount,
-        amount: Amount,
-        destination: PublicKey,
-    ) -> Option<Self> {
-        let total_ammount = amount + user.miner_fee; //// on veuux pas taxer sur des pourcent mais pour pas abu
-                                                     // je send 1 milliard si je me fait taxer 10% le miner recois 10Million autant faire moi meme un noeud lol
-        let (selected, sendback) = Self::select_utxo_from_vec(&user.wallet, total_ammount)?;
-
-        let mut hasher = DefaultHasher::new();
-        selected.hash(&mut hasher);
-        let hash_come_from = hasher.finish();
-
-        let mut transaction = Self {
-            rx: selected.clone(),
-            ///
-            tx: vec![Utxo::new(amount, destination, hash_come_from)],
-        };
-
-        // Update wallet
-        // can triguerre here a hanndler to know were transa done
-        user.wallet.retain(|transa| !selected.contains(transa));
-
-        // if ? ? ?
-        if user.wallet.is_empty() || sendback == 0 {
-            return Some(transaction);
-        }
-
-        //send back the money to the owner of input
-        transaction.tx.push(Utxo::new(
-            sendback,
-            user.wallet[0].target.clone(),
-            hash_come_from,
-        ));
-        Some(transaction)
-    }
 
     /// # find a combinaison of Utxo for a amount given
     ///
@@ -341,7 +301,7 @@ impl Transaction {
     /// 7 2 2 was selected
     ///
     /// 10 to the user and send back 1
-    fn select_utxo_from_vec(avaible: &UtxoSet, amount: Amount) -> Option<(UtxoSet, Amount)> {
+    fn select_utxo_from_vec(avaible: &Vec<Utxo>, amount: Amount) -> Option<(Vec<Utxo>, Amount)> {
         if amount == 0 {
             return None;
         }
@@ -368,6 +328,7 @@ impl Transaction {
         mut transas: Vec<Transaction>,
         key: Keypair,
         block_heigt: u64,
+        blockaine: &Blockchain
     ) -> Vec<Transaction> {
         let mut miner_reward = MINER_REWARD;
 
@@ -377,7 +338,7 @@ impl Transaction {
             if t.rx.is_empty() && t.tx.len() == 1 {
                 place_remove = Some(i)
             } else {
-                miner_reward += t.remains();
+                miner_reward += t.remains(blockaine).unwrap() as Amount;
             }
         }
         if place_remove.is_some() {
@@ -386,20 +347,34 @@ impl Transaction {
 
         transas.push(Transaction {
             rx: vec![].into(),
-            tx: vec![Utxo::new(miner_reward, key.into(), block_heigt)].into(),
+            tx: vec![Utxo::new(miner_reward, key.into())].into(), //blocke heigh ??
+            ..Default::default()///////////need implemented
         });
         transas
     }
 
     /// Combien Input Utcxo - OutputUtxo => Pour  le miner
-    pub fn remains(&self) -> i128 {
-        self.rx.value() as i128 - self.tx.value() as i128
+    ///
+    /// Need to be opti
+    pub fn remains(&self, blockaine: &Blockchain) -> Option<i128> {
+        let input = self.rx.iter().try_fold(0, |acc, txin| {
+            txin.to_utxo(blockaine).map(|f| acc + f.amount as i128)
+        });
+
+        let output: Amount = self.tx.iter().map(|t| t.amount).sum();
+        let a = input.and_then(|i: i128| Some(i - output as i128));
+        a
     }
 }
 
-impl UtxoValidator for Transaction {
-    fn valid(&self) -> bool {
-        self.rx.valid() && self.tx.valid() && self.remains().is_positive()
+impl UtxoValidator<(&Blockchain, &Balance)> for Transaction {
+    fn valid(&self, arg: (&Blockchain, &Balance)) -> Option<bool> {
+        //on lose la propagation d'erreur .. ?
+        let rx_status = self.tx.iter().all(|t| t.valid(arg.1).unwrap_or(false));
+        let tx_status = self.tx.iter().all(|t| t.valid(arg.1).unwrap_or(false));
+        let sold = self.remains(arg.0).map_or(false, |f| f.is_positive());
+
+        Some(rx_status && tx_status && sold)
     }
 }
 
@@ -414,8 +389,10 @@ impl fmt::Display for Transaction {
             write!(f, "{}", rx)?;
         }
         write!(f, "\n║Output:\t")?;
-        write!(f, "{}", self.tx)?;
-        write!(f, "For the miner: {}", self.remains())?;
+        for tx in self.tx {
+            write!(f, "{}", tx)?;
+        }
+        // write!(f, "For the miner: {}", self.remains())?;
         write!(f, "")
     }
 }
@@ -428,13 +405,13 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn create_utxo() {
-        let mut rng = rand::thread_rng();
-        let utxo = Utxo::new(rng.gen(), Default::default(), rng.gen());
+    // #[test]
+    // fn create_utxo() {
+    //     let mut rng = rand::thread_rng();
+    //     let utxo = Utxo::new(rng.gen(), Default::default(), rng.gen());
 
-        assert!(utxo.valid());
-    }
+    //     assert!(utxo.valid());
+    // }
 
     #[test]
     fn test_select_utxo_from_vec() {

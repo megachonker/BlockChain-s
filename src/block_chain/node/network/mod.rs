@@ -16,7 +16,7 @@ use tracing::{debug, error, info, warn};
 use crate::block_chain::{
     block::Block,
     node::server::ClientEvent,
-    transaction::{Transaction, Utxo},
+    transaction::{Transaction, Utxo, UtxoLocation},
 };
 
 use super::server::{Event, NewBlock};
@@ -51,6 +51,8 @@ impl Clone for Network {
     }
 }
 
+
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TypePeer {
     List(HashSet<SocketAddr>), //we now how manny peers we want
@@ -74,7 +76,7 @@ pub enum TypeTransa {
 #[derive(Deserialize, Serialize, Debug)]
 pub enum ClientPackect {
     ReqUtxo(PublicKey),      //Request for the UTXO of u64
-    RespUtxo((usize, Utxo)), //the response of RqUtxo : (number of utxo remains, the utxo -> (0,utxo..) is the last)
+    RespUtxo((usize, UtxoLocation,Utxo)), //the response of RqUtxo : (number of utxo remains, the utxo -> (0,utxo..) is the last)
     ReqSave,                 //force save (debug)
 }
 
@@ -270,7 +272,7 @@ impl Network {
     }
 
     /// wait for a wallet
-    pub fn recv_packet_utxo_wallet(&self) -> Result<Vec<Utxo>> {
+    pub fn recv_packet_utxo_wallet(&self) -> Result<Vec<(UtxoLocation, Utxo)>> {
         let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
         let mut allutxo = vec![];
         loop {
@@ -283,9 +285,9 @@ impl Network {
                 )
             })?;
             let answer: Packet = deserialize(&mut buf).expect("Can not deserilize block");
-            if let Packet::Client(ClientPackect::RespUtxo((size, utxo))) = answer {
+            if let Packet::Client(ClientPackect::RespUtxo((size,position, utxo))) = answer {
                 debug!("rev some wallet utxo: {} {}", size, utxo);
-                allutxo.push(utxo);
+                allutxo.push((position,utxo));
                 if size == 0 {
                     return Ok(allutxo);
                 }

@@ -5,7 +5,7 @@ use crate::block_chain::{
     node::network::{ClientPackect, Packet, TypeTransa},
     transaction::{Amount, Transaction},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result, Context};
 use dryoc::sign::PublicKey;
 use tracing::{debug, info, trace};
 
@@ -15,7 +15,7 @@ pub struct TransaInfo {
 }
 
 pub struct Client {
-    user: Acount,
+    pub user: Acount,
     networking: Network,
     transa_info: TransaInfo,
 }
@@ -66,15 +66,10 @@ impl Client {
             &self.networking.bootstrap,
         )?;
 
-        self.refresh_wallet()?;
-        info!("Wallet:\n{}", self.user);
+        // self.refresh_wallet()?;
 
-        let transactionb = Transaction::create_transa_from(
-            &mut self.user,
-            self.transa_info.ammount,
-            self.transa_info.destination,
-        )
-        .ok_or_else(|| anyhow!("You not have enought money"))?;
+        info!("Wallet:\n{}", self.user);
+        let transactionb = Transaction::new_transaction(&self.user,self.transa_info.ammount, self.transa_info.destination).context("You not have enought money")?;
 
         info!("Transaction created : {}", transactionb);
 

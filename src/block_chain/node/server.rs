@@ -1,7 +1,7 @@
 use bincode::{deserialize, serialize};
 use dryoc::sign::PublicKey;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::{
     fs::File,
     io::{Read, Write},
@@ -107,7 +107,12 @@ impl Server {
 
         let miner_stuff = Arc::new(Mutex::new(MinerStuff {
             cur_block: self.blockchain.last_block(),
-            transa: Transaction::transform_for_miner(vec![], self.keypair.clone(), 1),
+            transa: Transaction::transform_for_miner(
+                vec![],
+                self.keypair.clone(),
+                1,
+                &self.blockchain,
+            ),
             difficulty: self.blockchain.difficulty,
             // miner_id:self.miner_pubkey.clone(),
         }));
@@ -180,6 +185,7 @@ impl Server {
                             vec![],
                             self.keypair.clone(),
                             top_block.block_height + 1,
+                            &self.blockchain,
                         ); //for the moment reset transa not taken     //maybe check transa not accpted and already available
                         lock_miner_stuff.difficulty = new_difficulty; //for the moment reset transa not taken     //maybe check transa not accpted and already available
 
@@ -211,7 +217,11 @@ impl Server {
                         // si le client n'es pas trouve
                         if utxos.is_empty() {
                             self.network.send_packet(
-                                &Packet::Client(ClientPackect::RespUtxo((0, Default::default()))),
+                                &Packet::Client(ClientPackect::RespUtxo((
+                                    0,
+                                    Default::default(),
+                                    Default::default(),
+                                ))),
                                 &addr_client,
                             )?;
                         }
@@ -226,6 +236,9 @@ impl Server {
                             self.network.send_packet(
                                 &Packet::Client(ClientPackect::RespUtxo((
                                     nb_utxo - 1 - index,
+                                    self.blockchain
+                                        .get_utxo_location(&utxo)
+                                        .context("self.blockchain.get_utxo_location")?,
                                     utxo.clone(),
                                 ))),
                                 &addr_client,
