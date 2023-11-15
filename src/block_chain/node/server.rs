@@ -237,7 +237,7 @@ impl Server {
                                 &Packet::Client(ClientPackect::RespUtxo((
                                     nb_utxo - 1 - index,
                                     self.blockchain
-                                        .get_utxo_location(&utxo)
+                                        .get_utxo_location(utxo)
                                         .context("self.blockchain.get_utxo_location")?,
                                     utxo.clone(),
                                 ))),

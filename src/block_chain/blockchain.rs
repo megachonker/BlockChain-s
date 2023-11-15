@@ -81,7 +81,7 @@ impl Balance {
     /// Revert change until src with sub
     /// Replay change until dst with add
     pub fn calculation<'b>(&mut self, src: &Vec<&Block>, dst: &Vec<&'b Block>,blockaine:&Blockchain) -> &'b Block {
-        src.iter().all(|p| self.sub(p,&blockaine));
+        src.iter().all(|p| self.sub(p,blockaine));
         for (index, b) in dst.iter().enumerate() {
             if !self.add(b,blockaine) {
                 debug!("{} as incorrect rx utxo", b);
@@ -268,7 +268,7 @@ impl Blockchain {
             return (None, None); //already prensent
         }
 
-        if !block_to_append.check(&self,&self.balance) {
+        if !block_to_append.check(self,&self.balance) {
             //<== full check here
             info!("block is not valid");
             return (None, None);
@@ -294,7 +294,7 @@ impl Blockchain {
         {
             //basic case
             let mut backup = self.balance.clone();
-            if backup.add(block_to_append,&self) {
+            if backup.add(block_to_append,self) {
                 //comit modification
                 self.balance = backup;
                 //valid and ellect block to top pos
@@ -353,7 +353,7 @@ impl Blockchain {
                     //sale
                     let mut new_balence = self.balance.clone();
                     let last_top_transa_ok =
-                        new_balence.calculation(&cur_chain, &new_chain,&self).block_id;
+                        new_balence.calculation(&cur_chain, &new_chain,self).block_id;
                     //last_top_transa_ok : bloc where is transa is valid to the chain
                     if last_top_transa_ok != potential_top {
                         //update the chain if there is the end of the new_chain is not valid

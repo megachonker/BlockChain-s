@@ -173,7 +173,7 @@ impl Acount {
         for (amount,utxo) in &self.wallet {
             value_total += amount;
             vec_utxo.push(utxo.clone());
-            if value_total >= amount.clone() {
+            if value_total >= *amount {
                 return Some((vec_utxo, value_total - amount));
             }
         }

@@ -59,7 +59,7 @@ impl TxIn {
 
 impl UtxoValidator<&Blockchain> for TxIn {
     fn valid(&self, arg: &Blockchain) -> Option<bool> {
-        Some(self.check_sig(&self.clone().to_utxo(arg)?).to_owned().clone())
+        Some(self.check_sig(&self.clone().to_utxo(arg)?).to_owned())
     }
 }
 
@@ -116,11 +116,11 @@ impl Utxo {
     }
 
     pub fn new(ammount: Amount, target: PublicKey) -> Utxo {
-        let utxo = Self {
+        
+        Self {
             amount: ammount,
             target,
-        };
-        utxo
+        }
     }
 }
 
@@ -344,8 +344,8 @@ impl Transaction {
         }
 
         transas.push(Transaction {
-            rx: vec![].into(),
-            tx: vec![Utxo::new(miner_reward, key.into())].into(), //blocke heigh ??
+            rx: vec![],
+            tx: vec![Utxo::new(miner_reward, key.into())], //blocke heigh ??
             ..Default::default()///////////need implemented
         });
         transas
@@ -360,8 +360,8 @@ impl Transaction {
         });
 
         let output: Amount = self.tx.iter().map(|t| t.amount).sum();
-        let a = input.and_then(|i: i128| Some(i - output as i128));
-        a
+        
+        input.map(|i: i128| i - output as i128)
     }
 }
 
