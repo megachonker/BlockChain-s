@@ -190,6 +190,8 @@ impl fmt::Display for Utxo {
 /// The miner receives the remaining amount of the transaction as a reward. This amount is calculated as the
 /// difference between the sum of Rx Utxos and the sum of Tx Utxos, constituting the transaction fee.
 ///
+/// // and const reward ??
+/// 
 ///
 /// # Verification
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
@@ -197,6 +199,7 @@ pub struct Transaction {
     pub rx: Vec<TxIn>,
     pub tx: Vec<Utxo>,
     //// WASM challenge
+    // and cryppto challenge ?? 
 }
 
 impl Transaction {
