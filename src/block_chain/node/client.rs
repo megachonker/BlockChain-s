@@ -55,8 +55,7 @@ impl Client {
         trace!("waiting receiving packet of wallet");
         let myutxo = self.networking.recv_packet_utxo_wallet()?;
 
-        self.user.refresh_wallet(myutxo);
-        Ok(())
+        self.user.refresh_wallet(myutxo)
     }
 
     pub fn start(mut self) -> Result<()> {
@@ -66,7 +65,7 @@ impl Client {
             &self.networking.bootstrap,
         )?;
 
-        // self.refresh_wallet()?;
+        self.refresh_wallet()?;
 
         info!("Wallet:\n{}", self.user);
         let transactionb = Transaction::new_transaction(&mut self.user,self.transa_info.ammount, self.transa_info.destination).context("You not have enought money")?;

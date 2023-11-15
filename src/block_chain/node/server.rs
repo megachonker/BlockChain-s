@@ -97,8 +97,7 @@ impl Server {
 
         self.network.clone().start(event_channel.0.clone())?;
 
-        self.server_runtime(event_channel)?;
-        Ok(())
+        self.server_runtime(event_channel)
     }
 
     /// Routing event and adding block and transaction
