@@ -1,20 +1,16 @@
-use anyhow::{Result};
+use anyhow::{Context, Result};
 use dryoc::{
     sign::{PublicKey, Signature, SignedMessage},
-    types::{Bytes},
+    types::Bytes,
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{hash_map::DefaultHasher},
+    collections::{hash_map::DefaultHasher, HashSet},
     fmt::{self, Display},
     hash::{Hash, Hasher},
 };
 
-use super::{
-    acount::Acount,
-    block::{MINER_REWARD},
-    blockchain::{Blockchain},
-};
+use super::{acount::Acount, block::MINER_REWARD, blockchain::Blockchain};
 use super::{acount::Keypair, blockchain::Balance};
 
 pub trait UtxoValidator<AdditionalArg = ()> {
@@ -24,90 +20,69 @@ pub trait UtxoValidator<AdditionalArg = ()> {
 pub type Amount = u32;
 pub type HashValue = u64;
 
-/// Alias qui permet de savoir ou chercher l'utxo
-/// Hashvalue est le hash de la transaction
-/// usize indice de quelle utxo prendre dans la transaction
-pub type UtxoLocation = (HashValue, usize);
-
-/// utiliser en entrée pour une transa
-/// référance ver le chemain pour accédée a un utxo
-/// la signature de l'utxo certifie que le signant correspond a la clef public
-/// car il possède la clef privée il peut donc signer
+/// Contain hash that refere to a utxo
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct TxIn {
     /// référance vere un UTXO existant Valide
-    pub location: UtxoLocation,
-    /// UTXO fesant référance signer
-    pub signed: Vec<u8>,
+    pub location: HashValue,
 }
 
 impl TxIn {
-    /// # Ce vérifie tout soeul mais a besoin de Utxo
-    /// Vérifie la signature
-    pub fn check_sig(&self, utxo: &Utxo) -> bool {
-        let message = bincode::serialize(&utxo).unwrap();
-        SignedMessage::from_parts(self.signed.clone(), message)
-            .verify(&utxo.target)
-            .is_ok()
-    }
-
     /// convertie en Utxo utilisant la blockaine
-    pub fn to_utxo(self, blockaine: &Blockchain) -> Option<Utxo> {
-        blockaine.get_utxo_from_location(self.location)
+    pub fn to_utxo(self, blockaine: &Balance) -> Option<Utxo> {
+        blockaine.txin_to_utxo(self.location)
     }
 }
 
-impl UtxoValidator<&Blockchain> for TxIn {
-    fn valid(&self, arg: &Blockchain) -> Option<bool> {
-        Some(self.check_sig(&self.clone().to_utxo(arg)?).to_owned())
+impl UtxoValidator<&Balance> for TxIn {
+    fn valid(&self, arg: &Balance) -> Option<bool> {
+        //check if possible to convert
+        //check if already spend
+        Some(self.to_utxo(arg))
     }
 }
 
 impl Display for TxIn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Location: {}.{} Signature:{:?}",
-            self.location.0,
-            self.location.1,
-            self.signed.get(..5).unwrap()
-        )
+        write!(f, "TxIn Location: {}", self.location.get(..5)?)
     }
 }
 
-/// # Uspend Transaction X output
+enum ComeFromID {
+    BlockHeigt(u64),
+    TxIn(Vec<TxIn>),
+}
+
+/// # Unspend transaction Output
 ///
-#[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+/// - need to be unique
+/// - can be spend once
+#[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Utxo {
-    pub amount: Amount,
-    pub target: PublicKey,
-    // je pense q'on s'en branle de qui ces qui l'a émis
+    /// quantity of money
+    amount: Amount,
+
+    /// who can spend utxo
+    target: PublicKey,
+
+    /// make the Utxo UNIQUE
+    /// sum of all Utxin
+    come_from: HashValue,
 }
 
 impl Utxo {
-
-    /// # Prépart une transaction Utxo => TxIn
-    ///
-    /// TxIn peut être stoquer ou directement utilsier pour une transaction
-    ///
-    /// On connais la clef secrette a utiliser vu qu'on a déja désérialiser
-    pub fn sign(&self, location: UtxoLocation, key: &Keypair) -> Option<TxIn> {
-        let message = bincode::serialize(&self).unwrap();
-        let signature = key
-            .0
-            .sign_with_defaults(message)
-            .unwrap()
-            .into_parts()
-            .0
-            .to_vec();
-
-        Some(TxIn {
-            location,
-            signed: signature,
-        })
+    /// get the target key that need to be used in the transaction
+    /// to proof the owner
+    pub fn get_pubkey(&self) {
+        self.target
     }
 
-    /// use trait hash and create hash
+    /// get the value of the token
+    pub fn get_amount(&self) {
+        self.amount
+    }
+
+    /// auto self hash without init manualy hasher
     /// overhead cuz it init the hasher each call
     fn get_hash(&self) -> HashValue {
         let mut hasher = DefaultHasher::new();
@@ -115,26 +90,34 @@ impl Utxo {
         hasher.finish()
     }
 
-    pub fn new(ammount: Amount, target: PublicKey) -> Utxo {
-        
+    /// forge a new utxo
+    ///
+    /// hash all come_from
+    pub fn new(amount: Amount, target: PublicKey, come_from: ComeFromID) -> Utxo {
+        // Switch Type of ID
+        let come_from = match come_from {
+            ComeFromID::TxIn(cf) => {
+                //hash all element
+                let mut hasher = DefaultHasher::new();
+                //maybe convert txin to utxo ? ??
+                cf.iter().for_each(|txin| txin.hash(&mut hasher));
+                hasher.finish()
+            }
+            ComeFromID::BlockHeigt(val) => val,
+        };
+
         Self {
-            amount: ammount,
+            amount,
             target,
+            come_from,
         }
     }
 }
 
 impl UtxoValidator<&Balance> for Utxo {
     fn valid(&self, balance: &Balance) -> Option<bool> {
-        balance.valid(self)?;
+        balance.valid(self)?; //normaly imposible to have error here
         Some(self.amount > 0)
-    }
-}
-
-impl Hash for Utxo {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.target.hash(state);
-        self.amount.hash(state);
     }
 }
 
@@ -151,55 +134,15 @@ impl fmt::Display for Utxo {
     }
 }
 
-/// signed transaction that can be send
-// struct SignedTransaction{
-
-// }
-
-/// Represents a transaction involving the transfer of ownership from one set of entities to another.
-///
-/// # Short Description
-///
-/// The `Transaction` struct facilitates the transfer of Utxos (Unspent Transaction Outputs) from a group
-/// of owners (Rx) to a new owner (Tx). This process involves ownership conditions, proof of ownership,
-/// fee calculation, and a future challenge mechanism.
-///
-/// # Ownership and Conditions
-///
-/// - **Condition:** To consume Rx Utxos, the NextOwner of Rx must match the NewOwner of Tx.
-/// - **Proof of Ownership:** Creation of new Tx Utxos requires the use of a private key, providing cryptographic
-///   proof of ownership based on the validity of the Tx owner's pubkey.
-///
-/// ## Multiple Owners Unlocking Rx Utxo for Tx
-///
-/// The transaction process involves multiple owners collaborating to unlock the Rx Utxos. Each input Utxo in
-/// the Rx set may require unlocking with a different public key. The transaction represents the collective
-/// effort of these owners, who unlock the NextOwner of Rx to create the Tx Utxos.
-///
-/// - To ensure the validity of the transaction, it is essential that all Utxos in the Rx set are successfully
-///   unlocked during the creation of Tx. To achieve this, private keys are employed by the respective owners.
-///   Each Tx Utxo is signed with all NextOwner private keys, providing cryptographic proof of their rightful ownership.
-/// - Given that there can be multiple inputs and outputs in a transaction, each input may be unlocked by a
-///   different target public key. This flexibility allows for diverse ownership structures within a single
-///   transaction.
-///
-/// ## Miner Reward
-///
-/// The miner receives the remaining amount of the transaction as a reward. This amount is calculated as the
-/// difference between the sum of Rx Utxos and the sum of Tx Utxos, constituting the transaction fee.
-///
-/// // and const reward ??
-///
-///
 /// # Verification
 #[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Transaction {
-    /// on va prouver qu'on possède les clef
     pub rx: Vec<TxIn>,
     pub tx: Vec<Utxo>,
-    /// use Rx's key pour signer transaction
-    /// on va prouver que ces nous qui avons cref la transa
-    pub signatures: Vec<u8>, //// WASM challenge is the crypto challenge
+    // Wasm challenge
+    // wasm:Vec<u8>,
+    /// signature of all  field
+    pub signatures: Vec<u8>,
 }
 
 impl Transaction {
@@ -209,74 +152,118 @@ impl Transaction {
         hasher.finish()
     }
 
-    /// need to have multiple key
-    fn sign(&mut self,_blockaine: &Blockchain,key:Keypair)-> Result<Signature>{
-        // get all needed key
-        // let mut need_pubkey = HashSet::new();
-        // for utxo in self.rx{
-        //     let encoded = bincode::serialize(&utxo.to_utxo(blockaine).context("cannot convert utxo")?.target).unwrap();
+    /// output keypaire needed for sining
+    pub fn select_required_keys(
+        &self,
+        balance: &Balance,
+        key: Vec<Keypair>,
+    ) -> Result<Vec<Keypair>> {
+        // get all key of all TxIn to unlock inside a array of uniq key
+        let mut need_pubkey: PublicKey = HashSet::new();
+        for utxo in self.rx {
+            let encoded = &utxo
+                .to_utxo(balance)
+                .context("cannot convert txin to utxo")?
+                .target;
+            need_pubkey.insert(encoded);
+        }
+
+        //find key in common
+        key.iter()
+            .map_while(|keypair| need_pubkey.eq(&keypair.0.public_key).then(|| keypair))
+            .collect()
+    }
+
+    /// sign a transaction by sign rx and tx using all signature from rx
+    fn sign(&mut self, key: Vec<Keypair>) -> Result<()> {
+        // // get all key of all TxIn to unlock inside a array of uniq key
+        // let mut need_pubkey: PublicKey = HashSet::new();
+        // for utxo in self.rx {
+        //     let encoded = &utxo
+        //         .to_utxo(balance)
+        //         .context("cannot convert txin to utxo")?
+        //         .target;
         //     need_pubkey.insert(encoded);
         // }
 
-        // for signature in need_pubkey{
+        // let signature_data: Signature;
+        // //for each key
+        // for pubkey in need_pubkey {
+        //     let keypairs = key
+        //         .iter()
+        //         .map_while(|keypair| pubkey.eq(&keypair.0.public_key).then(|| keypair));
 
+        //     //signe the transaction with the first keypair found
+        //     signature_data = keypairs
+        //         .next()?
+        //         .0
+        //         .sign_with_defaults(self.rx + self.tx)?
+        //         .into_parts()
+        //         .0;
+
+        //     //sign signature resulted for nex key
+        //     for keypair in keypairs {
+        //         let keypair: &Keypair = keypair;
+        //         signature_data = keypair.0.sign_with_defaults(signature_data)?.into_parts().0;
+        //     }
         // }
 
-        let s = bincode::serialize(&self.tx).unwrap();
-        let b = key.0.sign_with_defaults(s).unwrap().into_parts().0;
+        //signe the transaction with the first keypair found
 
-        Ok(b)
+        Ok(())
     }
 
     /// Take money from User wallet and create transaction
     /// search a utxo combinaison from user wallet
     /// send back to owner surplus
+    /// signing_key are used to signe transa and unlock all utxo
     /// ///// NEED TEST
     pub fn new_transaction(
-        acount:&mut Acount,
+        acount: &mut Acount,
         amount: Amount,
         destination: PublicKey,
+        // sigining_key:Vec<Keypair> ,
     ) -> Option<Self> {
         let total_ammount = amount + acount.miner_fee;
-        let (selected, sendback) = acount.select_utxo(total_ammount)?;
+        let (selected,sigining_key, sendback) = acount.select_utxo(total_ammount)?;
 
-        
-        let rx = selected.clone();
+        let rx = selected;
         let tx = vec![
-            Utxo::new(amount, destination),         //transa
-            Utxo::new(sendback, acount.get_pubkey()), //retour
+            //transaction
+            Utxo::new(amount, destination, selected),
+            //fragment de transaction a renvoyer a l'envoyeur
+            Utxo::new(sendback, acount.get_pubkey(), selected),
         ];
 
-        let s = bincode::serialize(&tx).unwrap();
-        let signatures = acount.get_key().0.sign_with_defaults(s).unwrap().into_parts().0;
 
-        let transaction = Self { rx, tx, signatures: bincode::serialize(&signatures).unwrap() };
+        let signature_data: Signature = sigining_key
+            .next()?
+            .0
+            .sign_with_defaults(rx + tx)?
+            .into_parts()
+            .0;
 
+        //sign signature resulted for nex key
+        for keypair in sigining_key {
+            //fix next
+            let keypair: Keypair = keypair;
+            signature_data = keypair.0.sign_with_defaults(signature_data)?.into_parts().0;
+        }
+
+        let signatures = bincode::serialize(&signature_data)?;
+
+
+        let mut transaction = Self {
+            rx,
+            tx,
+            signatures,
+        };
 
         // Update wallet
         // can triguerre here a hanndler to know were transa done
         acount.wallet.retain(|transa| !selected.contains(&transa.1));
 
         Some(transaction)
-    }
-
-    /// if we just have TxIn bacily we are server
-    pub fn sign_set(
-        utxos: Vec<(UtxoLocation,Utxo)>,
-        _blockaine: Blockchain,
-        keypair: Vec<Keypair>,
-    ) -> Result<Option<Vec<TxIn>>> {
-        let result = vec![];
-        for (postision,utxo) in utxos {
-            //find coresponding keypair
-            let keypair = keypair.iter().find(|t| t.0.public_key == utxo.target);
-            if let Some(correct_keypair) = keypair {
-                utxo.sign(postision, correct_keypair);
-            } else {
-                return Ok(None);
-            }
-        }
-        Ok(Some(result))
     }
 
     pub fn display_for_bock(&self) -> String {
@@ -325,8 +312,8 @@ impl Transaction {
     pub fn transform_for_miner(
         mut transas: Vec<Transaction>,
         key: Keypair,
-        _block_heigt: u64,
-        blockaine: &Blockchain
+        block_heigt: u64,
+        blockaine: &Blockchain,
     ) -> Vec<Transaction> {
         let mut miner_reward = MINER_REWARD;
 
@@ -343,36 +330,44 @@ impl Transaction {
             transas.remove(place_remove.unwrap()); //reward transa already present remove it
         }
 
+        let tx = vec![Utxo::new(miner_reward, key.into(), block_heigt)];
+
+        let signatures =
+            bincode::serialize(&key.0.sign_with_defaults(vec![] + tx)?.into_parts().0)?;
+
         transas.push(Transaction {
             rx: vec![],
-            tx: vec![Utxo::new(miner_reward, key.into())], //blocke heigh ??
-            ..Default::default()///////////need implemented
+            tx,
+            signatures,
         });
+
         transas
     }
 
-    /// Combien Input Utcxo - OutputUtxo => Pour  le miner
+    /// How many remain for the miner
+    /// return None if negative value
     ///
-    /// Need to be opti
-    pub fn remains(&self, blockaine: &Blockchain) -> Option<i128> {
-        let input = self.rx.iter().try_fold(0, |acc, txin| {
-            txin.clone().to_utxo(blockaine).map(|f| acc + f.amount as i128)
-        });
+    /// Need to be CHECKED
+    pub fn remains(&self, balance: &Balance) -> Option<Amount> {
+        let input = self
+            .rx
+            .iter()
+            .try_fold(0, |acc, txin| txin.to_utxo(balance).map(|f| acc + f.amount));
 
-        let output: Amount = self.tx.iter().map(|t| t.amount).sum();
-        
-        input.map(|i: i128| i - output as i128)
+        let output = self.tx.iter().map(|t| t.amount).sum();
+        input.and_then(|i: Amount| i.checked_sub(output))
     }
 }
 
-impl UtxoValidator<(&Blockchain, &Balance)> for Transaction {
-    fn valid(&self, arg: (&Blockchain, &Balance)) -> Option<bool> {
-        //on lose la propagation d'erreur .. ?
-        let rx_status = self.tx.iter().all(|t| t.valid(arg.1).unwrap_or(false));
-        let tx_status = self.tx.iter().all(|t| t.valid(arg.1).unwrap_or(false));
-        let sold = self.remains(arg.0).map_or(false, |f| f.is_positive());
+impl UtxoValidator<&Balance> for Transaction {
+    fn valid(&self, arg: &Balance) -> Option<bool> {
+        //on lose la propagation d'erreur .. ? add context ?
+        let rx_status = self.rx.iter().all(|t| t.valid(arg).unwrap_or(false));
+        let tx_status = self.tx.iter().all(|t| t.valid(arg).unwrap_or(false));
+        let sold = self.remains(arg).map_or(false, |f| f.is_positive());
+        let signature = self.check_sign(&self);
 
-        Some(rx_status && tx_status && sold)
+        Some(rx_status && tx_status && sold && signature)
     }
 }
 
@@ -398,18 +393,17 @@ impl fmt::Display for Transaction {
 #[cfg(test)]
 mod tests {
 
-    use crate::block_chain::transaction::{Transaction, Utxo};
-    
+    use crate::block_chain::{transaction::{Transaction, Utxo}, block::{Block, Profile}, blockchain::FIRST_DIFFICULTY};
 
     use super::*;
 
-    // #[test]
-    // fn create_utxo() {
-    //     let mut rng = rand::thread_rng();
-    //     let utxo = Utxo::new(rng.gen(), Default::default(), rng.gen());
+    #[test]
+    fn create_utxo() {
+        let mut rng = rand::thread_rng();
+        let utxo = Utxo::new(rng.gen(), Default::default(), rng.gen());
 
-    //     assert!(utxo.valid());
-    // }
+        assert!(utxo.valid());
+    }
 
     #[test]
     fn test_select_utxo_from_vec() {
@@ -440,46 +434,46 @@ mod tests {
         assert!(full - amount == sendback);
     }
 
-    // #[test]
-    // fn test_check() {
-    //     let mut blockchain: Blockchain = Blockchain::new();
-    //     let block_org = Block::new();
+    #[test]
+    fn test_check() {
+        let mut blockchain: Blockchain = Blockchain::new();
+        let block_org = Block::new();
 
-    //     //+ 100 for 1
-    //     let block_org = block_org
-    //         .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
-    //         .unwrap();
-    //     blockchain.try_append(&block_org); //we assume its ok
+        //+ 100 for 1
+        let block_org = block_org
+            .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .unwrap();
+        blockchain.try_append(&block_org); //we assume its ok
 
-    //     //need to take last utxo
-    //     let utxo_s = blockchain.filter_utxo(1);
-    //     utxo_s.iter().for_each(|f| println!("utxo for 1 is {}", f));
+        //need to take last utxo
+        let utxo_s = blockchain.filter_utxo(1);
+        utxo_s.iter().for_each(|f| println!("utxo for 1 is {}", f));
 
-    //     //we use latest ustxo generate by miner for the actual transaction
-    //     //59 for 10
+        //we use latest ustxo generate by miner for the actual transaction
+        //59 for 10
 
-    //     //should work
-    //     /* let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8]);
-    //            assert!(new_transa.check(&blockchain.balance));
+        //should work
+        /* let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8]);
+               assert!(new_transa.check(&blockchain.balance));
 
-    //     //bad source
-    //     let utxo_s = blockchain.filter_utxo(5);
-    //     let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8], 10);
-    //     assert!(!new_transa.check(&blockchain));
+        //bad source
+        let utxo_s = blockchain.filter_utxo(5);
+        let new_transa = Transaction::new(utxo_s.clone(), vec![1, 50, 8], 10);
+        assert!(!new_transa.check(&blockchain));
 
-    //     // not enought  money in utxo
-    //     let new_transa = Transaction::new(utxo_s, vec![80, 70, 8], 10);
-    //     assert!(!new_transa.check(&blockchain));
+        // not enought  money in utxo
+        let new_transa = Transaction::new(utxo_s, vec![80, 70, 8], 10);
+        assert!(!new_transa.check(&blockchain));
 
-    //            // utxo do not exist
-    //            let new_transa = Transaction::new(Default::default(), vec![70, 8]);
-    //            assert!(!new_transa.check(&blockchain.balance))
-    //     */
-    //     // println!("NEW TRANSA {}", new_transa);
-    //     // println!("Block {}", blockchain);
+               // utxo do not exist
+               let new_transa = Transaction::new(Default::default(), vec![70, 8]);
+               assert!(!new_transa.check(&blockchain.balance))
+        */
+        // println!("NEW TRANSA {}", new_transa);
+        // println!("Block {}", blockchain);
 
-    //     // assert!(r)
-    // }
+        // assert!(r)
+    }
 
     /* #[test]
     /// need to be finished
