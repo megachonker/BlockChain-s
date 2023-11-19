@@ -1,14 +1,17 @@
-use anyhow::Result;
 use core::fmt;
-use dryoc::sign::PublicKey;
-use std::collections::HashMap;
+use std::{
+    collections::{hash_map::DefaultHasher, HashMap},
+    f32::consts::E,
+    fs::File,
+    hash::{Hash, Hasher},
+    io::{Chain, Read, Write},
+};
+
 use tracing::{debug, error, info, warn};
 
-use super::{
-    block::Block,
-    node::server::MinerStuff,
-    transaction::{HashValue, Utxo, UtxoLocation, UtxoValidator},
-};
+use crate::block_chain::block;
+
+use super::{block::Block, node::server::MinerStuff, transaction::Utxo};
 const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
 const TIME_N_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
 pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
@@ -71,7 +74,6 @@ enum Status {
 }
 /// Keep track of transaction and utxo
 /// Used to know the balance of somone ?
-/// need to inplement merkel tree to optimize ?
 #[derive(Default, Clone)]
 pub struct Balance {
     utxo_hmap: HashMap<Utxo, Status>,
@@ -80,10 +82,10 @@ pub struct Balance {
 impl Balance {
     /// Revert change until src with sub
     /// Replay change until dst with add
-    pub fn calculation<'b>(&mut self, src: &Vec<&Block>, dst: &Vec<&'b Block>,blockaine:&Blockchain) -> &'b Block {
-        src.iter().all(|p| self.sub(p,blockaine));
+    pub fn calculation<'b>(&mut self, src: &Vec<&Block>, dst: &Vec<&'b Block>) -> &'b Block {
+        src.iter().all(|p| self.sub(p));
         for (index, b) in dst.iter().enumerate() {
-            if !self.add(b,blockaine) {
+            if !self.add(b) {
                 debug!("{} as incorrect rx utxo", b);
                 return dst
                     .get(index - 1)
@@ -93,18 +95,25 @@ impl Balance {
         dst.last().expect("dst empty")
     }
 
+    pub fn valid(&self, utxo: &Utxo) -> bool {
+        let u = self.utxo_hmap.get(&utxo);
+        if let Some(statue) = u {
+            statue == &Status::Avaible
+        } else {
+            false
+        }
+    }
+
     /// # Undo add
     /// when we want to drill downside
     /// we need to cancel transaction
-    fn sub(&mut self, block: &Block,blockaine:&Blockchain) -> bool {
+    fn sub(&mut self, block: &Block) -> bool {
         let to_remove = block.find_created_utxo();
 
-        let binding = block.find_used_utxo();
-        let to_append = binding.iter().map(|f|f.clone().to_utxo(blockaine).unwrap());
-        // let to_append = block.find_used_utxo().iter().map(|f|f.to_utxo(blockaine).unwrap());
+        let to_append = block.find_used_utxo();
 
         for utxo in to_append {
-            self.utxo_hmap.insert(utxo.clone(), Status::Avaible);
+            self.utxo_hmap.insert(utxo, Status::Avaible);
         }
 
         for utxo in to_remove {
@@ -121,14 +130,13 @@ impl Balance {
     /// # Drill up
     /// normal whay to update the Balance with one block
     /// when we need to append a new block we run that
-    fn add(&mut self, block: &Block,blockaine:&Blockchain) -> bool {
+    fn add(&mut self, block: &Block) -> bool {
         //get utxo to append
         let to_append = block.find_created_utxo();
 
         //get utxo to remove
-        let binding = block.find_used_utxo();
-        let to_remove = binding.iter().map(|f|f.clone().to_utxo(blockaine).unwrap().clone());
-        
+        let to_remove = block.find_used_utxo();
+
         // Append transaction
         for utxo in to_append {
             if let std::collections::hash_map::Entry::Vacant(e) = self.utxo_hmap.entry(utxo) {
@@ -159,15 +167,9 @@ impl Balance {
     }
 }
 
-impl UtxoValidator<&Utxo> for Balance {
-    fn valid(&self, utxo: &Utxo) -> Option<bool> {
-        let resolved = self.utxo_hmap.get(utxo)?;
-        Some(resolved == &Status::Avaible)
-    }
-}
 pub struct Blockchain {
-    hash_map_block: HashMap<HashValue, Block>,
-    top_block_hash: HashValue,
+    hash_map_block: HashMap<u64, Block>,
+    top_block_hash: u64,
     potentials_top_block: PotentialsTopBlock, // block need to finish the chain)
     pub balance: Balance,
     pub difficulty: u64,
@@ -175,7 +177,7 @@ pub struct Blockchain {
 
 impl fmt::Display for Blockchain {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Block actuel: {}", self.top_block_hash)?;
+        writeln!(f, "Block actuel: {}", self.top_block_hash).unwrap();
         self.get_chain()
             .into_iter()
             .for_each(|b| writeln!(f, "{}", b).unwrap());
@@ -190,43 +192,11 @@ impl Default for Blockchain {
 }
 
 impl Blockchain {
-    /// Cherche Utxo depuis une `UtxoLocation`
-    pub fn get_utxo_from_location(&self, location: UtxoLocation) -> Option<Utxo> {
-        let r = self.hash_map_block
-            .iter()
-            .flat_map(|f| f.1.clone().transactions)
-            .find(|transa| transa.get_hash() == location.0)?;
-            let bb = r.tx.get(location.1)?;
-            Some(bb.clone())
-    }
-
-    /// check if utxo at input is valide
-    /// iter over the blockaine hashmap block
-    /// over each block search for Tx utxo
-    /// compare local and remote utxo
-    /// if match we are happy we construct where we saw the location of the utcxo
-    pub fn get_utxo_location(&self, utxo: &Utxo) -> Option<UtxoLocation> {
-        if self.balance.valid(utxo)? {
-            return self.hash_map_block.iter().find_map(|block| {
-                block.1.transactions.iter().find_map(|transa| {
-                    transa
-                        .tx
-                        .iter()
-                        .enumerate()
-                        .find_map(|(index, block_in_txo)| {
-                            block_in_txo.eq(utxo).then(|| (transa.get_hash(), index))
-                        })
-                })
-            });
-        }
-        None
-    }
-
-    pub fn filter_utxo(&self, addr: PublicKey) -> Vec<Utxo> {
+    pub fn filter_utxo(&self, addr: u64) -> Vec<Utxo> {
         self.balance
             .utxo_hmap
             .iter()
-            .filter(|(utxo, statue)| statue == &&Status::Avaible && utxo.target == addr)
+            .filter(|(utxo, statue)| statue == &&Status::Avaible && utxo.onwer == addr)
             .map(|(utxo, _)| utxo)
             .cloned()
             .collect()
@@ -268,7 +238,7 @@ impl Blockchain {
             return (None, None); //already prensent
         }
 
-        if !block_to_append.check(self,&self.balance) {
+        if !block_to_append.check() {
             //<== full check here
             info!("block is not valid");
             return (None, None);
@@ -294,7 +264,7 @@ impl Blockchain {
         {
             //basic case
             let mut backup = self.balance.clone();
-            if backup.add(block_to_append,self) {
+            if backup.add(block_to_append) {
                 //comit modification
                 self.balance = backup;
                 //valid and ellect block to top pos
@@ -337,7 +307,7 @@ impl Blockchain {
                         //update the chain if there is the end of the new_chain is not valid
                         Ok(_) => {}
                         Err(last_ok) => {
-                            if last_ok.is_none() {
+                            if last_ok == None {
                                 return (None, None);
                             }
                             new_chain = self
@@ -353,7 +323,7 @@ impl Blockchain {
                     //sale
                     let mut new_balence = self.balance.clone();
                     let last_top_transa_ok =
-                        new_balence.calculation(&cur_chain, &new_chain,self).block_id;
+                        new_balence.calculation(&cur_chain, &new_chain).block_id;
                     //last_top_transa_ok : bloc where is transa is valid to the chain
                     if last_top_transa_ok != potential_top {
                         //update the chain if there is the end of the new_chain is not valid
@@ -406,12 +376,12 @@ impl Blockchain {
         self.potentials_top_block
             .erease_old(self.get_block(self.top_block_hash).unwrap().block_height);
 
-        (Some(self.last_block()), None)
+        return (Some(self.last_block()), None);
     }
 
     fn check_block_linked(&self, block_to_append: &Block, parent: &Block) -> bool {
         self.check_parent(block_to_append, parent)     //not needed by a higher block in a queue 
-            && block_to_append.transactions.iter().all(|t| t.valid((self, &self.balance)).unwrap())
+            && block_to_append.transactions.iter().all(|t| t.check_utxo_valid(&self.balance))
             && block_to_append.difficulty == self.difficulty
     }
 
@@ -422,7 +392,6 @@ impl Blockchain {
              // these block is needed from a higher block 
             && child.timestamp > parent.timestamp
     }
-
     /// Return two chains which are the link between last_top and new_top.
     /// These two chain have a common block at the end
     ///
@@ -438,9 +407,7 @@ impl Blockchain {
         let mut vec2: Vec<&Block> = vec![];
 
         let mut last = self.get_block(last_top).unwrap();
-        let mut new = self
-            .get_block(new_top)
-            .unwrap_or_else(|| panic!("{}", new_top));
+        let mut new = self.get_block(new_top).expect(&format!("{}", new_top));
 
         while last.block_height != new.block_height {
             if last.block_height < new.block_height {
@@ -549,7 +516,7 @@ impl Blockchain {
             if index == 0 {
                 continue;
             }
-            if !self.check_parent(b, new_chain[index - 1]) {
+            if !self.check_parent(&b, new_chain[index - 1]) {
                 info!("two node can not be linked {} {}", b, new_chain[index - 1]);
                 return Err(last_ok);
             }
@@ -623,7 +590,7 @@ fn best_difficulty(chain1: &Vec<&Block>, chain2: &Vec<&Block>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_chain::block::Profile;
+    use crate::block_chain::{self, block::Profile, transaction::Transaction};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -684,15 +651,15 @@ mod tests {
         assert_eq!(cur_block, None);
     }
 
-    // #[test]
-    // fn append_blockchain_second_block() {
-    //     let mut blockchain = Blockchain::new();
-    //     let block = Block::default()
-    //         .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
-    //         .unwrap();
-    //     assert!(block.check());
-    //     assert_eq!(block, blockchain.try_append(&block).0.unwrap());
-    // }
+    #[test]
+    fn append_blockchain_second_block() {
+        let mut blockchain = Blockchain::new();
+        let block = Block::default()
+            .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .unwrap();
+        assert!(block.check());
+        assert_eq!(block, blockchain.try_append(&block).0.unwrap());
+    }
 
     #[test]
     fn add_block_unchainned() {

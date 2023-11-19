@@ -1,98 +1,84 @@
-use super::super::acount;
+use super::super::user;
 use super::network::Network;
-use crate::block_chain::{
-    acount::Acount,
-    node::network::{ClientPackect, Packet, TypeTransa},
-    transaction::{Amount, Transaction},
+use crate::{
+    block_chain::{
+        node::network::{ClientPackect, Packet, TypeTransa},
+        transaction::Transaction,
+    },
+    friendly_name::get_friendly_name,
 };
-use anyhow::{Result, Context};
-use dryoc::sign::PublicKey;
-use tracing::{debug, info, trace};
+use anyhow::{Context, Result};
 
 pub struct TransaInfo {
-    pub ammount: Amount,
-    pub destination: PublicKey,
+    ammount: u64,
+    destination: u64,
+    from: u64,
+}
+
+impl TransaInfo {
+    pub fn new(ammount: u64, destination: u64, from: u64) -> Self {
+        TransaInfo {
+            ammount,
+            destination,
+            from,
+        }
+    }
 }
 
 pub struct Client {
-    pub user: Acount,
+    name: String,
     networking: Network,
     transa_info: TransaInfo,
 }
 
 impl Client {
-    pub fn new(networking: Network, user: Acount, destination: PublicKey, ammount: Amount) -> Self {
-        Self {
-            user,
+    pub fn new(
+        networking: Network,
+        destination: u64,
+        ammount: u64,
+        from: u64,
+    ) -> Result<Self> {
+        let name = get_friendly_name(networking.get_socket())
+            .context("generation name from ip imposble")?;
+
+        Ok(Self {
+            name,
             networking,
-            transa_info: TransaInfo {
-                ammount,
-                destination,
-            },
-        }
+            transa_info: TransaInfo::new(ammount, destination, from),
+        })
     }
+    pub fn start(self) -> Result<()> {
+        let mut user = user::User::new_user("cli.usr");
 
-    /// create empty wallet annd write it
-    pub fn new_wallet(path: &str) -> Result<()> {
-        let user = acount::Acount::new_user(path);
-        debug!("new wallet:\n{}", user);
-        user.save()
-    }
-
-    /// ask to all peer balance and take first balance received and update
-    fn refresh_wallet(&mut self) -> Result<()> {
-        // pull utxo avaible
-
-        let pubkey: PublicKey = self.user.get_key().clone().into();
-        debug!("Ask for wallet value for {:?}", pubkey);
-        self.networking.send_packet(
-            &Packet::Client(ClientPackect::ReqUtxo(pubkey)),
-            &self.networking.bootstrap,
-        )?;
-
-        // register utxo
-        // on pourait start un demon en background
-        trace!("waiting receiving packet of wallet");
-        let myutxo = self.networking.recv_packet_utxo_wallet()?;
-
-        self.user.refresh_wallet(myutxo)
-    }
-
-    pub fn start(mut self) -> Result<()> {
-        // json blockainne
+        //force to save (debug)
         self.networking.send_packet(
             &Packet::Client(ClientPackect::ReqSave),
             &self.networking.bootstrap,
-        )?;
+        );
 
-        self.refresh_wallet()?;
+        self.networking.send_packet(
+            &Packet::Client(ClientPackect::ReqUtxo(self.transa_info.from)),
+            &self.networking.bootstrap,
+        );
 
-        info!("Wallet:\n{}", self.user);
-        let transactionb = Transaction::new_transaction(&mut self.user,self.transa_info.ammount, self.transa_info.destination).context("You not have enought money")?;
+        let myutxo = self.networking.recv_packet_utxo_wallet();
+        user.refresh_wallet(myutxo.clone());
 
-        info!("Transaction created : {}", transactionb);
+        let transactionb = Transaction::create_transa_from(
+            &myutxo,
+            self.transa_info.ammount,
+            self.transa_info.destination,
+            0.10,
+        );
+
+        let transactionb = transactionb.context("You not have enought money")?;
+
+        println!("Transaction created : {:?}", transactionb);
 
         self.networking.send_packet(
             &Packet::Transaction(TypeTransa::Push(transactionb)),
             &self.networking.bootstrap,
-        )?;
-        self.user.save()
+        );
+        user.save()
     }
-}
-
-#[cfg(test)]
-mod test {
-
-    // #[test]
-    // fn make_transaction() {
-    //     let bind = std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
-    //     let bootstrap = std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0));
-
-    //     let net = Network::new(bootstrap, bind);
-    //     let user = Acount::default();
-
-    //     let cli = Client::new(net, user, Default::default(), 1);
-    //     cli.start().unwrap();
-    // }
-    //tester  le sold
 }

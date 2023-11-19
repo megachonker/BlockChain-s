@@ -1,22 +1,23 @@
 use std::{
     collections::HashSet,
-    fmt::Display,
+    io::Read,
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
     sync::{mpsc::Sender, Arc, Mutex},
     thread,
-    time::Duration,
 };
 
-use anyhow::{Context, Result};
+
+
+use anyhow::Result;
 use bincode::{deserialize, serialize};
-use dryoc::sign::PublicKey;
+use dryoc::{sign::SignedMessage, types::StackByteArray};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn, error};
 
 use crate::block_chain::{
     block::Block,
     node::server::ClientEvent,
-    transaction::{Transaction, Utxo, UtxoLocation},
+    transaction::{self, Transaction, Utxo},
 };
 
 use super::server::{Event, NewBlock};
@@ -28,19 +29,6 @@ pub struct Network {
     peers: Arc<Mutex<HashSet<SocketAddr>>>,
 }
 
-impl Display for Network {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "initial bootstrap: {}", self.bootstrap)?;
-        writeln!(f, "socket binded: {:?}", self.binding)?;
-        writeln!(f, "Peers list:")?;
-        let socketlist = self.peers.lock().unwrap().clone();
-        for peer in socketlist {
-            write!(f, "{}", peer)?;
-        }
-        write!(f, "")
-    }
-}
-
 impl Clone for Network {
     fn clone(&self) -> Self {
         Self {
@@ -50,8 +38,6 @@ impl Clone for Network {
         }
     }
 }
-
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TypePeer {
@@ -75,9 +61,9 @@ pub enum TypeTransa {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub enum ClientPackect {
-    ReqUtxo(PublicKey),      //Request for the UTXO of u64
-    RespUtxo((usize, UtxoLocation,Utxo)), //the response of RqUtxo : (number of utxo remains, the utxo -> (0,utxo..) is the last)
-    ReqSave,                 //force save (debug)
+    ReqUtxo(u64),        //Request for the UTXO of u64
+    RespUtxo((usize,Utxo)), //the response of RqUtxo : (number of utxo remains, the utxo -> (0,utxo..) is the last)
+    ReqSave,             //force save (debug)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -90,6 +76,8 @@ pub enum Packet {
     None,
 }
 
+
+
 // whole network function inside it
 // send packet with action do scan block ect get peers
 impl Network {
@@ -97,7 +85,7 @@ impl Network {
 
     /// append transaction when enought transa send it to miner to create a new block
     fn transaction(transa: TypeTransa, net_transa_tx: &Sender<Event>) {
-        info!("Recv a newtransaction: {:?}", net_transa_tx);
+        info!("Recv transa");
         match transa {
             TypeTransa::Ans(_utxos) => { /* array of all utxo append */ }
             TypeTransa::Push(transaction) => {
@@ -115,7 +103,7 @@ impl Network {
                 // if let Err(e) = transaction.verify(&transa.sender_pubkey) {
                 //     warn!("signature false! {:?}", e);
                 // } else {
-                net_transa_tx.send(Event::Transaction(transaction)).unwrap()
+                    net_transa_tx.send(Event::Transaction(transaction)).unwrap()
                 // }
             }
             TypeTransa::Req(_userid) => { /* get all transa and filter by user id*/ }
@@ -144,17 +132,16 @@ impl Network {
                     &Packet::Peer(TypePeer::List(self.peers.lock().unwrap().clone())),
                     &source,
                 )
-                .unwrap();
             }
         }
         //on add aussi le remote dans la liste
     }
 
     /// Ping Pong but update timestamp
-    fn keepalive(&self, sender: SocketAddr) -> Result<()> {
+    fn keepalive(&self, sender: SocketAddr) {
         // do here the timestamp things
         // todo!();
-        self.send_packet(&Packet::Keepalive, &sender).map(|_u| ())
+        self.send_packet(&Packet::Keepalive, &sender);
     }
 
     fn block(
@@ -184,7 +171,7 @@ impl Network {
         }
     }
 
-    pub fn start(self, event_tx: Sender<Event>) -> Result<()> {
+    pub fn start(self, event_tx: Sender<Event>) {
         info!("network start");
 
         let mut self_cpy = self.clone();
@@ -198,23 +185,23 @@ impl Network {
                     match message {
                         Packet::Transaction(transa) => Network::transaction(transa, &event_tx),
                         Packet::Peer(peers) => self_cpy.peers(peers, sender),
-                        Packet::Keepalive => self_cpy.keepalive(sender).unwrap(),
+                        Packet::Keepalive => self_cpy.keepalive(sender),
                         Packet::Block(typeblock) => self_cpy.block(typeblock, sender, &event_tx),
                         Packet::Client(client_packet) => {
-                            self_cpy.client(client_packet, sender, &event_tx).unwrap()
+                            self_cpy.client(client_packet, sender, &event_tx)
                         }
                         Packet::None => {}
                     }
                 }
-            })?;
+            })
+            .unwrap();
 
         if self.bootstrap != SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 6021)
         ////////////// need to be removed
         {
-            self.send_packet(&Packet::Peer(TypePeer::Request(100)), &self.bootstrap)?; //to register and get peers
-            self.send_packet(&Packet::Block(TypeBlock::Lastblock), &self.bootstrap)?;
+            self.send_packet(&Packet::Peer(TypePeer::Request(100)), &self.bootstrap); //to register and get peers
+            self.send_packet(&Packet::Block(TypeBlock::Lastblock), &self.bootstrap);
         }
-        Ok(())
     }
 
     /// Constructor of network
@@ -236,94 +223,78 @@ impl Network {
     }
 
     /// verry cool send a packet
-    pub fn send_packet(&self, packet: &Packet, dest: &SocketAddr) -> Result<usize> {
-        let packet_serialized = serialize(&packet).context("Send: Cannot serialize Packet")?;
+    pub fn send_packet(&self, packet: &Packet, dest: &SocketAddr) {
+
+        let packet_serialized = serialize(&packet).expect("Can not serialize AswerKA");
+        debug!("packet size = {}", packet_serialized.len());
         self.binding
             .send_to(&packet_serialized, dest)
-            .context("send: cannot send packet")
+            .unwrap_or_else(|_| panic!("Can not send packet {:?}", packet));
     }
 
     /// awsome send a packet broadcast
-    pub fn broadcast(&self, packet: Packet) -> Result<()> {
-        let peers = self.peers.lock().unwrap();
-
-        for dest in peers.iter().filter(|&&x| x != self.get_socket()) {
-            self.send_packet(&packet, dest)
-                .context(format!("Failed to send to {}", dest))?;
-        }
-
-        Ok(())
+    pub fn broadcast(&self, packet: Packet) {
+        self.peers
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|&&x| x != self.get_socket())
+            .for_each(|dest| self.send_packet(&packet, dest)); ///////send socket differant
     }
 
     /// awsome
     pub fn recv_packet(selff: &UdpSocket) -> (Packet, SocketAddr) {
         //faudrait éliminer les vecteur dans les structure pour avoir une taille prédictible
 
-        const MAX_PACKET_SIZE: usize = 65507;
+        const MAX_PACKET_SIZE : usize = 65507;
         let mut buf = [0u8; MAX_PACKET_SIZE]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
-
+        
         let (_, sender) = selff.recv_from(&mut buf).expect("Error recv block");
         let des = deserialize(&mut buf);
-        if des.is_err() {
+        if des.is_err(){
             error!("Can to deserialize packet");
-            return (Packet::None, sender);
+            return (Packet::None,sender);
         }
         (des.unwrap(), sender)
     }
 
     /// wait for a wallet
-    pub fn recv_packet_utxo_wallet(&self) -> Result<Vec<(UtxoLocation, Utxo)>> {
+    pub fn recv_packet_utxo_wallet(&self) -> Vec<Utxo> {
         let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
-        let mut allutxo = vec![];
+        let allutxo =vec![];
         loop {
-            self.binding
-                .set_read_timeout(Some(Duration::from_secs(1)))?;
-            self.binding.recv_from(&mut buf).with_context(|| {
-                format!(
-                    "time out receiving wallet all server down ?\n\nDUMP Network:\n{}",
-                    self
-                )
-            })?;
+            self.binding.recv_from(&mut buf).expect("Error recv block");
             let answer: Packet = deserialize(&mut buf).expect("Can not deserilize block");
-            if let Packet::Client(ClientPackect::RespUtxo((size,position, utxo))) = answer {
-                debug!("rev some wallet utxo: {} {}", size, utxo);
-                allutxo.push((position,utxo));
-                if size == 0 {
-                    return Ok(allutxo);
+            if let Packet::Client(ClientPackect::RespUtxo((size,utxo))) = answer {
+                if  size == 0{
+                    return allutxo;
                 }
             }
         }
     }
 
-    fn client(
-        &self,
-        client_packet: ClientPackect,
-        sender: SocketAddr,
-        event_tx: &Sender<Event>,
-    ) -> Result<()> {
+    fn client(&self, client_packet: ClientPackect, sender: SocketAddr, event_tx: &Sender<Event>) {
         match client_packet {
             ClientPackect::ReqUtxo(id_client) => {
-                info!(
-                    "Client ask utxo own by ({:?}) request UTXO ",
-                    id_client.to_vec().get(..5).unwrap()
-                );
-                event_tx.send(Event::ClientEvent(ClientEvent::ReqUtxo(id_client), sender))?;
+                info!("Reciv client ({}) request UTXO ", id_client);
+                event_tx
+                    .send(Event::ClientEvent(ClientEvent::ReqUtxo(id_client), sender))
+                    .unwrap();
             }
             ClientPackect::RespUtxo(_) => {
                 info!("Receive a response client packet but it is a server")
             }
             ClientPackect::ReqSave => {
-                event_tx.send(Event::ClientEvent(ClientEvent::ReqSave, sender))?;
+                event_tx
+                    .send(Event::ClientEvent(ClientEvent::ReqSave, sender))
+                    .unwrap();
             }
         }
-        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-
     use crate::block_chain::node::{
         network::{Network, Packet, TypeBlock},
         server::{Event, NewBlock},
@@ -336,7 +307,7 @@ mod tests {
     /// test client asking block
     /// test client recieved the block
     /// Test server added client
-    fn create_blockchain() -> Result<()> {
+    fn create_blockchain() {
         let client_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 1, 0, 2)), 6021);
 
         // New pair
@@ -354,8 +325,8 @@ mod tests {
 
         let tserver = server.clone();
         std::thread::spawn(move || {
-            tserver.start(server_tx.clone()).unwrap();
-            client.start(client_tx).unwrap();
+            tserver.start(server_tx.clone());
+            client.start(client_tx);
         });
 
         let s1 = server_rx.recv().unwrap();
@@ -366,7 +337,7 @@ mod tests {
         server.send_packet(
             &Packet::Block(TypeBlock::Block(Default::default())),
             &client_addr,
-        )?;
+        );
 
         let c1 = client_rx.recv().unwrap();
         assert_eq!(c1, Event::NewBlock(NewBlock::Network(Default::default())));
@@ -376,6 +347,5 @@ mod tests {
             *server.peers.lock().unwrap().get(&client_addr).unwrap(),
             client_addr
         );
-        Ok(())
     }
 }

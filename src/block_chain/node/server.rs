@@ -1,7 +1,6 @@
 use bincode::{deserialize, serialize};
-use dryoc::sign::PublicKey;
+use dryoc::{sign::SignedMessage, types::StackByteArray};
 
-use anyhow::{Context, Result};
 use std::{
     fs::File,
     io::{Read, Write},
@@ -10,19 +9,20 @@ use std::{
     sync::{Arc, Mutex},
     thread,
 };
+use anyhow::{Context, Result};
 
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, warn};
 
-use crate::block_chain::{
-    block::{mine, Block},
-    blockchain::Blockchain,
-    node::network::{Network, Packet, TypeBlock},
-    transaction::Transaction,
+use crate::friendly_name::*;
+use crate::{
+    block_chain::{
+        block::{mine, Block},
+        blockchain::Blockchain,
+        node::network::{Network, Packet, TypeBlock, TypeTransa},
+        transaction::Transaction,
+    },
+    Cli,
 };
-use crate::{block_chain::acount::Keypair, friendly_name::*};
-
-const path_save_json: &str = "path_save_json.save";
-const path_save: &str = "path_save_json.save";
 
 use super::network::ClientPackect;
 
@@ -34,7 +34,7 @@ pub enum NewBlock {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ClientEvent {
-    ReqUtxo(PublicKey),
+    ReqUtxo(u64),
     ReqSave, //force server to save the blockchain in file (debug)
 }
 
@@ -51,40 +51,38 @@ pub enum Event {
 pub struct Server {
     name: String,
     network: Network, // blockchaine
-    keypair: Keypair,
+    //miner
+    id: u64,
     blockchain: Blockchain,
-    number_miner: u16, //number of thread of miner to be spawn //<= use once
-                       // path_save_json: String,
-                       // path_save: String,
+    number_miner: u16, //number of thread of miner to be spawn //<= use once 
+    path_save_json: String,
+    path_save: String,
 }
 
 #[derive(Debug)]
-/// Structure that hold wat needed to mine
-/// IMPORTANT this structure is updated and locked
 pub struct MinerStuff {
-    /// curent block to
     pub cur_block: Block,
-    /// all transaction to hash (already checked)
     pub transa: Vec<Transaction>,
-    /// actual difficulty
     pub difficulty: u64,
-    // pub miner_id: PublicKey,
+    pub miner_id: u64,
 }
 
 impl Server {
-    pub fn new(network: Network, keypair: Keypair, thread: u16) -> Self {
+    pub fn new(network: Network, cli: Cli) -> Self {
         let name =
             get_friendly_name(network.get_socket()).expect("generation name from ip imposble");
-
+        let id = get_fake_id(&name);
         Self {
             name,
             network,
-            keypair,
+            id,
             blockchain: Blockchain::new(),
-            number_miner: thread,
+            number_miner: cli.number_miner,
+            path_save_json: cli.save_json,
+            path_save: cli.save,
         }
     }
-    pub fn start(mut self) -> Result<()> {
+    pub fn start(mut self) -> Result<()>{
         info!(
             "Server started {} facke id {} -> {:?}",
             &self.name,
@@ -95,28 +93,24 @@ impl Server {
         // need to link new stack of transaction because the miner need continue to mine without aprouvale of the network
         let event_channel = mpsc::channel::<Event>();
 
-        self.network.clone().start(event_channel.0.clone())?;
+        self.network.clone().start(event_channel.0.clone());
 
-        self.server_runtime(event_channel)
+        self.server_runtime(self.id, event_channel);
+        Ok(())
     }
 
     /// Routing event and adding block and transaction
-    fn server_runtime(&mut self, event_channels: (Sender<Event>, Receiver<Event>)) -> Result<()> {
+    fn server_runtime(&mut self, finder: u64, event_channels: (Sender<Event>, Receiver<Event>)) {
         info!("Runtime server start");
 
         let miner_stuff = Arc::new(Mutex::new(MinerStuff {
             cur_block: self.blockchain.last_block(),
-            transa: Transaction::transform_for_miner(
-                vec![],
-                self.keypair.clone(),
-                1,
-                &self.blockchain,
-            ),
+            transa: Transaction::transform_for_miner(vec![], finder, 1),
             difficulty: self.blockchain.difficulty,
-            // miner_id:self.miner_pubkey.clone(),
+            miner_id: finder,
         }));
 
-        // manny whay to do better <== need to me move  in mine !!
+        // manny whay to do better
         for _ in 0..self.number_miner {
             let miner_stuff_cpy = miner_stuff.clone();
             let event_cpy = event_channels.0.clone();
@@ -133,12 +127,13 @@ impl Server {
             //Routing Event
             match event_channels.1.recv().unwrap() {
                 Event::HashReq((hash, dest)) => {
+                    info!("Recieved Hash resquest");
                     // remplace -1 par un enum top block
                     if hash == -1 {
                         self.network.send_packet(
                             &Packet::Block(TypeBlock::Block(self.blockchain.last_block())),
                             &dest,
-                        )?;
+                        )
                     }
                     //ça partira ducoup
                     else if hash.is_negative() {
@@ -147,7 +142,7 @@ impl Server {
                     //ça sera le enum hash
                     else if let Some(block) = self.blockchain.get_block(hash as u64) {
                         self.network
-                            .send_packet(&Packet::Block(TypeBlock::Block(block.clone())), &dest)?;
+                            .send_packet(&Packet::Block(TypeBlock::Block(block.clone())), &dest)
                     } else {
                         warn!("hash not found in database :{}", hash);
                     }
@@ -155,17 +150,14 @@ impl Server {
                 Event::NewBlock(new_block) => {
                     let new_block = match new_block {
                         NewBlock::Mined(b) => {
-                            debug!("Export {}:{}", b.block_height, b.block_id);
                             self.network
-                                .broadcast(Packet::Block(TypeBlock::Block(b.clone())))?;
+                                .broadcast(Packet::Block(TypeBlock::Block(b.clone())));
+                            debug!("Broadcast mined block");
                             b
                         }
-                        NewBlock::Network(b) => {
-                            debug!("Import {}:{}", b.block_height, b.block_id);
-
-                            b
-                        }
+                        NewBlock::Network(b) => b,
                     };
+                    debug!("recv new block h:{}", new_block.block_height);
                     let (new_top_block, block_need) = self.blockchain.try_append(&new_block);
 
                     // when blockain accept new block
@@ -176,15 +168,12 @@ impl Server {
 
                         let new_difficulty = self.blockchain.new_difficutly();
 
-                        // update the miner stuff
                         let mut lock_miner_stuff = miner_stuff.lock().unwrap();
                         lock_miner_stuff.cur_block = top_block.clone();
-
                         lock_miner_stuff.transa = Transaction::transform_for_miner(
                             vec![],
-                            self.keypair.clone(),
+                            lock_miner_stuff.miner_id,
                             top_block.block_height + 1,
-                            &self.blockchain,
                         ); //for the moment reset transa not taken     //maybe check transa not accpted and already available
                         lock_miner_stuff.difficulty = new_difficulty; //for the moment reset transa not taken     //maybe check transa not accpted and already available
 
@@ -192,13 +181,13 @@ impl Server {
                         println!("New Top Block : {}", top_block);
 
                         self.network
-                            .broadcast(Packet::Block(TypeBlock::Block(top_block.clone())))?;
+                            .broadcast(Packet::Block(TypeBlock::Block(top_block.clone())));
                     }
 
                     if let Some(needed_block) = block_need {
                         self.network
-                            .broadcast(Packet::Block(TypeBlock::Hash(needed_block as i128)))?;
-                        debug!("Req\t[{}] to complete a branch on Broadcast ", needed_block);
+                            .broadcast(Packet::Block(TypeBlock::Hash(needed_block as i128)));
+                        info!("{} is needed to complete another branch", needed_block);
                     }
                 }
                 Event::Transaction(transa) => {
@@ -206,48 +195,27 @@ impl Server {
 
                     if self.blockchain.transa_is_valid(&transa, &minner_stuff_lock) {
                         minner_stuff_lock.transa.push(transa.clone());
+
+                        // WRONG why the server whant to publish recived transaction
+                        // can create loop
+                        // no benefit just drowback 
+                        // self.network
+                        //     .broadcast(Packet::Transaction(TypeTransa::Push(transa)));
                     }
                 }
                 Event::ClientEvent(event, addr_client) => match event {
                     ClientEvent::ReqUtxo(id_client) => {
                         let utxos = self.blockchain.filter_utxo(id_client);
                         let nb_utxo = utxos.len();
-
-                        // si le client n'es pas trouve
-                        if utxos.is_empty() {
-                            self.network.send_packet(
-                                &Packet::Client(ClientPackect::RespUtxo((
-                                    0,
-                                    Default::default(),
-                                    Default::default(),
-                                ))),
-                                &addr_client,
-                            )?;
-                        }
-
                         for (index, utxo) in utxos.iter().enumerate() {
-                            trace!(
-                                "Reply to {} by sending transa {} {}",
-                                addr_client,
-                                index,
-                                utxo
-                            );
-                            self.network.send_packet(
-                                &Packet::Client(ClientPackect::RespUtxo((
-                                    nb_utxo - 1 - index,
-                                    self.blockchain
-                                        .get_utxo_location(utxo)
-                                        .context("self.blockchain.get_utxo_location")?,
-                                    utxo.clone(),
-                                ))),
-                                &addr_client,
-                            )?;
+                            self.network
+                                .send_packet(&Packet::Client(ClientPackect::RespUtxo((nb_utxo -1 - index,utxo.clone()))), & addr_client);
                         }
                     }
 
                     ClientEvent::ReqSave => {
-                        if !path_save_json.is_empty() {
-                            let file_json = File::create(path_save_json).unwrap();
+                        if self.path_save_json != "" {
+                            let file_json = File::create(&self.path_save_json).unwrap();
                             let chain = self
                                 .blockchain
                                 .get_chain()
@@ -256,8 +224,8 @@ impl Server {
                                 .collect();
                             save_chain_readable(&chain, file_json);
                         }
-                        if !path_save.is_empty() {
-                            let file_json = File::create(path_save).unwrap();
+                        if self.path_save != "" {
+                            let file_json = File::create(&self.path_save).unwrap();
                             let chain = self
                                 .blockchain
                                 .get_chain()
@@ -296,7 +264,7 @@ fn save_chain(chain: &Vec<Block>, mut file: File) {
 fn load_chain(mut file: File) -> Vec<Block> {
     let mut vec: Vec<Block> = vec![];
 
-    let mut buf_u64: [u8; 8] = 0_u64.to_be_bytes();
+    let mut buf_u64: [u8; 8] = (0 as u64).to_be_bytes();
 
     file.read_exact(&mut buf_u64).unwrap();
 
