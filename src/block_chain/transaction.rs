@@ -29,8 +29,12 @@ pub struct TxIn {
 
 impl TxIn {
     /// convertie en Utxo utilisant la blockaine
-    pub fn to_utxo(self, blockaine: &Balance) -> Option<Utxo> {
-        blockaine.txin_to_utxo(self.location)
+    pub fn to_utxo(self, balance: &Balance) -> Option<Utxo> {
+        balance.txin_to_utxo(self.location)
+    }
+
+    fn get_pubkey(&self,balance:&Balance){ 
+        self.to_utxo(balance)?.target
     }
 }
 
@@ -264,6 +268,20 @@ impl Transaction {
         }
 
         None
+    }
+    pub fn check_sign(&self,balance:&Balance){
+
+
+        
+        let pubkeys:Vec<PublicKey> = self.rx.iter().map(|i| i.to_utxo(balance)?.target).collect();
+        let pubkeys:Vec<PublicKey> = pubkeys.reverse();
+
+        let signature:Signature = bincode::deserialize(&self.signatures)?;
+        let message = self.rx+self.tx;
+        let sigmsg :SignedMessage = SignedMessage::from_parts(signature, message)?;
+        sigmsg.verify(pubkeys.first()?)?;
+
+
     }
 
     /// # NEED TEST
