@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use dryoc::{
-    sign::{PublicKey, Signature, SignedMessage},
-    types::Bytes,
+    sign::{IncrementalSigner, PublicKey, SecretKey, Signature, SignedMessage, SigningKeyPair},
+    types::{ByteArray, Bytes},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -57,17 +57,27 @@ enum ComeFromID {
     TxIn(Vec<TxIn>),
 }
 
+impl Hash for Utxo {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.amount.hash(state);
+        let target = bincode::serialize(&self.target).unwrap();
+        target.hash(state);
+        self.come_from.hash(state);
+    }
+}
+
 /// # Unspend transaction Output
 ///
 /// - need to be unique
 /// - can be spend once
-#[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Utxo {
     /// quantity of money
     amount: Amount,
 
     /// who can spend utxo
-    target: Vec<u8>,
+    /// public key destination
+    target: PublicKey,
 
     /// make the Utxo UNIQUE
     /// sum of all Utxin
@@ -75,13 +85,15 @@ pub struct Utxo {
 }
 
 impl Utxo {
-    pub fn to_txin(self) -> HashValue {
-        self.get_hash()
+    pub fn to_txin(self) -> TxIn {
+        TxIn {
+            location: self.get_hash(),
+        }
     }
 
     /// get the target key that need to be used in the transaction
     /// to proof the owner
-    pub fn get_pubkey(&self) -> Vec<u8> {
+    pub fn get_pubkey(&self) -> PublicKey {
         self.target
     }
 
@@ -101,7 +113,7 @@ impl Utxo {
     /// forge a new utxo
     ///
     /// hash all come_from
-    pub fn new(amount: Amount, target: PublicKey, come_from: ComeFromID) -> Result<Utxo> {
+    pub fn new(amount: Amount, target: PublicKey, come_from: ComeFromID) -> Utxo {
         // Switch Type of ID
         let come_from = match come_from {
             ComeFromID::TxIn(cf) => {
@@ -113,12 +125,11 @@ impl Utxo {
             }
             ComeFromID::BlockHeigt(val) => val,
         };
-        let target = bincode::serialize(&target)?;
-        Ok(Self {
+        Self {
             amount,
             target,
             come_from,
-        })
+        }
     }
 }
 
@@ -142,15 +153,24 @@ impl fmt::Display for Utxo {
     }
 }
 
+impl Hash for Transaction {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.rx.hash(state);
+        self.tx.hash(state);
+        let signature: Vec<u8> = bincode::serialize(&self.signatures).unwrap();
+        signature.hash(state);
+    }
+}
+
 /// # Verification
-#[derive(Default, Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Transaction {
     pub rx: Vec<TxIn>,
     pub tx: Vec<Utxo>,
     // Wasm challenge
     // wasm:Vec<u8>,
     /// signature of all  field
-    pub signatures: Vec<u8>,
+    pub signatures: Vec<Signature>,
 }
 
 impl Transaction {
@@ -167,19 +187,29 @@ impl Transaction {
         key: Vec<Keypair>,
     ) -> Result<Vec<Keypair>> {
         // get all key of all TxIn to unlock inside a array of uniq key
-        let mut need_pubkey: PublicKey = HashSet::new();
+        let mut need_pubkey = HashSet::new();
         for utxo in self.rx {
             let encoded = &utxo
                 .to_utxo(balance)
                 .context("cannot convert txin to utxo")?
                 .target;
-            need_pubkey.insert(encoded);
+            need_pubkey.insert(encoded.as_array());
         }
 
+        // let vall = need_pubkey.iter().next().unwrap().clone();
+        // let a = PublicKey::from(vall);
+
         //find key in common
-        key.iter()
-            .map_while(|keypair| need_pubkey.eq(&keypair.0.public_key).then(|| keypair))
-            .collect()
+        let r = key
+            .iter()
+            .filter(|keypair| {
+                need_pubkey
+                    .iter()
+                    .any(|a_key| a_key.clone().clone().eq(keypair.0.public_key.as_array()))
+            })
+            .cloned()
+            .collect();
+        Ok(r)
     }
 
     /// Take money from User wallet and create transaction
@@ -191,44 +221,59 @@ impl Transaction {
         acount: &mut Acount,
         amount: Amount,
         destination: PublicKey,
-    ) -> Option<Self> {
+    ) -> Result<Self> {
         let total_ammount = amount + acount.miner_fee;
-        let (selected, sendback) = acount.select_utxo(total_ammount)?;
+        let (selected, sendback) = acount
+            .select_utxo(total_ammount)
+            .context("imposible d'avoir la some demander")?;
 
-        let rx = selected.iter().map(|utxo| utxo.get_hash()).collect();
+        let rx = selected.iter().map(|utxo| utxo.to_txin()).collect();
+        let cum = ComeFromID::TxIn(rx);
         let tx = vec![
             //transaction
-            Utxo::new(amount, destination, rx),
+            Utxo::new(amount, destination, cum),
             //fragment de transaction a renvoyer a l'envoyeur
-            Utxo::new(sendback, acount.get_pubkey(), rx),
+            Utxo::new(sendback, acount.get_pubkey(), cum),
         ];
 
-        let sigining_key: Vec<Keypair> = acount.get_keypair(selected)?;
+        let sigining_key: Vec<Keypair> = acount
+            .get_keypair(selected)
+            .context("imposible de trouver les paire de clef")?;
 
-        //first signature we signe transa
-        let signature_data: Signature = sigining_key
-            .next()?
-            .0
-            .sign_with_defaults(rx + tx)?
-            .into_parts()
-            .0;
+        /*         //first signature we signe transa
+               let signature_data: Signature = sigining_key
+                   .next()?
+                   .0
+                   .sign_with_defaults(rx + tx)?
+                   .into_parts()
+                   .0;
 
-        //sign signature resulted for nex key
-        for keypair in sigining_key {
-            //fix next
-            let keypair: Keypair = keypair;
-            signature_data = keypair.0.sign_with_defaults(signature_data)?.into_parts().0;
+               //sign signature resulted for nex key
+               for keypair in sigining_key {
+                   //fix next
+                   let keypair: Keypair = keypair;
+                   signature_data = keypair.0.sign_with_defaults(signature_data)?.into_parts().0;
+               }
+
+               let signatures = bincode::serialize(&signature_data)?;
+        */
+
+        let mut signatures = vec![];
+
+        for key in sigining_key {
+            let mut signer = IncrementalSigner::new();
+            signer.update(&bincode::serialize(&rx).context("imposible de serialiser")?);
+            signer.update(&bincode::serialize(&tx).context("imposible de serialiser")?);
+            signatures.push(signer.finalize(&key.0.secret_key)?);
         }
-
-        let signatures = bincode::serialize(&signature_data)?;
 
         let mut transaction = Self { rx, tx, signatures };
 
         // Update wallet
         // can triguerre here a hanndler to know were transa done
-        acount.wallet.retain(|transa| !selected.contains(&transa.1));
+        acount.wallet.retain(|transa| !selected.contains(&transa));
 
-        Some(transaction)
+        Ok(transaction)
     }
 
     pub fn display_for_bock(&self) -> String {
@@ -269,14 +314,31 @@ impl Transaction {
 
         None
     }
-    pub fn check_sign(&self, balance: &Balance) {
-        let pubkeys: Vec<PublicKey> = self.rx.iter().map(|i| i.to_utxo(balance)?.target).collect();
+    pub fn check_sign(&self, balance: &Balance) -> Result<()> {
+        let public_keys: Vec<PublicKey> = self
+            .rx
+            .iter()
+            .map(|t| t.to_utxo(balance).expect("check_sign").target)
+            .collect();
+
+        // Ici, on utilise zip pour itérer simultanément sur les signatures et les clés publiques.
+        for (signature, public_key) in self.signatures.iter().zip(public_keys.iter()) {
+            let mut signer = IncrementalSigner::new();
+            signer.update(&bincode::serialize(&self.rx).context("imposible de serialiser")?);
+            signer.update(&bincode::serialize(&self.tx).context("imposible de serialiser")?);
+            signer
+                .verify(signature, public_key)
+                .context("signature fausse")?;
+        }
+        Ok(())
+
+        /*         let pubkeys: Vec<PublicKey> = self.rx.iter().map(|i| i.to_utxo(balance)?.target).collect();
         let pubkeys: Vec<PublicKey> = pubkeys.reverse();
 
         let signature: Signature = bincode::deserialize(&self.signatures)?;
         let message = self.rx + self.tx;
         let sigmsg: SignedMessage = SignedMessage::from_parts(signature, message)?;
-        sigmsg.verify(pubkeys.first()?)?;
+        sigmsg.verify(pubkeys.first()?)?; */
     }
 
     /// # NEED TEST
@@ -287,8 +349,8 @@ impl Transaction {
         mut transas: Vec<Transaction>,
         key: Keypair,
         block_heigt: u64,
-        blockaine: &Blockchain,
-    ) -> Vec<Transaction> {
+        balance: &Balance,
+    ) -> Result<Vec<Transaction>> {
         let mut miner_reward = MINER_REWARD;
 
         let mut place_remove = None;
@@ -297,17 +359,24 @@ impl Transaction {
             if t.rx.is_empty() && t.tx.len() == 1 {
                 place_remove = Some(i)
             } else {
-                miner_reward += t.remains(blockaine).unwrap() as Amount;
+                miner_reward += t.remains(balance).unwrap() as Amount;
             }
         }
         if place_remove.is_some() {
             transas.remove(place_remove.unwrap()); //reward transa already present remove it
         }
 
-        let tx = vec![Utxo::new(miner_reward, key.into(), block_heigt)];
+        let tx = vec![Utxo::new(
+            miner_reward,
+            key.into(),
+            ComeFromID::BlockHeigt(block_heigt),
+        )];
 
-        let signatures =
-            bincode::serialize(&key.0.sign_with_defaults(vec![] + tx)?.into_parts().0)?;
+        let mut signer = IncrementalSigner::new();
+        signer.update(&bincode::serialize(&tx).context("imposible de serialiser")?);
+        let signatures = vec![signer
+            .finalize(&key.0.secret_key)
+            .context("signature fausse")?];
 
         transas.push(Transaction {
             rx: vec![],
@@ -315,7 +384,7 @@ impl Transaction {
             signatures,
         });
 
-        transas
+        Ok(transas)
     }
 
     /// How many remain for the miner
@@ -338,8 +407,8 @@ impl UtxoValidator<&Balance> for Transaction {
         //on lose la propagation d'erreur .. ? add context ?
         let rx_status = self.rx.iter().all(|t| t.valid(arg).unwrap_or(false));
         let tx_status = self.tx.iter().all(|t| t.valid(arg).unwrap_or(false));
-        let sold = self.remains(arg).map_or(false, |f| f.is_positive());
-        let signature = self.check_sign(&self);
+        let sold = self.remains(arg).is_some();
+        let signature = !self.check_sign(&arg).is_err();
 
         Some(rx_status && tx_status && sold && signature)
     }

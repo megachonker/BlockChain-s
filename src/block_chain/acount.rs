@@ -140,18 +140,17 @@ impl Acount {
         Ok(())
     }
 
-    fn sign_transa(&self, transa: Transaction) -> SignedMessage<StackByteArray<64>, Vec<u8>> {
-        let data = bincode::serialize(&transa).unwrap();
-        self.keypair.0.sign_with_defaults(data).unwrap()
-    }
+    // fn sign_transa(&self, transa: Transaction) -> SignedMessage<StackByteArray<64>, Vec<u8>> {
+    //     let data = bincode::serialize(&transa).unwrap();
+    //     self.keypair.0.sign_with_defaults(data).unwrap()
+    // }
 
-    pub fn get_keypair(&self, utxo: Result<&Vec<Utxo>>) {
+    pub fn get_keypair(&self, utxo: Vec<Utxo>) -> Option<Vec<Keypair>> {
         utxo.iter()
             .map(|utxo| {
                 self.keypair
                     .iter()
-                    .find(|k| k == utxo.get_pubkey())
-                    .context("Key not fund")?
+                    .find(|k| k.0.public_key == utxo.get_pubkey()).cloned()
             })
             .collect()
     }
