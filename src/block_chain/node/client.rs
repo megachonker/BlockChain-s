@@ -41,21 +41,27 @@ impl Client {
 
     /// ask to all peer balance and take first balance received and update
     fn refresh_wallet(&mut self) -> Result<()> {
+        info!("asked to refresh the wallet");
+        
+        let mut new_wallet = vec![];
+        
         // pull utxo avaible
+        let pubkey: Vec<PublicKey> = self.user.get_key().iter().map(|k| k.0.public_key).collect();
 
-        let pubkey: PublicKey = self.user.get_key().clone().into();
-        debug!("Ask for wallet value for {:?}", pubkey);
-        self.networking.send_packet(
-            &Packet::Client(ClientPackect::ReqUtxo(pubkey)),
-            &self.networking.bootstrap,
-        )?;
+        for pk in    pubkey{
+            debug!("Ask for wallet value for {:?}", pk);
+            self.networking.send_packet(
+                &Packet::Client(ClientPackect::ReqUtxo(pk)),
+                &self.networking.bootstrap,
+            )?;
+    
+            // register utxo
+            // on pourait start un demon en background
+            trace!("waiting receiving packet of wallet");
+            new_wallet.append(&mut self.networking.recv_packet_utxo_wallet()?);
+        }
 
-        // register utxo
-        // on pourait start un demon en background
-        trace!("waiting receiving packet of wallet");
-        let myutxo = self.networking.recv_packet_utxo_wallet()?;
-
-        self.user.refresh_wallet(myutxo)
+        self.user.refresh_wallet(new_wallet)
     }
 
     pub fn start(mut self) -> Result<()> {

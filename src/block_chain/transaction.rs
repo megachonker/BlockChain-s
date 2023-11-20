@@ -29,26 +29,26 @@ pub struct TxIn {
 
 impl TxIn {
     /// convertie en Utxo utilisant la blockaine
-    pub fn to_utxo(self, balance: &Balance) -> Option<Utxo> {
-        balance.txin_to_utxo(self.location)
+    pub fn to_utxo(self, balance: &Balance) -> Option<&Utxo> {
+        balance.txin_to_utxo(self)
     }
 
-    fn get_pubkey(&self, balance: &Balance) {
-        self.to_utxo(balance)?.target
-    }
+    // fn get_pubkey(&self, balance: &Balance) {
+    //     self.to_utxo(balance)?.target
+    // }
 }
 
 impl UtxoValidator<&Balance> for TxIn {
     fn valid(&self, arg: &Balance) -> Option<bool> {
         //check if possible to convert
         //check if already spend
-        Some(self.to_utxo(arg))
+        Some(self.to_utxo(arg).is_some())
     }
 }
 
 impl Display for TxIn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TxIn Location: {}", self.location.get(..5)?)
+        write!(f, "TxIn Location: {}", self.location)
     }
 }
 
@@ -227,13 +227,14 @@ impl Transaction {
             .select_utxo(total_ammount)
             .context("imposible d'avoir la some demander")?;
 
+        
         let rx = selected.iter().map(|utxo| utxo.to_txin()).collect();
         let cum = ComeFromID::TxIn(rx);
         let tx = vec![
             //transaction
             Utxo::new(amount, destination, cum),
             //fragment de transaction a renvoyer a l'envoyeur
-            Utxo::new(sendback, acount.get_pubkey(), cum),
+            Utxo::new(sendback, acount.get_key().first().unwrap().0.public_key, cum),
         ];
 
         let sigining_key: Vec<Keypair> = acount

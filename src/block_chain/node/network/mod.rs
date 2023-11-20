@@ -76,7 +76,7 @@ pub enum TypeTransa {
 #[derive(Deserialize, Serialize, Debug)]
 pub enum ClientPackect {
     ReqUtxo(PublicKey),      //Request for the UTXO of u64
-    RespUtxo((usize, UtxoLocation,Utxo)), //the response of RqUtxo : (number of utxo remains, the utxo -> (0,utxo..) is the last)
+    RespUtxo((usize,Utxo)), //the response of RqUtxo : (number of utxo remains, the utxo -> (0,utxo..) is the last)
     ReqSave,                 //force save (debug)
 }
 
@@ -285,9 +285,9 @@ impl Network {
                 )
             })?;
             let answer: Packet = deserialize(&mut buf).expect("Can not deserilize block");
-            if let Packet::Client(ClientPackect::RespUtxo((size,position, utxo))) = answer {
+            if let Packet::Client(ClientPackect::RespUtxo((size, utxo))) = answer {
                 debug!("rev some wallet utxo: {} {}", size, utxo);
-                allutxo.push((position,utxo));
+                allutxo.push(utxo);
                 if size == 0 {
                     return Ok(allutxo);
                 }

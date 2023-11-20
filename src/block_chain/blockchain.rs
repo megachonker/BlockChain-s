@@ -73,7 +73,10 @@ pub struct Balance {
 }
 
 impl Balance {
-    pub fn row_to_utxo(&self, input: Vec<TxIn>) -> Option<Vec<Utxo>> {
+    pub fn txin_to_utxo(&self,input:TxIn) -> Option<&Utxo>{
+        self.utxo_hmap.get(&input)
+    }
+    pub fn row_to_utxo(&self, input: Vec<TxIn>) -> Option<Vec<&Utxo>> {
         input.iter().map(|txo| txo.to_utxo(&self)).collect()
     }
 
@@ -109,7 +112,7 @@ impl Balance {
             .context("imposible convertire txin en utxo")?;
 
         for utxo in to_append {
-            self.utxo_hmap.insert(utxo.to_txin(), utxo);
+            self.utxo_hmap.insert(utxo.to_txin(), utxo.clone());
         }
 
         for utxo in to_remove {

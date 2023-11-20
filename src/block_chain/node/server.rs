@@ -110,8 +110,8 @@ impl Server {
                 vec![],
                 self.keypair.clone(),
                 1,
-                &self.blockchain,
-            ),
+                &self.blockchain.balance,
+            )?,
             difficulty: self.blockchain.difficulty,
             // miner_id:self.miner_pubkey.clone(),
         }));
@@ -184,8 +184,8 @@ impl Server {
                             vec![],
                             self.keypair.clone(),
                             top_block.block_height + 1,
-                            &self.blockchain,
-                        ); //for the moment reset transa not taken     //maybe check transa not accpted and already available
+                            &self.blockchain.balance,
+                        )?; //for the moment reset transa not taken     //maybe check transa not accpted and already available
                         lock_miner_stuff.difficulty = new_difficulty; //for the moment reset transa not taken     //maybe check transa not accpted and already available
 
                         drop(lock_miner_stuff);
@@ -219,7 +219,6 @@ impl Server {
                                 &Packet::Client(ClientPackect::RespUtxo((
                                     0,
                                     Default::default(),
-                                    Default::default(),
                                 ))),
                                 &addr_client,
                             )?;
@@ -235,9 +234,6 @@ impl Server {
                             self.network.send_packet(
                                 &Packet::Client(ClientPackect::RespUtxo((
                                     nb_utxo - 1 - index,
-                                    self.blockchain
-                                        .get_utxo_location(utxo)
-                                        .context("self.blockchain.get_utxo_location")?,
                                     utxo.clone(),
                                 ))),
                                 &addr_client,

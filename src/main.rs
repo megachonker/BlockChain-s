@@ -8,7 +8,7 @@ mod block_chain {
     pub mod node;
     pub mod transaction;
 }
-use anyhow::{bail, Result};
+use anyhow::{bail, Result, Context};
 use block_chain::{
     acount::Acount,
     node::{
@@ -145,7 +145,7 @@ fn parse_args(cli: Cli) -> Result<NewNode> {
         //create server worker
         Ok(NewNode::Srv(Server::new(
             networking,
-            user.get_key().clone(),
+            user.get_key().first().context("cannot get keypair for starting server")?.clone(),
             cli.threads,
         )))
     }

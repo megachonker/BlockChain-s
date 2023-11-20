@@ -1,3 +1,4 @@
+use anyhow::{bail, Context};
 use chrono::{TimeZone, Utc};
 use rand::Rng;
 
@@ -11,9 +12,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::{info, trace};
 
-use super::blockchain::{Blockchain, Balance};
+use super::blockchain::{Balance, Blockchain};
 use super::node::server::{Event, MinerStuff, NewBlock};
-use super::transaction::{Amount, HashValue, Transaction, Utxo, TxIn, UtxoValidator};
+use super::transaction::{Amount, HashValue, Transaction, TxIn, Utxo, UtxoValidator};
 
 //variable d'envirnement
 
@@ -154,9 +155,7 @@ impl Block {
         Default::default()
     }
 
-    pub fn check(&self,blockaine:&Blockchain,balance:&Balance) -> bool {
-
-
+    pub fn check(&self, balance: &Balance) -> Option<()> {
         //check inside the block if multiple
 
         let answer = self.get_block_hash_proof_work();
@@ -167,13 +166,13 @@ impl Block {
         for t in &self.transactions {
             if t.rx.is_empty() && t.tx.len() == 1 {
                 if already_see {
-                    return false; //double miner transa
+                    return None; //double miner transa
                 }
                 already_see = true;
 
-                miner_reward = t.tx[0].amount
+                miner_reward = t.tx.first()?.get_amount();
             } else {
-                transa_remain += t.remains(blockaine).unwrap() as Amount;
+                transa_remain += t.remains(balance)?;
             }
         }
 
@@ -187,7 +186,8 @@ impl Block {
                     .unwrap()
                     .as_secs()
                     + CLOCK_DRIFT
-            && self.transactions.iter().all(|t| t.valid((blockaine,balance)).unwrap())
+            && self.transactions.iter().all(|t| t.valid(balance).is_some());
+        Some(())
     }
 
     /// Lunch every time need to change transaction content or block
@@ -307,7 +307,8 @@ pub fn mine(miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Event>) {
 
 #[cfg(test)]
 mod tests {
-    
+
+    use std::{sync::mpsc, thread};
 
     use super::*;
     use crate::block_chain::blockchain::FIRST_DIFFICULTY;
@@ -320,10 +321,15 @@ mod tests {
     #[test]
     fn test_block_mined_valid() {
         let (tx, rx) = mpsc::channel::<Event>();
-
+        let balance: Balance = Balance::default();
+        
+        
+        let transa = Transaction::transform_for_miner(vec![], Default::default(), 1, &balance).unwrap();
+        
+        
         let miner_stuff = Arc::new(Mutex::new(MinerStuff {
             cur_block: Block::default(),
-            transa: Transaction::transform_for_miner(vec![], Default::default(), 1),
+            transa,
             difficulty: crate::block_chain::blockchain::FIRST_DIFFICULTY,
         }));
 
@@ -336,7 +342,7 @@ mod tests {
 
             match b {
                 Event::NewBlock(b) => match b {
-                    NewBlock::Mined(b) => assert!(b.check()),
+                    NewBlock::Mined(b) => assert!(b.check(&balance).is_some()),
                     NewBlock::Network(_) => assert!(false),
                 },
                 Event::HashReq(_) => assert!(false),
@@ -368,11 +374,11 @@ mod tests {
         let block = Block::default();
         loop {
             if let Some(block_to_test) = block.find_next_block(
-                Transaction::transform_for_miner(vec![], Default::default(), 1),
+                Transaction::transform_for_miner(vec![], Default::default(), 1,&Default::default()).unwrap(),
                 Profile::Normal,
                 FIRST_DIFFICULTY,
             ) {
-                assert!(block_to_test.check());
+                assert!(block_to_test.check(&Default::default()).is_some());
                 break;
             }
         }

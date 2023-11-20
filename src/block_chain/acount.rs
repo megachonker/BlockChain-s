@@ -4,6 +4,7 @@ use super::transaction::{Amount, Transaction, TxIn, Utxo};
 use anyhow::{bail, Context, Error, Result};
 use dryoc::{sign::*, types::StackByteArray};
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info, trace};
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct ToSave {
@@ -120,6 +121,10 @@ impl Acount {
 
         // Mettre à jour le portefeuille avec les UTXOs valides
         self.wallet = new_wallet;
+        debug!("refreshed wallet:");
+        for e in self.wallet{
+            debug!("wallet entry:{}",e);
+        }
         Ok(())
     }
 
