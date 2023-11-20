@@ -317,34 +317,34 @@ mod tests {
         assert!(Block::new() == Block::default())
     }
 
-    // #[test]
-    // fn test_block_mined_valid() {
-    //     let (tx, rx) = mpsc::channel::<Event>();
+    #[test]
+    fn test_block_mined_valid() {
+        let (tx, rx) = mpsc::channel::<Event>();
 
-    //     let miner_stuff = Arc::new(Mutex::new(MinerStuff {
-    //         cur_block: Block::default(),
-    //         transa: Transaction::transform_for_miner(vec![], Default::default(), 1),
-    //         difficulty: crate::block_chain::blockchain::FIRST_DIFFICULTY,
-    //     }));
+        let miner_stuff = Arc::new(Mutex::new(MinerStuff {
+            cur_block: Block::default(),
+            transa: Transaction::transform_for_miner(vec![], Default::default(), 1),
+            difficulty: crate::block_chain::blockchain::FIRST_DIFFICULTY,
+        }));
 
-    //     thread::spawn(move || {
-    //         mine(&miner_stuff, tx);
-    //     });
+        thread::spawn(move || {
+            mine(&miner_stuff, tx);
+        });
 
-    //     for _ in 0..2 {
-    //         let b = rx.recv().unwrap();
+        for _ in 0..2 {
+            let b = rx.recv().unwrap();
 
-    //         match b {
-    //             Event::NewBlock(b) => match b {
-    //                 NewBlock::Mined(b) => assert!(b.check()),
-    //                 NewBlock::Network(_) => assert!(false),
-    //             },
-    //             Event::HashReq(_) => assert!(false),
-    //             Event::Transaction(_) => assert!(false),
-    //             Event::ClientEvent(_, _) => todo!(),
-    //         }
-    //     }
-    // }
+            match b {
+                Event::NewBlock(b) => match b {
+                    NewBlock::Mined(b) => assert!(b.check()),
+                    NewBlock::Network(_) => assert!(false),
+                },
+                Event::HashReq(_) => assert!(false),
+                Event::Transaction(_) => assert!(false),
+                Event::ClientEvent(_, _) => todo!(),
+            }
+        }
+    }
 
     #[test]
     fn mine2block() {
@@ -363,18 +363,18 @@ mod tests {
         assert_eq!(b2.block_height, b1.block_height + 1);
     }
 
-    // #[test]
-    // fn find_next_block() {
-    //     let block = Block::default();
-    //     loop {
-    //         if let Some(block_to_test) = block.find_next_block(
-    //             Transaction::transform_for_miner(vec![], Default::default(), 1),
-    //             Profile::Normal,
-    //             FIRST_DIFFICULTY,
-    //         ) {
-    //             assert!(block_to_test.check());
-    //             break;
-    //         }
-    //     }
-    // }
+    #[test]
+    fn find_next_block() {
+        let block = Block::default();
+        loop {
+            if let Some(block_to_test) = block.find_next_block(
+                Transaction::transform_for_miner(vec![], Default::default(), 1),
+                Profile::Normal,
+                FIRST_DIFFICULTY,
+            ) {
+                assert!(block_to_test.check());
+                break;
+            }
+        }
+    }
 }

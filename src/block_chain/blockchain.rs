@@ -623,7 +623,7 @@ fn best_difficulty(chain1: &Vec<&Block>, chain2: &Vec<&Block>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_chain::block::Profile;
+    use crate::block_chain::{block::Profile, transaction::Transaction};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -684,15 +684,15 @@ mod tests {
         assert_eq!(cur_block, None);
     }
 
-    // #[test]
-    // fn append_blockchain_second_block() {
-    //     let mut blockchain = Blockchain::new();
-    //     let block = Block::default()
-    //         .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
-    //         .unwrap();
-    //     assert!(block.check());
-    //     assert_eq!(block, blockchain.try_append(&block).0.unwrap());
-    // }
+    #[test]
+    fn append_blockchain_second_block() {
+        let mut blockchain = Blockchain::new();
+        let block = Block::default()
+            .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
+            .unwrap();
+        assert!(block.check());
+        assert_eq!(block, blockchain.try_append(&block).0.unwrap());
+    }
 
     #[test]
     fn add_block_unchainned() {
@@ -835,7 +835,8 @@ mod tests {
         assert_eq!(blockchain.get_chain(), vec![&block, &Block::new()]);
     }
 
-    /*#[test]
+    
+    #[test]
     /// check rewind
     /// check add
     /// check sub
@@ -905,5 +906,5 @@ mod tests {
         let transaction6 = Transaction::new(block2.find_new_utxo(), vec![5], 0,Default::default());
         block4.transactions = vec![transaction6];
         assert!(!balance.clone().add(&block4))
-    } */
+    }
 }
