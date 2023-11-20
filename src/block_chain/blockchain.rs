@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use core::fmt;
 use dryoc::sign::PublicKey;
 use std::collections::HashMap;
@@ -7,7 +7,7 @@ use tracing::{debug, error, info, warn};
 use super::{
     block::Block,
     node::server::MinerStuff,
-    transaction::{HashValue, Utxo, UtxoLocation, UtxoValidator},
+    transaction::{HashValue, TxIn, Utxo, UtxoValidator},
 };
 const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
 const TIME_N_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
@@ -64,107 +64,108 @@ impl PotentialsTopBlock {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-enum Status {
-    Consumed,
-    Avaible,
-}
 /// Keep track of transaction and utxo
 /// Used to know the balance of somone ?
 /// need to inplement merkel tree to optimize ?
 #[derive(Default, Clone)]
 pub struct Balance {
-    utxo_hmap: HashMap<Utxo, Status>,
+    utxo_hmap: HashMap<TxIn, Utxo>,
 }
 
 impl Balance {
+    pub fn row_to_utxo(&self, input: Vec<TxIn>) -> Option<Vec<Utxo>> {
+        input.iter().map(|txo| txo.to_utxo(&self)).collect()
+    }
+
     /// Revert change until src with sub
     /// Replay change until dst with add
-    pub fn calculation<'b>(&mut self, src: &Vec<&Block>, dst: &Vec<&'b Block>,blockaine:&Blockchain) -> &'b Block {
-        src.iter().all(|p| self.sub(p,blockaine));
+    pub fn calculation(
+        &mut self,
+        src: &Vec<&Block>,
+        dst: &Vec<&Block>,
+        blockaine: &Blockchain,
+    ) -> Result<&Block> {
+        src.iter().all(|p| self.sub(p).is_ok());
         for (index, b) in dst.iter().enumerate() {
-            if !self.add(b,blockaine) {
+            if !self.add(b).is_ok() {
                 debug!("{} as incorrect rx utxo", b);
                 return dst
                     .get(index - 1)
-                    .expect("first block has no valid transactions in dst ????");
+                    .context("first block has no valid transactions in dst ????").cloned()
             }
         }
-        dst.last().expect("dst empty")
+        dst.last().context("last block imposible a trouver").cloned()
     }
 
     /// # Undo add
     /// when we want to drill downside
     /// we need to cancel transaction
-    fn sub(&mut self, block: &Block,blockaine:&Blockchain) -> bool {
+    fn sub(&mut self, block: &Block) -> Result<()> {
+        // generated utxo
         let to_remove = block.find_created_utxo();
-
-        let binding = block.find_used_utxo();
-        let to_append = binding.iter().map(|f|f.clone().to_utxo(blockaine).unwrap());
-        // let to_append = block.find_used_utxo().iter().map(|f|f.to_utxo(blockaine).unwrap());
+        // spended utxo
+        let to_append = self
+            .row_to_utxo(block.find_used_utxo())
+            .context("imposible convertire txin en utxo")?;
 
         for utxo in to_append {
-            self.utxo_hmap.insert(utxo.clone(), Status::Avaible);
+            self.utxo_hmap.insert(utxo.to_txin(), utxo);
         }
 
         for utxo in to_remove {
-            if self.utxo_hmap.remove(&utxo).is_some() {
-            } else {
-                warn!("sub: la transa qui a été crée n'existe pas dans la hashmap");
-                return false;
+            if self.utxo_hmap.remove(&utxo.to_txin()).is_none() {
+                bail!(
+                    "sub: la transa {} qui devais être existante n'es pas dans la hashmap",
+                    utxo
+                );
             }
         }
-
-        true
+        Ok(())
     }
 
     /// # Drill up
     /// normal whay to update the Balance with one block
     /// when we need to append a new block we run that
-    fn add(&mut self, block: &Block,blockaine:&Blockchain) -> bool {
+    fn add(&mut self, block: &Block) -> Result<()> {
         //get utxo to append
         let to_append = block.find_created_utxo();
 
         //get utxo to remove
-        let binding = block.find_used_utxo();
-        let to_remove = binding.iter().map(|f|f.clone().to_utxo(blockaine).unwrap().clone());
-        
+        let to_remove = self
+            .row_to_utxo(block.find_used_utxo())
+            .context("imposible de convertire les txin en utxo")?;
+
         // Append transaction
         for utxo in to_append {
-            if let std::collections::hash_map::Entry::Vacant(e) = self.utxo_hmap.entry(utxo) {
-                e.insert(Status::Avaible);
-            } else {
-                error!("add: double utxo entry");
-                return false;
+            if self.utxo_hmap.insert(utxo.to_txin(), utxo).is_some() {
+                bail!("add: double utxo entry pour {}", utxo);
             }
         }
 
         // Consume transaction
         for utxo in to_remove {
-            if let Some(utxo) = self.utxo_hmap.get_mut(&utxo) {
-                *utxo = match utxo {
-                    Status::Avaible => Status::Consumed,
-                    Status::Consumed => {
-                        error!("utxo already consumed");
-                        return false;
-                    }
-                }
-            } else {
-                error!("add: consume using unknow utxo : {}", utxo);
-                return false;
+            if self.utxo_hmap.remove(&utxo.to_txin()).is_none() {
+                bail!("utxo already consumed DOUBLE SPEND DETECT for: {}", utxo);
             }
         }
         // self.utxo.iter().for_each(|f| debug!("{}->{:?}", f.0, f.1));debug!("Add");
-        true
+        Ok(())
     }
 }
 
 impl UtxoValidator<&Utxo> for Balance {
     fn valid(&self, utxo: &Utxo) -> Option<bool> {
-        let resolved = self.utxo_hmap.get(utxo)?;
-        Some(resolved == &Status::Avaible)
+        self.utxo_hmap.get(&utxo.to_txin())?;
+        Some(true)
     }
 }
+impl UtxoValidator<&TxIn> for Balance {
+    fn valid(&self, txin: &TxIn) -> Option<bool> {
+        self.utxo_hmap.get(txin)?;
+        Some(true)
+    }
+}
+
 pub struct Blockchain {
     hash_map_block: HashMap<HashValue, Block>,
     top_block_hash: HashValue,
@@ -192,12 +193,13 @@ impl Default for Blockchain {
 impl Blockchain {
     /// Cherche Utxo depuis une `UtxoLocation`
     pub fn get_utxo_from_location(&self, location: UtxoLocation) -> Option<Utxo> {
-        let r = self.hash_map_block
+        let r = self
+            .hash_map_block
             .iter()
             .flat_map(|f| f.1.clone().transactions)
             .find(|transa| transa.get_hash() == location.0)?;
-            let bb = r.tx.get(location.1)?;
-            Some(bb.clone())
+        let bb = r.tx.get(location.1)?;
+        Some(bb.clone())
     }
 
     /// check if utxo at input is valide
@@ -268,7 +270,7 @@ impl Blockchain {
             return (None, None); //already prensent
         }
 
-        if !block_to_append.check(self,&self.balance) {
+        if !block_to_append.check(self, &self.balance) {
             //<== full check here
             info!("block is not valid");
             return (None, None);
@@ -294,7 +296,7 @@ impl Blockchain {
         {
             //basic case
             let mut backup = self.balance.clone();
-            if backup.add(block_to_append,self) {
+            if backup.add(block_to_append, self) {
                 //comit modification
                 self.balance = backup;
                 //valid and ellect block to top pos
@@ -352,8 +354,9 @@ impl Blockchain {
 
                     //sale
                     let mut new_balence = self.balance.clone();
-                    let last_top_transa_ok =
-                        new_balence.calculation(&cur_chain, &new_chain,self).block_id;
+                    let last_top_transa_ok = new_balence
+                        .calculation(&cur_chain, &new_chain, self)
+                        .block_id;
                     //last_top_transa_ok : bloc where is transa is valid to the chain
                     if last_top_transa_ok != potential_top {
                         //update the chain if there is the end of the new_chain is not valid
@@ -835,14 +838,13 @@ mod tests {
         assert_eq!(blockchain.get_chain(), vec![&block, &Block::new()]);
     }
 
-    
     #[test]
     /// check rewind
     /// check add
     /// check sub
     /// check double transa
     /// check double usage utxo
-     fn balance_calculation_simple() {
+    fn balance_calculation_simple() {
         let mut balance = Balance::default();
 
         // Create Block
@@ -852,25 +854,28 @@ mod tests {
         let mut block4 = Block::default();
 
         // Create Transactions
-        let transaction1 = Transaction::new(Default::default(), vec![10], 0,Default::default());
-        let transaction2 = Transaction::new(Default::default(), vec![20], 0,Default::default());
+        let transaction1 = Transaction::new(Default::default(), vec![10], 0, Default::default());
+        let transaction2 = Transaction::new(Default::default(), vec![20], 0, Default::default());
 
         block1.transactions = vec![transaction1, transaction2];
 
         let transaction3 = Transaction::new(
             block1.transactions[0].find_new_utxo(block1.block_id),
             vec![5],
-            0,Default::default()
+            0,
+            Default::default(),
         );
         let transaction4 = Transaction::new(
             block1.transactions[1].find_new_utxo(block1.block_id),
             vec![15],
-            0,Default::default()
+            0,
+            Default::default(),
         );
 
         block2.transactions = vec![transaction3, transaction4];
 
-        let transaction5 = Transaction::new(block2.find_new_utxo(), vec![25], 0,Default::default());
+        let transaction5 =
+            Transaction::new(block2.find_new_utxo(), vec![25], 0, Default::default());
 
         // Create Blocks
         block3.transactions = vec![transaction5];
@@ -898,12 +903,13 @@ mod tests {
         assert_eq!(*ret, block1);
 
         //try replay transaction
-        let transaction6 = Transaction::new(block2.find_new_utxo(), vec![25], 0,Default::default());
+        let transaction6 =
+            Transaction::new(block2.find_new_utxo(), vec![25], 0, Default::default());
         block4.transactions = vec![transaction6];
         assert!(!balance.clone().add(&block4));
 
         //try reusing already spend utxo
-        let transaction6 = Transaction::new(block2.find_new_utxo(), vec![5], 0,Default::default());
+        let transaction6 = Transaction::new(block2.find_new_utxo(), vec![5], 0, Default::default());
         block4.transactions = vec![transaction6];
         assert!(!balance.clone().add(&block4))
     }
