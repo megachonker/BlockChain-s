@@ -15,7 +15,7 @@ pub struct ToSave {
 impl std::fmt::Display for Acount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Path: {}", self.path)?;
-        for k in &self.keypair{
+        for k in &self.keypair {
             writeln!(f, "Keys: {}", k)?;
         }
         writeln!(f, "Miner fee: {}%", self.miner_fee)?;
@@ -56,7 +56,18 @@ impl From<Acount> for Vec<Keypair> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Default)]
+impl Default for Acount {
+    fn default() -> Self {
+        Self {
+            miner_fee: 1,
+            keypair: vec![SigningKeyPair::gen_with_defaults().into()],
+            path: Default::default(),
+            wallet: Default::default(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Acount {
     /// path were stored wallet
     path: String,
@@ -80,9 +91,10 @@ impl Acount {
         &self.keypair //double clone
     }
 
-    // pub fn get_pubkey(&self) -> PublicKey {
-    //     self.keypair.0.public_key.clone()
-    // }
+    /// get one of public authentity
+    pub fn get_pubkey(&self) -> PublicKey {
+        self.keypair.first().unwrap().0.public_key.clone()
+    }
 
     pub fn get_sold(&self) -> Amount {
         self.wallet
@@ -93,8 +105,6 @@ impl Acount {
     pub fn new_user(path: &str) -> Self {
         Self {
             path: path.to_string(),
-            keypair: vec![SigningKeyPair::gen_with_defaults().into()],
-            miner_fee: 1,
             ..Default::default()
         }
     }
@@ -122,8 +132,8 @@ impl Acount {
         // Mettre à jour le portefeuille avec les UTXOs valides
         self.wallet = new_wallet;
         debug!("refreshed wallet:");
-        for e in &self.wallet{
-            debug!("wallet entry:{}",e);
+        for e in &self.wallet {
+            debug!("wallet entry:{}", e);
         }
         Ok(())
     }
@@ -137,9 +147,9 @@ impl Acount {
             )
         })?;
         let user: ToSave = serde_json::from_slice(&conf).context("la conf lut est broken")?;
-        
+
         let mut keypair: Vec<Keypair> = vec![];
-        for k in user.privkey{
+        for k in user.privkey {
             keypair.push(SigningKeyPair::from_secret_key(k).into());
         }
         Ok(Self {
@@ -152,10 +162,13 @@ impl Acount {
     }
 
     pub fn save(self) -> Result<()> {
-
         let tosave = ToSave {
             wallet: self.wallet,
-            privkey: self.keypair.iter().map(|k| k.0.secret_key.to_owned()).collect(),
+            privkey: self
+                .keypair
+                .iter()
+                .map(|k| k.0.secret_key.to_owned())
+                .collect(),
         };
         let contents =
             serde_json::to_string(&tosave).context("serialisation de la conf user imposible")?;

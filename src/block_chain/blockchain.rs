@@ -598,7 +598,7 @@ fn best_difficulty(chain1: &Vec<&Block>, chain2: &Vec<&Block>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_chain::{block::Profile, transaction::Transaction};
+    use crate::block_chain::{block::Profile, transaction::Transaction, acount::Acount};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -665,7 +665,7 @@ mod tests {
         let block = Block::default()
             .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
-        assert!(block.check());
+        assert!(block.check(&Default::default()).is_some());
         assert_eq!(block, blockchain.try_append(&block).0.unwrap());
     }
 
@@ -819,6 +819,9 @@ mod tests {
     fn balance_calculation_simple() {
         let mut balance = Balance::default();
 
+        let miner:Acount = Default::default();
+        let client:Acount = Default::default();
+
         // Create Block
         let mut block1 = Block::default();
         let mut block2 = Block::default();
@@ -826,7 +829,7 @@ mod tests {
         let mut block4 = Block::default();
 
         // Create Transactions
-        let transaction1 = Transaction::new(Default::default(), vec![10], 0, Default::default());
+        let transaction1 = Transaction::new_transaction(&mut miner, 1, client.get_pubkey()).unwrap();
         let transaction2 = Transaction::new(Default::default(), vec![20], 0, Default::default());
 
         block1.transactions = vec![transaction1, transaction2];
