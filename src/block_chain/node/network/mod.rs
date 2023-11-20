@@ -16,7 +16,7 @@ use tracing::{debug, error, info, warn};
 use crate::block_chain::{
     block::Block,
     node::server::ClientEvent,
-    transaction::{Transaction, Utxo, UtxoLocation},
+    transaction::{Transaction, Utxo},
 };
 
 use super::server::{Event, NewBlock};
@@ -272,7 +272,7 @@ impl Network {
     }
 
     /// wait for a wallet
-    pub fn recv_packet_utxo_wallet(&self) -> Result<Vec<(UtxoLocation, Utxo)>> {
+    pub fn recv_packet_utxo_wallet(&self) -> Result<Vec<Utxo>> {
         let mut buf = [0u8; 256]; //pourquoi 256 ??? <============= BESOIN DETRE choisie
         let mut allutxo = vec![];
         loop {

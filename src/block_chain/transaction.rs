@@ -33,7 +33,7 @@ impl TxIn {
         balance.txin_to_utxo(self.location)
     }
 
-    fn get_pubkey(&self,balance:&Balance){ 
+    fn get_pubkey(&self, balance: &Balance) {
         self.to_utxo(balance)?.target
     }
 }
@@ -67,7 +67,7 @@ pub struct Utxo {
     amount: Amount,
 
     /// who can spend utxo
-    target: PublicKey,
+    target: Vec<u8>,
 
     /// make the Utxo UNIQUE
     /// sum of all Utxin
@@ -81,12 +81,12 @@ impl Utxo {
 
     /// get the target key that need to be used in the transaction
     /// to proof the owner
-    pub fn get_pubkey(&self) {
+    pub fn get_pubkey(&self) -> Vec<u8> {
         self.target
     }
 
     /// get the value of the token
-    pub fn get_amount(&self) {
+    pub fn get_amount(&self) -> Amount {
         self.amount
     }
 
@@ -101,7 +101,7 @@ impl Utxo {
     /// forge a new utxo
     ///
     /// hash all come_from
-    pub fn new(amount: Amount, target: PublicKey, come_from: ComeFromID) -> Utxo {
+    pub fn new(amount: Amount, target: PublicKey, come_from: ComeFromID) -> Result<Utxo> {
         // Switch Type of ID
         let come_from = match come_from {
             ComeFromID::TxIn(cf) => {
@@ -113,12 +113,12 @@ impl Utxo {
             }
             ComeFromID::BlockHeigt(val) => val,
         };
-
-        Self {
+        let target = bincode::serialize(&target)?;
+        Ok(Self {
             amount,
             target,
             come_from,
-        }
+        })
     }
 }
 
@@ -269,19 +269,14 @@ impl Transaction {
 
         None
     }
-    pub fn check_sign(&self,balance:&Balance){
+    pub fn check_sign(&self, balance: &Balance) {
+        let pubkeys: Vec<PublicKey> = self.rx.iter().map(|i| i.to_utxo(balance)?.target).collect();
+        let pubkeys: Vec<PublicKey> = pubkeys.reverse();
 
-
-        
-        let pubkeys:Vec<PublicKey> = self.rx.iter().map(|i| i.to_utxo(balance)?.target).collect();
-        let pubkeys:Vec<PublicKey> = pubkeys.reverse();
-
-        let signature:Signature = bincode::deserialize(&self.signatures)?;
-        let message = self.rx+self.tx;
-        let sigmsg :SignedMessage = SignedMessage::from_parts(signature, message)?;
+        let signature: Signature = bincode::deserialize(&self.signatures)?;
+        let message = self.rx + self.tx;
+        let sigmsg: SignedMessage = SignedMessage::from_parts(signature, message)?;
         sigmsg.verify(pubkeys.first()?)?;
-
-
     }
 
     /// # NEED TEST
