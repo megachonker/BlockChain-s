@@ -15,7 +15,7 @@ pub struct ToSave {
 impl std::fmt::Display for Acount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Path: {}", self.path)?;
-        for k in self.keypair{
+        for k in &self.keypair{
             writeln!(f, "Keys: {}", k)?;
         }
         writeln!(f, "Miner fee: {}%", self.miner_fee)?;
@@ -122,7 +122,7 @@ impl Acount {
         // Mettre à jour le portefeuille avec les UTXOs valides
         self.wallet = new_wallet;
         debug!("refreshed wallet:");
-        for e in self.wallet{
+        for e in &self.wallet{
             debug!("wallet entry:{}",e);
         }
         Ok(())
@@ -155,7 +155,7 @@ impl Acount {
 
         let tosave = ToSave {
             wallet: self.wallet,
-            privkey: self.keypair.iter().map(|k| k.0.secret_key).collect(),
+            privkey: self.keypair.iter().map(|k| k.0.secret_key.to_owned()).collect(),
         };
         let contents =
             serde_json::to_string(&tosave).context("serialisation de la conf user imposible")?;
@@ -168,7 +168,7 @@ impl Acount {
     //     self.keypair.0.sign_with_defaults(data).unwrap()
     // }
 
-    pub fn get_keypair(&self, utxo: Vec<Utxo>) -> Option<Vec<Keypair>> {
+    pub fn get_keypair(&self, utxo: &Vec<Utxo>) -> Option<Vec<Keypair>> {
         utxo.iter()
             .map(|utxo| {
                 self.keypair

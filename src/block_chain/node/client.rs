@@ -46,7 +46,7 @@ impl Client {
         let mut new_wallet = vec![];
         
         // pull utxo avaible
-        let pubkey: Vec<PublicKey> = self.user.get_key().iter().map(|k| k.0.public_key).collect();
+        let pubkey: Vec<PublicKey> = self.user.get_key().iter().map(|k| k.0.public_key.clone()).collect();
 
         for pk in    pubkey{
             debug!("Ask for wallet value for {:?}", pk);

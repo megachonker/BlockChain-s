@@ -29,8 +29,8 @@ pub struct TxIn {
 
 impl TxIn {
     /// convertie en Utxo utilisant la blockaine
-    pub fn to_utxo(self, balance: &Balance) -> Option<&Utxo> {
-        balance.txin_to_utxo(self)
+    pub fn to_utxo(&self, balance: &Balance) -> Option<Utxo> {
+        balance.txin_to_utxo(&self).cloned()
     }
 
     // fn get_pubkey(&self, balance: &Balance) {
@@ -42,7 +42,7 @@ impl UtxoValidator<&Balance> for TxIn {
     fn valid(&self, arg: &Balance) -> Option<bool> {
         //check if possible to convert
         //check if already spend
-        Some(self.to_utxo(arg).is_some())
+        Some(self.to_owned().to_utxo(arg).is_some())
     }
 }
 
@@ -52,6 +52,7 @@ impl Display for TxIn {
     }
 }
 
+#[derive(Clone)]
 enum ComeFromID {
     BlockHeigt(u64),
     TxIn(Vec<TxIn>),
@@ -85,7 +86,7 @@ pub struct Utxo {
 }
 
 impl Utxo {
-    pub fn to_txin(self) -> TxIn {
+    pub fn to_txin(&self) -> TxIn {
         TxIn {
             location: self.get_hash(),
         }
@@ -94,7 +95,7 @@ impl Utxo {
     /// get the target key that need to be used in the transaction
     /// to proof the owner
     pub fn get_pubkey(&self) -> PublicKey {
-        self.target
+        self.target.clone()
     }
 
     /// get the value of the token
@@ -188,12 +189,14 @@ impl Transaction {
     ) -> Result<Vec<Keypair>> {
         // get all key of all TxIn to unlock inside a array of uniq key
         let mut need_pubkey = HashSet::new();
-        for utxo in self.rx {
-            let encoded = &utxo
+        for utxo in &self.rx {
+            let tmp = utxo.clone();
+            let encoded = tmp
                 .to_utxo(balance)
                 .context("cannot convert txin to utxo")?
                 .target;
-            need_pubkey.insert(encoded.as_array());
+
+            need_pubkey.insert(encoded.as_array().clone());
         }
 
         // let vall = need_pubkey.iter().next().unwrap().clone();
@@ -227,18 +230,21 @@ impl Transaction {
             .select_utxo(total_ammount)
             .context("imposible d'avoir la some demander")?;
 
-        
-        let rx = selected.iter().map(|utxo| utxo.to_txin()).collect();
-        let cum = ComeFromID::TxIn(rx);
+        let rx :Vec<TxIn>= selected.iter().map(|utxo| utxo.to_txin()).collect();
+        let cum = ComeFromID::TxIn(rx.clone());
         let tx = vec![
             //transaction
-            Utxo::new(amount, destination, cum),
+            Utxo::new(amount, destination, cum.clone()),
             //fragment de transaction a renvoyer a l'envoyeur
-            Utxo::new(sendback, acount.get_key().first().unwrap().0.public_key, cum),
+            Utxo::new(
+                sendback,
+                acount.get_key().first().unwrap().0.public_key.clone(),
+                cum,
+            ),
         ];
 
         let sigining_key: Vec<Keypair> = acount
-            .get_keypair(selected)
+            .get_keypair(&selected)
             .context("imposible de trouver les paire de clef")?;
 
         /*         //first signature we signe transa
@@ -268,7 +274,7 @@ impl Transaction {
             signatures.push(signer.finalize(&key.0.secret_key)?);
         }
 
-        let mut transaction = Self { rx, tx, signatures };
+        let transaction = Self { rx, tx, signatures };
 
         // Update wallet
         // can triguerre here a hanndler to know were transa done
@@ -369,7 +375,7 @@ impl Transaction {
 
         let tx = vec![Utxo::new(
             miner_reward,
-            key.into(),
+            key.clone().into(),
             ComeFromID::BlockHeigt(block_heigt),
         )];
 
@@ -437,6 +443,8 @@ impl fmt::Display for Transaction {
 #[cfg(test)]
 mod tests {
 
+    use rand::Rng;
+
     use crate::block_chain::{
         block::{Block, Profile},
         blockchain::FIRST_DIFFICULTY,
@@ -448,9 +456,9 @@ mod tests {
     #[test]
     fn create_utxo() {
         let mut rng = rand::thread_rng();
-        let utxo = Utxo::new(rng.gen(), Default::default(), rng.gen());
+        let utxo = Utxo::new(rng.gen(), Default::default(), ComeFromID::BlockHeigt(1));
 
-        assert!(utxo.valid());
+        assert!(utxo.valid(&Default::default()).is_some());
     }
 
     #[test]
@@ -494,7 +502,8 @@ mod tests {
         blockchain.try_append(&block_org); //we assume its ok
 
         //need to take last utxo
-        let utxo_s = blockchain.filter_utxo(1);
+        let utxo_s = blockchain.filter_utxo(Default::default());
+        ///1
         utxo_s.iter().for_each(|f| println!("utxo for 1 is {}", f));
 
         //we use latest ustxo generate by miner for the actual transaction

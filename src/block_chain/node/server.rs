@@ -234,7 +234,7 @@ impl Server {
                             self.network.send_packet(
                                 &Packet::Client(ClientPackect::RespUtxo((
                                     nb_utxo - 1 - index,
-                                    utxo.clone(),
+                                    utxo.clone().clone(),
                                 ))),
                                 &addr_client,
                             )?;
