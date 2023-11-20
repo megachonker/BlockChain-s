@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use super::transaction::{Amount, Transaction, TxIn, Utxo};
-use anyhow::{anyhow, Context, Error, Result};
+use anyhow::{bail, Context, Error, Result};
 use dryoc::{sign::*, types::StackByteArray};
 use serde::{Deserialize, Serialize};
 
@@ -14,11 +14,13 @@ pub struct ToSave {
 impl std::fmt::Display for Acount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Path: {}", self.path)?;
-        writeln!(f, "Key: {}", self.keypair)?;
+        for k in self.keypair{
+            writeln!(f, "Keys: {}", k)?;
+        }
         writeln!(f, "Miner fee: {}%", self.miner_fee)?;
         writeln!(f, "Wallet:")?;
         for utxo in &self.wallet {
-            writeln!(f, "Value: {}, TxIn:{}", utxo.0, utxo.1)?;
+            writeln!(f, "{}", utxo)?;
         }
         write!(f, "sold: {}", self.get_sold())
     }
@@ -47,7 +49,7 @@ impl From<Keypair> for PublicKey {
     }
 }
 
-impl From<Acount> for Keypair {
+impl From<Acount> for Vec<Keypair> {
     fn from(val: Acount) -> Self {
         val.keypair
     }
@@ -73,39 +75,50 @@ impl TryFrom<&str> for Acount {
 }
 
 impl Acount {
-    pub fn get_key(&self) -> &Keypair {
+    pub fn get_key(&self) -> &Vec<Keypair> {
         &self.keypair //double clone
     }
 
-    pub fn get_pubkey(&self) -> PublicKey {
-        self.keypair.0.public_key.clone()
-    }
+    // pub fn get_pubkey(&self) -> PublicKey {
+    //     self.keypair.0.public_key.clone()
+    // }
 
     pub fn get_sold(&self) -> Amount {
         self.wallet
             .iter()
-            .fold(Default::default(), |sum, x| x.0 + sum)
+            .fold(Default::default(), |sum, x| x.get_amount() + sum)
     }
 
     pub fn new_user(path: &str) -> Self {
         Self {
             path: path.to_string(),
-            keypair: SigningKeyPair::gen_with_defaults().into(),
-            miner_fee: 2,
+            keypair: vec![SigningKeyPair::gen_with_defaults().into()],
+            miner_fee: 1,
             ..Default::default()
         }
     }
-
     pub fn refresh_wallet(&mut self, wallet: Vec<Utxo>) -> Result<()> {
-        let mut new_wallet = vec![];
-        wallet.iter().for_each(|utxo| {
-            self.keypair.iter().find(|ctx| {
-                if ctx != utxo.get_pubkey() {
-                    anyhow!("missing key for ulock utxo => {}", utxo)?;
-                }
-            })
-        });
+        // Nouveau portefeuille pour stocker les UTXOs valides
+        let mut new_wallet = Vec::new();
 
+        // Parcourir chaque UTXO dans le portefeuille fourni
+        for utxo in wallet {
+            // Vérifier si l'UTXO peut être débloqué avec une des clés disponibles
+            let can_unlock = self
+                .keypair
+                .iter()
+                .any(|ctx| ctx.0.public_key == utxo.get_pubkey());
+
+            // Si l'UTXO peut être débloqué, l'ajouter au nouveau portefeuille
+            if can_unlock {
+                new_wallet.push(utxo);
+            } else {
+                // Si aucun clé ne correspond, signaler une erreur
+                bail!("missing key for unlocking utxo => {}", utxo);
+            }
+        }
+
+        // Mettre à jour le portefeuille avec les UTXOs valides
         self.wallet = new_wallet;
         Ok(())
     }
@@ -119,7 +132,11 @@ impl Acount {
             )
         })?;
         let user: ToSave = serde_json::from_slice(&conf).context("la conf lut est broken")?;
-        let keypair: Keypair = SigningKeyPair::from_secret_key(user.privkey).into();
+        
+        let mut keypair: Vec<Keypair> = vec![];
+        for k in user.privkey{
+            keypair.push(SigningKeyPair::from_secret_key(k).into());
+        }
         Ok(Self {
             path: path.to_string(),
             wallet: user.wallet,
@@ -130,9 +147,10 @@ impl Acount {
     }
 
     pub fn save(self) -> Result<()> {
+
         let tosave = ToSave {
             wallet: self.wallet,
-            privkey: self.keypair,
+            privkey: self.keypair.iter().map(|k| k.0.secret_key).collect(),
         };
         let contents =
             serde_json::to_string(&tosave).context("serialisation de la conf user imposible")?;
@@ -150,7 +168,8 @@ impl Acount {
             .map(|utxo| {
                 self.keypair
                     .iter()
-                    .find(|k| k.0.public_key == utxo.get_pubkey()).cloned()
+                    .find(|k| k.0.public_key == utxo.get_pubkey())
+                    .cloned()
             })
             .collect()
     }
@@ -175,10 +194,10 @@ impl Acount {
         let mut value_total = 0;
         let mut vec_utxo = vec![];
 
-        for (amount, utxo) in &self.wallet {
-            value_total += amount;
+        for utxo in &self.wallet {
+            value_total += utxo.get_amount();
             vec_utxo.push(utxo.clone());
-            if value_total >= *amount {
+            if value_total >= amount {
                 return Some((vec_utxo, value_total - amount));
             }
         }
