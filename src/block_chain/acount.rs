@@ -145,6 +145,17 @@ impl Acount {
         self.keypair.0.sign_with_defaults(data).unwrap()
     }
 
+    pub fn get_keypair(&self, utxo: Result<&Vec<Utxo>>) {
+        utxo.iter()
+            .map(|utxo| {
+                self.keypair
+                    .iter()
+                    .find(|k| k == utxo.get_pubkey())
+                    .context("Key not fund")?
+            })
+            .collect()
+    }
+
     /// # find a combinaison of Utxo for a amount given
     ///
     /// ### exemple:
@@ -157,21 +168,19 @@ impl Acount {
     /// 7 2 2 was selected
     ///
     /// 10 to the user and send back 1
-    pub fn select_utxo(&self, amount: Amount) -> Option<(Vec<TxIn>, Vec<Keypair>, Amount)> {
+    pub fn select_utxo(&self, amount: Amount) -> Option<(Vec<Utxo>, Amount)> {
         if amount == 0 {
             return None;
         }
 
         let mut value_total = 0;
         let mut vec_utxo = vec![];
-        let mut vec_key = vec![];
 
-        for (amount, keypair, utxo) in &self.wallet {
+        for (amount, utxo) in &self.wallet {
             value_total += amount;
             vec_utxo.push(utxo.clone());
-            vec_key.push(keypair);
             if value_total >= *amount {
-                return Some((vec_utxo, vec_key, value_total - amount));
+                return Some((vec_utxo, value_total - amount));
             }
         }
 

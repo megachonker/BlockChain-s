@@ -71,6 +71,10 @@ pub struct Utxo {
 }
 
 impl Utxo {
+    pub fn to_txin(self) -> HashValue {
+        self.get_hash()
+    }
+
     /// get the target key that need to be used in the transaction
     /// to proof the owner
     pub fn get_pubkey(&self) {
@@ -174,45 +178,6 @@ impl Transaction {
             .collect()
     }
 
-    /// sign a transaction by sign rx and tx using all signature from rx
-    fn sign(&mut self, key: Vec<Keypair>) -> Result<()> {
-        // // get all key of all TxIn to unlock inside a array of uniq key
-        // let mut need_pubkey: PublicKey = HashSet::new();
-        // for utxo in self.rx {
-        //     let encoded = &utxo
-        //         .to_utxo(balance)
-        //         .context("cannot convert txin to utxo")?
-        //         .target;
-        //     need_pubkey.insert(encoded);
-        // }
-
-        // let signature_data: Signature;
-        // //for each key
-        // for pubkey in need_pubkey {
-        //     let keypairs = key
-        //         .iter()
-        //         .map_while(|keypair| pubkey.eq(&keypair.0.public_key).then(|| keypair));
-
-        //     //signe the transaction with the first keypair found
-        //     signature_data = keypairs
-        //         .next()?
-        //         .0
-        //         .sign_with_defaults(self.rx + self.tx)?
-        //         .into_parts()
-        //         .0;
-
-        //     //sign signature resulted for nex key
-        //     for keypair in keypairs {
-        //         let keypair: &Keypair = keypair;
-        //         signature_data = keypair.0.sign_with_defaults(signature_data)?.into_parts().0;
-        //     }
-        // }
-
-        //signe the transaction with the first keypair found
-
-        Ok(())
-    }
-
     /// Take money from User wallet and create transaction
     /// search a utxo combinaison from user wallet
     /// send back to owner surplus
@@ -222,20 +187,21 @@ impl Transaction {
         acount: &mut Acount,
         amount: Amount,
         destination: PublicKey,
-        // sigining_key:Vec<Keypair> ,
     ) -> Option<Self> {
         let total_ammount = amount + acount.miner_fee;
-        let (selected,sigining_key, sendback) = acount.select_utxo(total_ammount)?;
+        let (selected, sendback) = acount.select_utxo(total_ammount)?;
 
-        let rx = selected;
+        let rx = selected.iter().map(|utxo| utxo.get_hash()).collect();
         let tx = vec![
             //transaction
-            Utxo::new(amount, destination, selected),
+            Utxo::new(amount, destination, rx),
             //fragment de transaction a renvoyer a l'envoyeur
-            Utxo::new(sendback, acount.get_pubkey(), selected),
+            Utxo::new(sendback, acount.get_pubkey(), rx),
         ];
 
+        let sigining_key: Vec<Keypair> = acount.get_keypair(selected)?;
 
+        //first signature we signe transa
         let signature_data: Signature = sigining_key
             .next()?
             .0
@@ -252,12 +218,7 @@ impl Transaction {
 
         let signatures = bincode::serialize(&signature_data)?;
 
-
-        let mut transaction = Self {
-            rx,
-            tx,
-            signatures,
-        };
+        let mut transaction = Self { rx, tx, signatures };
 
         // Update wallet
         // can triguerre here a hanndler to know were transa done
@@ -393,7 +354,11 @@ impl fmt::Display for Transaction {
 #[cfg(test)]
 mod tests {
 
-    use crate::block_chain::{transaction::{Transaction, Utxo}, block::{Block, Profile}, blockchain::FIRST_DIFFICULTY};
+    use crate::block_chain::{
+        block::{Block, Profile},
+        blockchain::FIRST_DIFFICULTY,
+        transaction::{Transaction, Utxo},
+    };
 
     use super::*;
 
