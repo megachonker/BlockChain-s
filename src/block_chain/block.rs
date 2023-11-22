@@ -10,7 +10,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tracing::{info, trace};
+use tracing::{info, trace,warn};
 
 use super::blockchain::{Balance, Blockchain};
 use super::node::server::{Event, MinerStuff, NewBlock};
@@ -24,10 +24,23 @@ use super::transaction::{Amount, HashValue, Transaction, TxIn, Utxo, UtxoValidat
 const CLOCK_DRIFT: u64 = 10; //second
 pub const MINER_REWARD: Amount = 1; //the coin create for the miner
 
+
+/// 
+/// 
+/// - get_block_hash_proof_work <  difficulty
+/// - get_block_hash_proof_work is Composed of Hash(
+///     - ~block_id~ used to cerfify timestamp
+///     - block_height
+///     - parent_hash
+///     - transactions
+///     - difficulty
+///     - quote
+///     - answer VARIABLE
+///     - ~timestamp~ calculation with it are not eficient 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq)]
 pub struct Block {
     /////////////////rendre private quand on aura imported mine extern du serveur
-    pub block_id: HashValue,            //the hash of whole block
+    pub block_id: HashValue,            //the hash That certify nothing ? but used to refere a block ?
     pub block_height: u64,              //the number of the current block
     pub parent_hash: HashValue,         //the id of last block (block are chain with that)
     pub transactions: Vec<Transaction>, //the vector of all transaction validated with this block
@@ -119,7 +132,8 @@ pub enum Profile {
     Normal,
 }
 
-//without block id because need to be removed
+
+/* //without block id because need to be removed
 impl Hash for Block {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.block_height.hash(state);
@@ -131,7 +145,7 @@ impl Hash for Block {
         self.timestamp.hash(state);
     }
 }
-
+ */
 impl From<Profile> for u64 {
     fn from(prof: Profile) -> Self {
         match prof {
@@ -144,15 +158,15 @@ impl From<Profile> for u64 {
 }
 
 impl Block {
-    pub fn get_hash(&self) ->HashValue{
+/*     pub fn get_hash(&self) ->HashValue{
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
         //returning answer
         hasher.finish()
     }
-
+ */
     /// auto hash block by init hasher
-    pub fn get_block_hash_proof_work(&self) -> u64 {
+    pub fn get_block_hash_proof_work(&self) -> HashValue {
         //ini hasher
         let mut hasher = DefaultHasher::new();
 
@@ -176,8 +190,8 @@ impl Block {
     }
 
     pub fn check(&self, balance: &Balance) -> Option<bool> {
-        // we dont fucking trust block id don't need to be send
-        if self.block_id != self.get_hash(){
+        // Check if the given block id is correct
+        if self.block_id !=  get_id_block(self,self.get_block_hash_proof_work()){
             return Some(false);
         }
 
@@ -186,18 +200,26 @@ impl Block {
 
         let answer = self.get_block_hash_proof_work();
 
+
         let mut already_see = false;
         let mut miner_reward: Amount = 0;
         let mut transa_remain: Amount = 0;
+        //check only one mined transaction
         for t in &self.transactions {
+            // if we have a mined transaction
             if t.rx.is_empty() && t.tx.len() == 1 {
                 if already_see {
-                    return None; //double miner transa
+                    warn!("double miner transa detected");
+                    return None;
                 }
                 already_see = true;
 
+                //we skip validation because it unusal transa
                 miner_reward = t.tx.first()?.get_amount();
-            } else {
+            }
+            // standar transaction 
+            else {
+                t.valid(balance)?;
                 transa_remain += t.remains(balance)?;
             }
         }
@@ -212,7 +234,7 @@ impl Block {
                     .unwrap()
                     .as_secs()
                     + CLOCK_DRIFT
-            && self.transactions.iter().all(|t| t.valid(balance).unwrap_or(false)))
+            )
     }
 
     /// Lunch every time need to change transaction content or block
@@ -287,7 +309,7 @@ impl Block {
     }
 }
 
-fn get_id_block(new_block: &Block, hash_proof_work: u64) -> u64 {
+fn get_id_block(new_block: &Block, hash_proof_work: HashValue) -> HashValue {
     let mut hasher = DefaultHasher::new();
     hash_proof_work.hash(&mut hasher); //data of block
     new_block.timestamp.hash(&mut hasher);
@@ -318,7 +340,7 @@ pub fn mine(miner_stuff: &Arc<Mutex<MinerStuff>>, sender: Sender<Event>) {
             // if found send directly result
             sender
                 .send(Event::NewBlock(NewBlock::Mined(mined_block)))
-                .unwrap();
+                .expect("mine Sender<Event>: cannot send a event");
         } else {
             trace!(
                 "{:?}, found nothing for {}:{}",
@@ -344,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn test_block_mined_valid() {
+    fn block_mined_valid() {
         let (tx, rx) = mpsc::channel::<Event>();
         let balance: Balance = Balance::default();
         
