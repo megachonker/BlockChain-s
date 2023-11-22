@@ -711,7 +711,16 @@ mod tests {
         let block = Block::default()
             .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
-        assert!(block.check(&Default::default()).unwrap_or(false));
+
+        let mut balance:Balance = Default::default();
+
+        balance.add(&block).unwrap();
+
+        // withou using a balance with the added utxo it will not work
+        assert!(!block.check(&Default::default()).unwrap_or(false));
+
+        //we use a balance with updated acount
+        assert!(block.check(&balance).unwrap_or(false));
         assert_eq!(block, blockchain.try_append(&block).0.unwrap());
     }
 
