@@ -68,9 +68,19 @@ impl PotentialsTopBlock {
 /// Keep track of transaction and utxo
 /// Used to know the balance of somone ?
 /// need to inplement merkel tree to optimize ?
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct Balance {
     utxo_hmap: HashMap<TxIn, Utxo>,
+}
+
+/// generate a balance with a default utxo
+impl Default for Balance {
+    fn default() -> Self {
+        let mut b = Self { utxo_hmap: Default::default() };
+        let utxo:Utxo = Default::default();
+        b.utxo_hmap.insert(utxo.to_txin(), utxo);
+        b
+    }
 }
 
 impl Balance {

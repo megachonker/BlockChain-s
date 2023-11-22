@@ -6,6 +6,7 @@ use dryoc::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::DefaultHasher, HashSet},
+    default,
     fmt::{self, Display},
     hash::{Hash, Hasher},
 };
@@ -71,7 +72,7 @@ impl Hash for Utxo {
 ///
 /// - need to be unique
 /// - can be spend once
-#[derive(Default, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Utxo {
     /// quantity of money
     amount: Amount,
@@ -83,6 +84,18 @@ pub struct Utxo {
     /// make the Utxo UNIQUE
     /// sum of all Utxin
     come_from: HashValue,
+}
+
+/// Generate a "Valid" utxo if the asociated Balance was create by default
+impl Default for Utxo {
+    fn default() -> Self {
+        Self {
+            // asociated to the block 0
+            come_from: 0,
+            amount: 1,
+            target: Default::default(),
+        }
+    }
 }
 
 impl Utxo {
@@ -230,7 +243,7 @@ impl Transaction {
             .select_utxo(total_ammount)
             .context("imposible d'avoir la some demander")?;
 
-        let rx :Vec<TxIn>= selected.iter().map(|utxo| utxo.to_txin()).collect();
+        let rx: Vec<TxIn> = selected.iter().map(|utxo| utxo.to_txin()).collect();
         let cum = ComeFromID::TxIn(rx.clone());
         let tx = vec![
             //transaction
@@ -455,10 +468,20 @@ mod tests {
 
     #[test]
     fn create_utxo() {
-        let mut rng = rand::thread_rng();
-        let utxo = Utxo::new(rng.gen(), Default::default(), ComeFromID::BlockHeigt(1));
+        fn check_failure(input:Utxo){
+            assert!(!input.valid(&Default::default()).unwrap_or(false));
+        }
+        let incorect_amount = Utxo::new(2, Default::default(), ComeFromID::BlockHeigt(0));
+        let incorect_block = Utxo::new(1, Default::default(), ComeFromID::BlockHeigt(1));
+        let from_somthing_not_exist = Utxo::new(2, Default::default(), ComeFromID::TxIn(Default::default()));
+        let correct  = Utxo::new(1, Default::default(), ComeFromID::BlockHeigt(0));
+        
+        
+        check_failure(incorect_amount);
+        check_failure(incorect_block);
+        check_failure(from_somthing_not_exist);
 
-        assert!(utxo.valid(&Default::default()).unwrap_or(false));
+        assert!(correct.valid(&Default::default()).unwrap_or(false));
     }
 
     #[test]
@@ -560,6 +583,14 @@ mod tests {
         println!("{}", blockchain);
         assert!(true)
     } */
+
+    #[test]
+    /// test if the default utxo + Balance is working
+    /// by default it create one utxo that can be spended
+    fn spend_default_utxo() {
+        let utxo: Utxo = Default::default();
+        assert!(utxo.valid(&Default::default()).unwrap_or(false))
+    }
 }
 
 // need to test:
