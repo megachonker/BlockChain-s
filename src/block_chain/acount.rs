@@ -156,7 +156,6 @@ impl Acount {
             path: path.to_string(),
             wallet: user.wallet,
             keypair,
-            miner_fee: 2,
             ..Default::default()
         })
     }
