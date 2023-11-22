@@ -119,6 +119,19 @@ pub enum Profile {
     Normal,
 }
 
+//without block id because need to be removed
+impl Hash for Block {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.block_height.hash(state);
+        self.parent_hash.hash(state);
+        self.transactions.hash(state);
+        self.difficulty.hash(state);
+        self.quote.hash(state);
+        self.answer.hash(state);
+        self.timestamp.hash(state);
+    }
+}
+
 impl From<Profile> for u64 {
     fn from(prof: Profile) -> Self {
         match prof {
@@ -131,6 +144,13 @@ impl From<Profile> for u64 {
 }
 
 impl Block {
+    pub fn get_hash(&self) ->HashValue{
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        //returning answer
+        hasher.finish()
+    }
+
     /// auto hash block by init hasher
     pub fn get_block_hash_proof_work(&self) -> u64 {
         //ini hasher
@@ -155,7 +175,13 @@ impl Block {
         Default::default()
     }
 
-    pub fn check(&self, balance: &Balance) -> Option<()> {
+    pub fn check(&self, balance: &Balance) -> Option<bool> {
+        // we dont fucking trust block id don't need to be send
+        if self.block_id != self.get_hash(){
+            return Some(false);
+        }
+
+
         //check inside the block if multiple
 
         let answer = self.get_block_hash_proof_work();
@@ -176,7 +202,7 @@ impl Block {
             }
         }
 
-        answer < self.difficulty
+        Some(answer < self.difficulty
             && transa_remain + MINER_REWARD >= miner_reward
             && get_id_block(self, answer) == self.block_id
             && self.quote.len() < 100
@@ -186,8 +212,7 @@ impl Block {
                     .unwrap()
                     .as_secs()
                     + CLOCK_DRIFT
-            && self.transactions.iter().all(|t| t.valid(balance).is_some());
-        Some(())
+            && self.transactions.iter().all(|t| t.valid(balance).unwrap_or(false)))
     }
 
     /// Lunch every time need to change transaction content or block
@@ -342,7 +367,7 @@ mod tests {
 
             match b {
                 Event::NewBlock(b) => match b {
-                    NewBlock::Mined(b) => assert!(b.check(&balance).is_some()),
+                    NewBlock::Mined(b) => assert!(b.check(&balance).unwrap_or(false)),
                     NewBlock::Network(_) => assert!(false),
                 },
                 Event::HashReq(_) => assert!(false),
@@ -378,7 +403,7 @@ mod tests {
                 Profile::Normal,
                 FIRST_DIFFICULTY,
             ) {
-                assert!(block_to_test.check(&Default::default()).is_some());
+                assert!(block_to_test.check(&Default::default()).unwrap_or(false));
                 break;
             }
         }

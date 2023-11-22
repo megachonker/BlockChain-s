@@ -458,7 +458,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         let utxo = Utxo::new(rng.gen(), Default::default(), ComeFromID::BlockHeigt(1));
 
-        assert!(utxo.valid(&Default::default()).is_some());
+        assert!(utxo.valid(&Default::default()).unwrap_or(false));
     }
 
     #[test]
