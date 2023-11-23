@@ -179,7 +179,12 @@ impl Acount {
     //     let data = bincode::serialize(&transa).unwrap();
     //     self.keypair.0.sign_with_defaults(data).unwrap()
     // }
+    
+    pub fn get_signkeypair(&self) -> Keypair{
+        self.keypair.first().unwrap().clone()
+    }
 
+    /// get needed key to unlock a set of utxo 
     pub fn get_keypair(&self, utxo: &Vec<Utxo>) -> Option<Vec<Keypair>> {
         utxo.iter()
             .map(|utxo| {

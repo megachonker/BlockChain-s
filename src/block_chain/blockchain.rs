@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 use core::fmt;
 use dryoc::sign::PublicKey;
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::fmt::format;
 
@@ -76,14 +76,33 @@ pub struct Balance {
 /// generate a balance with a default utxo
 impl Default for Balance {
     fn default() -> Self {
-        let mut b = Self { utxo_hmap: Default::default() };
-        let utxo:Utxo = Default::default();
+        let mut b = Self {
+            utxo_hmap: Default::default(),
+        };
+        let utxo: Utxo = Default::default();
         b.utxo_hmap.insert(utxo.to_txin(), utxo);
         b
     }
 }
+impl Display for Balance {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for entry in &self.utxo_hmap {
+            write!(f, "{}=>{}", entry.0, entry.1)?
+        }
+        Ok(())
+    }
+}
 
 impl Balance {
+    pub fn filter_utxo(&self, addr: PublicKey) -> Vec<Utxo> {
+        self.utxo_hmap
+            .iter()
+            .filter(|(txin, utxo)| utxo.get_pubkey() == addr)
+            .map(|(txin, utxo)| utxo)
+            .cloned()
+            .collect()
+    }
+
     pub fn txin_to_utxo(&self, input: &TxIn) -> Option<&Utxo> {
         self.utxo_hmap.get(&input)
     }
@@ -142,7 +161,7 @@ impl Balance {
     /// # Drill up
     /// normal whay to update the Balance with one block
     /// when we need to append a new block we run that
-    fn add(&mut self, block: &Block) -> Result<()> {
+    pub fn add(&mut self, block: &Block) -> Result<()> {
         //get utxo to append
         let to_append = block.find_created_utxo();
 
@@ -151,6 +170,10 @@ impl Balance {
             .row_to_utxo(block.find_used_utxo())
             .context("imposible de convertire les txin en utxo")?;
 
+        if to_append.is_empty() {
+            error!("add: esaye d'ajouter un block avec 0 utxo en sortie (toute les  transaction on 0 en sortie !) DUE a DEFAULT des test ?")
+        }
+
         // Append transaction
         for utxo in to_append {
             if self
@@ -158,7 +181,7 @@ impl Balance {
                 .insert(utxo.to_txin(), utxo.clone())
                 .is_some()
             {
-                bail!("add: double utxo entry pour {}", utxo);
+                bail!("add: double utxo entry pour {}", utxo)
             }
         }
 
@@ -189,7 +212,7 @@ impl UtxoValidator<&TxIn> for Balance {
 /// warning how to prevent somone to spam the block store sending fake block ?
 pub struct Blockchain {
     block_store: HashMap<HashValue, Block>,
-    top_block: HashValue,//changed to a & of block ?
+    top_block: HashValue,                     //changed to a & of block ?
     potentials_top_block: PotentialsTopBlock, // block need to finish the chain)
     pub balance: Balance,
     pub difficulty: u64,
@@ -212,13 +235,8 @@ impl Default for Blockchain {
 }
 
 impl Blockchain {
-    pub fn filter_utxo(&self, addr: PublicKey) -> Vec<&Utxo> {
-        self.balance
-            .utxo_hmap
-            .iter()
-            .filter(|(txin, utxo)| utxo.get_pubkey() == addr)
-            .map(|(txin, utxo)| utxo)
-            .collect()
+    pub fn filter_utxo(&self, addr: PublicKey) -> Vec<Utxo> {
+        self.balance.filter_utxo(addr)
     }
 
     pub fn new() -> Blockchain {
@@ -268,11 +286,7 @@ impl Blockchain {
             .insert(block_to_append.block_id, block_to_append.clone());
 
         //get the current block from the db to compare to the new one
-        let cur_block = self
-            .block_store
-            .get(&self.top_block)
-            .unwrap()
-            .clone();
+        let cur_block = self.block_store.get(&self.top_block).unwrap().clone();
 
         //does have same direct ancestor
         if self.check_block_linked(block_to_append, &cur_block)
@@ -481,17 +495,14 @@ impl Blockchain {
     }
 
     pub fn last_block(&self) -> Block {
-        self.block_store
-            .get(&self.top_block)
-            .unwrap()
-            .clone()
+        self.block_store.get(&self.top_block).unwrap().clone()
     }
 
     /// Check if a block is present on the currant store_blocks and give path
-    /// 
-    /// return the full chaine path to the block 
+    ///
+    /// return the full chaine path to the block
     /// or
-    /// if a block is not present on the chain return missing block downloaded 
+    /// if a block is not present on the chain return missing block downloaded
     fn search_chain<'a>(&'a self, mut block: &'a Block) -> Result<Vec<HashValue>, HashValue> {
         //the second u64 is a block which we don't have (need for the chain)
         let mut vec = vec![block.block_id];
@@ -646,7 +657,6 @@ mod tests {
     use crate::block_chain::{acount::Acount, block::Profile, transaction::Transaction};
     use std::time::{SystemTime, UNIX_EPOCH};
 
-
     #[test]
     fn test_potential_top_block() {
         let mut pot = PotentialsTopBlock::new();
@@ -712,7 +722,7 @@ mod tests {
             .find_next_block(vec![], Profile::INFINIT, FIRST_DIFFICULTY)
             .unwrap();
 
-        let mut balance:Balance = Default::default();
+        let mut balance: Balance = Default::default();
 
         balance.add(&block).unwrap();
 
@@ -875,8 +885,8 @@ mod tests {
     fn balance_calculation_simple() {
         let mut balance = Balance::default();
 
-        let miner:Acount = Default::default();
-        let client:Acount = Default::default();
+        let miner = Acount::default();
+        let client = Acount::default();
 
         // Create Block
         let mut block1 = Block::default();

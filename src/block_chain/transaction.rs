@@ -459,8 +459,8 @@ mod tests {
     use rand::Rng;
 
     use crate::block_chain::{
-        block::{Block, Profile},
-        blockchain::FIRST_DIFFICULTY,
+        block::{self, Block, Profile},
+        blockchain::{self, FIRST_DIFFICULTY},
         transaction::{Transaction, Utxo},
     };
 
@@ -468,15 +468,15 @@ mod tests {
 
     #[test]
     fn create_utxo() {
-        fn check_failure(input:Utxo){
+        fn check_failure(input: Utxo) {
             assert!(!input.valid(&Default::default()).unwrap_or(false));
         }
         let incorect_amount = Utxo::new(2, Default::default(), ComeFromID::BlockHeigt(0));
         let incorect_block = Utxo::new(1, Default::default(), ComeFromID::BlockHeigt(1));
-        let from_somthing_not_exist = Utxo::new(2, Default::default(), ComeFromID::TxIn(Default::default()));
-        let correct  = Utxo::new(1, Default::default(), ComeFromID::BlockHeigt(0));
-        
-        
+        let from_somthing_not_exist =
+            Utxo::new(2, Default::default(), ComeFromID::TxIn(Default::default()));
+        let correct = Utxo::new(1, Default::default(), ComeFromID::BlockHeigt(0));
+
         check_failure(incorect_amount);
         check_failure(incorect_block);
         check_failure(from_somthing_not_exist);
@@ -590,6 +590,61 @@ mod tests {
     fn spend_default_utxo() {
         let utxo: Utxo = Default::default();
         assert!(utxo.valid(&Default::default()).unwrap_or(false))
+    }
+
+    #[test]
+    fn simple_transaction() {
+        fn update(c: &mut Acount, b: &Balance) {
+            c.refresh_wallet(b.filter_utxo(c.get_pubkey())).unwrap();
+        }
+
+        fn mine(h:u64, block: Block, c: &Acount, b: &mut Balance, t: Vec<Transaction>) -> Block {
+            let transactions =
+                Transaction::transform_for_miner(t, c.get_signkeypair(), h, b).unwrap();
+            let block_1 = block
+                .find_next_block(transactions, Profile::INFINIT, FIRST_DIFFICULTY)
+                .unwrap();
+            // balance.add(&block).unwrap();
+            b.add(&block_1).unwrap();
+            block_1
+        }
+
+        let mut balance = Balance::default();
+
+        let mut compt_user = Acount::default();
+        let mut compt_miner = Acount::default();
+
+        assert_eq!(compt_miner.get_sold(), 0);
+        assert_eq!(compt_user.get_sold(), 0);
+
+        let block = Block::default();
+
+        let block_1 = mine(1,block, &compt_miner, &mut balance, vec![]);
+
+        update(&mut compt_miner, &balance);
+        update(&mut compt_user, &balance);
+        assert_eq!(compt_miner.get_sold(), 1);
+        assert_eq!(compt_user.get_sold(), 0);
+
+        let block_2 = mine(2,block_1, &compt_miner, &mut balance, vec![]);
+
+        update(&mut compt_miner, &balance);
+        update(&mut compt_user, &balance);
+        assert_eq!(compt_miner.get_sold(), 2);
+        assert_eq!(compt_user.get_sold(), 0);
+
+        let mine_to_comt =
+            Transaction::new_transaction(&mut compt_miner, 1, compt_user.get_pubkey()).unwrap();
+
+        let block_3 = mine(3,block_2, &compt_miner, &mut balance, vec![mine_to_comt]);
+
+        update(&mut compt_miner, &balance);
+        update(&mut compt_user, &balance);
+        assert_eq!(compt_miner.get_sold(), 2);
+        assert_eq!(compt_user.get_sold(), 1);
+
+        println!("{compt_user}");
+        println!("{balance}");
     }
 }
 
