@@ -598,7 +598,7 @@ mod tests {
             c.refresh_wallet(b.filter_utxo(c.get_pubkey())).unwrap();
         }
 
-        fn mine(h:u64, block: Block, c: &Acount, b: &mut Balance, t: Vec<Transaction>) -> Block {
+        fn mine(h: u64, block: Block, c: &Acount, b: &mut Balance, t: Vec<Transaction>) -> Block {
             let transactions =
                 Transaction::transform_for_miner(t, c.get_signkeypair(), h, b).unwrap();
             let block_1 = block
@@ -619,14 +619,14 @@ mod tests {
 
         let block = Block::default();
 
-        let block_1 = mine(1,block, &compt_miner, &mut balance, vec![]);
+        let block_1 = mine(1, block, &compt_miner, &mut balance, vec![]);
 
         update(&mut compt_miner, &balance);
         update(&mut compt_user, &balance);
         assert_eq!(compt_miner.get_sold(), 1);
         assert_eq!(compt_user.get_sold(), 0);
 
-        let block_2 = mine(2,block_1, &compt_miner, &mut balance, vec![]);
+        let block_2 = mine(2, block_1, &compt_miner, &mut balance, vec![]);
 
         update(&mut compt_miner, &balance);
         update(&mut compt_user, &balance);
@@ -636,7 +636,7 @@ mod tests {
         let mine_to_comt =
             Transaction::new_transaction(&mut compt_miner, 1, compt_user.get_pubkey()).unwrap();
 
-        let block_3 = mine(3,block_2, &compt_miner, &mut balance, vec![mine_to_comt]);
+        let block_3 = mine(3, block_2, &compt_miner, &mut balance, vec![mine_to_comt]);
 
         update(&mut compt_miner, &balance);
         update(&mut compt_user, &balance);
@@ -646,6 +646,7 @@ mod tests {
         println!("{compt_user}");
         println!("{balance}");
     }
+
 }
 
 // need to test:

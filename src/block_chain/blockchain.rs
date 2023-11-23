@@ -276,7 +276,7 @@ impl Blockchain {
         }
 
         //full check here
-        if !block_to_append.check(&self.balance).unwrap_or(false) {
+        if block_to_append.check(&self.balance).is_err() {
             info!("block is not valid");
             return (None, None);
         }
@@ -731,7 +731,7 @@ mod tests {
         // assert!(block.check(&Default::default()).unwrap_or(false));
 
         //we use a balance with updated acount
-        assert!(block.check(&balance).unwrap_or(false));
+        block.check(&balance).unwrap();
         assert_eq!(block, blockchain.try_append(&block).0.unwrap());
     }
 
