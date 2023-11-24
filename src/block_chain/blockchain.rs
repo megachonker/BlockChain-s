@@ -132,7 +132,7 @@ impl Balance {
             if !self.add(b).is_ok() {
                 debug!("{} as incorrect rx utxo", b);
                 return dst
-                    .get(index - 1)
+                    .get(index.checked_sub(1).context("index negatif imposible de sub !")?)
                     .context("first block has no valid transactions in dst ????")
                     .cloned();
             }
