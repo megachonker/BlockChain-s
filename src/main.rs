@@ -8,7 +8,7 @@ mod block_chain {
     pub mod node;
     pub mod transaction;
 }
-use anyhow::{bail, Result, Context};
+use anyhow::{bail, ensure, Context, Result};
 use block_chain::{
     acount::Acount,
     node::{
@@ -34,9 +34,9 @@ pub struct Cli {
     /// Addresse ip: adresse a utiliser
     bind: Option<IpAddr>,
 
-    /// Address reception: addresse contenant le virement
-    #[arg(short, long, default_value_t = u32::MIN)]
-    destination: u32,
+    /// Address reception: fichier du wallet destination
+    #[arg(short, long, default_value_t = String::from(""))]
+    destination: String,
 
     /// Montant: nombre de crédit a donner
     #[arg(short, long, default_value_t = 0)]
@@ -57,6 +57,10 @@ pub struct Cli {
     /// crée un nouveaux compte
     #[arg(long, default_value_t = false)]
     jouvance: bool,
+
+    /// Stat d'un compte
+    #[arg(short, long, default_value_t = false)]
+    stat: bool,
 }
 
 impl Default for Cli {
@@ -65,11 +69,12 @@ impl Default for Cli {
             bootstrap: Some(std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0))),
             bind: Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
             ammount: 0,
-            destination: 0,
+            destination: "".to_string(),
             jouvance: false,
             path: "".to_string(),
             threads: 1,
             verbose: "LOG".to_string(),
+            stat: false,
         }
     }
 }
@@ -84,11 +89,31 @@ fn main() -> Result<()> {
 
     // si doit recrée un compte
     if arg.jouvance {
-        if arg.path.is_empty() {
-            bail!("missing path for create new user !");
-        }
+        ensure!(!arg.path.is_empty(), "missing path for create new user !");
+
         client::Client::new_wallet(arg.path.as_str())?;
         info!("Successfully create new user !");
+        return Ok(());
+    }
+
+    // print stat of a wallet
+    // update wallet
+    if arg.stat {
+        let user = Acount::load(&arg.path)?;
+
+        let networking = Network::new(arg.bootstrap.unwrap(), arg.bind.unwrap());
+        if let Ok(user) =
+            Client::new(networking, user.clone(), Default::default(), Default::default()).refresh_wallet()
+        {
+            info!("wallet updated from network");
+            println!("{user}");
+        }
+        else {
+            info!("cannot access net for update local readed");
+            println!("{user}");
+        }
+        
+        info!("Successfully print stat wallet !");
         return Ok(());
     }
 
@@ -124,28 +149,31 @@ fn parse_args(cli: Cli) -> Result<NewNode> {
     let networking = Network::new(bootstrap.unwrap(), binding.unwrap());
 
     // si doit send
-    if cli.destination != 0 || cli.ammount != 0 {
+    if !cli.destination.is_empty() || cli.ammount != 0 {
         // si manque un arg pour send
-        if cli.ammount == 0 {
-            bail!("missing amount")
-        }
+        ensure!(cli.ammount != 0, "missing amount");
+        ensure!(
+            !cli.destination.is_empty(),
+            "missing destination for transaction"
+        );
 
-        if cli.destination == 0 {
-            bail!("missing destination for transaction")
-        }
+        let destination = Acount::load(&cli.destination).unwrap().get_pubkey();
 
         //create client worker
         Ok(NewNode::Cli(Client::new(
             networking,
             user,
-            Default::default(),
+            destination,
             cli.ammount,
         )))
     } else {
         //create server worker
         Ok(NewNode::Srv(Server::new(
             networking,
-            user.get_key().first().context("cannot get keypair for starting server")?.clone(),
+            user.get_key()
+                .first()
+                .context("cannot get keypair for starting server")?
+                .clone(),
             cli.threads,
         )))
     }

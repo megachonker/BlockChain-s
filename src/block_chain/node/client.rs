@@ -40,7 +40,7 @@ impl Client {
     }
 
     /// ask to all peer balance and take first balance received and update
-    fn refresh_wallet(&mut self) -> Result<()> {
+    pub fn refresh_wallet(&mut self) -> Result<Acount> {
         info!("asked to refresh the wallet");
         
         let mut new_wallet = vec![];
@@ -61,7 +61,9 @@ impl Client {
             new_wallet.append(&mut self.networking.recv_packet_utxo_wallet()?);
         }
 
-        self.user.refresh_wallet(new_wallet)
+        self.user.refresh_wallet(new_wallet)?;
+        self.user.clone().save()?;
+        Ok(self.user.clone())
     }
 
     pub fn start(mut self) -> Result<()> {
@@ -74,6 +76,7 @@ impl Client {
         self.refresh_wallet()?;
 
         info!("Wallet:\n{}", self.user);
+        
         let transactionb = Transaction::new_transaction(&mut self.user,self.transa_info.ammount, self.transa_info.destination).context("You not have enought money")?;
 
         info!("Transaction created : {}", transactionb);

@@ -49,7 +49,7 @@ impl UtxoValidator<&Balance> for TxIn {
 
 impl Display for TxIn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TxIn Location: {}", self.location)
+        write!(f, " {}", self.location)
     }
 }
 
