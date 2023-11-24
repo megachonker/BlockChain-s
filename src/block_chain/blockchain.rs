@@ -12,8 +12,8 @@ use super::{
 };
 const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
 const TIME_N_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
-pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
-// pub const FIRST_DIFFICULTY: u64 = 100000000;
+// pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
+pub const FIRST_DIFFICULTY: u64 =    100000000000000;
 
 ///  Key of hashmap is the top block of the branch that need to be explorer
 /// Value stored is a tuple of:
@@ -276,7 +276,7 @@ impl Blockchain {
         }
 
         //full check here
-        if block_to_append.check(&self.balance).is_err() {
+        if block_to_append.check().is_err() {
             info!("block is not valid");
             return (None, None);
         }
@@ -419,7 +419,7 @@ impl Blockchain {
 
     fn check_block_linked(&self, block_to_append: &Block, parent: &Block) -> bool {
         self.check_parent(block_to_append, parent)     //not needed by a higher block in a queue 
-            && block_to_append.transactions.iter().all(|t| t.valid(&self.balance).unwrap())
+            && block_to_append.check_transactions(& self.balance).is_ok()
             && block_to_append.difficulty == self.difficulty
     }
 
@@ -731,7 +731,7 @@ mod tests {
         // assert!(block.check(&Default::default()).unwrap_or(false));
 
         //we use a balance with updated acount
-        block.check(&balance).unwrap();
+        block.valid(&balance).unwrap();
         assert_eq!(block, blockchain.try_append(&block).0.unwrap());
     }
 

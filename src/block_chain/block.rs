@@ -187,20 +187,23 @@ impl Block {
         Default::default()
     }
 
-    pub fn check(&self, balance: &Balance) -> Result<()> {
-        // Check if the given block id is correct
-        if self.block_id != get_id_block(self, self.get_block_hash_proof_work()) {
-            bail!("the given block id is correct");
-        }
 
-        //check inside the block if multiple
+    ///check if the block is valid as agreed with Balence (the incoming utxo is inside balence)
+    pub fn valid(&self, balance: &Balance) -> Result<()> {
 
-        let answer = self.get_block_hash_proof_work();
+        self.check()?;
+        self.check_transactions(balance)?;
+        
 
+        Ok(())
+    }
+
+
+    //check if the transactions is right as agreed with the Balence (the current Balence)
+    pub fn check_transactions(&self, balance: &Balance) -> Result<(), anyhow::Error> {
         let mut already_see = false;
         let mut miner_reward: Amount = 0;
         let mut transa_remain: Amount = 0;
-        //check only one mined transaction
         for t in &self.transactions {
             // if we have a mined transaction
             if t.rx.is_empty() && t.tx.len() == 1 {
@@ -217,10 +220,26 @@ impl Block {
                     .remains(balance)?;
             }
         }
+        ensure!(transa_remain + MINER_REWARD >= miner_reward, "reward");
+        Ok(())
+    }
+
+
+    ///check if the block is consistant (Do not check the transactions)
+    pub fn check(&self) -> Result<()> {
+        // Check if the given block id is correct
+        let answer = self.get_block_hash_proof_work();
+
+
+        if self.block_id != get_id_block(self, answer) {
+            bail!("the given block id is correct");
+        }
+
+        
         ensure!(answer < self.difficulty, "difficulty error");
-        ensure!(transa_remain + MINER_REWARD >= miner_reward, "mi reward");
+        // ensure!(transa_remain + MINER_REWARD >= miner_reward, "reward");
         ensure!(get_id_block(self, answer) == self.block_id, "block id");
-        ensure!(self.quote.len() < 100, "quote trop lon");
+        ensure!(self.quote.len() < 100, "quote too long");
         ensure!(
             self.timestamp.as_secs()
                 <= (SystemTime::now()
@@ -233,6 +252,9 @@ impl Block {
 
         Ok(())
     }
+
+
+    
 
     /// Lunch every time need to change transaction content or block
     /// using profile infinit can be use to not create a loop calling find next for test
@@ -385,7 +407,7 @@ mod tests {
 
             match b {
                 Event::NewBlock(b) => match b {
-                    NewBlock::Mined(b) => b.check(&balance).unwrap(),
+                    NewBlock::Mined(b) => b.valid(&balance).unwrap(),
                     NewBlock::Network(_) => assert!(false),
                 },
                 Event::HashReq(_) => assert!(false),
@@ -427,7 +449,7 @@ mod tests {
                 Profile::Normal,
                 FIRST_DIFFICULTY,
             ) {
-                block_to_test.check(&Default::default()).unwrap();
+                block_to_test.valid(&Default::default()).unwrap();
                 break;
             }
         }
