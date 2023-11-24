@@ -251,7 +251,7 @@ impl Transaction {
             //fragment de transaction a renvoyer a l'envoyeur
             Utxo::new(
                 sendback,
-                acount.get_key().first().unwrap().0.public_key.clone(),
+                acount.get_pubkey(),
                 cum,
             ),
         ];
@@ -657,25 +657,42 @@ mod tests {
     }
 
     #[test]
-    fn single_signature() {
+    fn signature_multiple_keypair() {
         let recv = Acount::default();
 
         //new account
         let mut acc_sending = Acount::default();
+        let  acc_sending_bis = Acount::default();
+        
+
+        let utxo_a = Utxo::new(10, acc_sending.get_pubkey(), ComeFromID::BlockHeigt(1));
+        let utxo_b = Utxo::new(2, acc_sending_bis.get_pubkey(), ComeFromID::BlockHeigt(0));
 
         //add moula
-        let moulat = vec![Utxo::new(
-            10,
-            acc_sending.get_pubkey(),
-            ComeFromID::BlockHeigt(1),
-        )];
+        let moulat = vec![utxo_a, utxo_b.clone()];
         acc_sending.wallet = moulat.clone();
 
         let balance = &Balance::new(moulat);
 
+        //check if balance not enought
+        assert!(Transaction::new_transaction(&mut acc_sending, 12, recv.get_pubkey()).is_err());
+
+        //check when missing key
+        assert!(Transaction::new_transaction(&mut acc_sending, 11, recv.get_pubkey()).is_err());
+
+        // add keypair of bis to signe
+        acc_sending.add_key(
+            acc_sending_bis
+                .get_keypair(&vec![utxo_b])
+                .unwrap()
+                .first()
+                .unwrap()
+                .clone(),
+        );
+
         //create transaciton
         let mut transa =
-            Transaction::new_transaction(&mut acc_sending, 1, recv.get_pubkey()).unwrap();
+            Transaction::new_transaction(&mut acc_sending, 11, recv.get_pubkey()).unwrap();
 
         assert!(transa.check_sign(balance).is_ok());
         println!("{transa}");

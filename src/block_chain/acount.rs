@@ -87,6 +87,10 @@ impl TryFrom<&str> for Acount {
 }
 
 impl Acount {
+    pub fn add_key(&mut self,k:Keypair){
+        self.keypair.push(k);
+    }
+
     pub fn get_key(&self) -> &Vec<Keypair> {
         &self.keypair //double clone
     }
