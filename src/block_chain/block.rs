@@ -190,7 +190,7 @@ impl Block {
     pub fn check(&self, balance: &Balance) -> Result<()> {
         // Check if the given block id is correct
         if self.block_id != get_id_block(self, self.get_block_hash_proof_work()) {
-            bail!("self.block_id !=  get_id_block");
+            bail!("the given block id is correct");
         }
 
         //check inside the block if multiple
@@ -214,8 +214,7 @@ impl Block {
             else {
                 t.valid(balance).context("transaction invalid")?;
                 transa_remain += t
-                    .remains(balance)
-                    .context("remain are negative or incorect")?;
+                    .remains(balance)?;
             }
         }
         ensure!(answer < self.difficulty, "difficulty error");

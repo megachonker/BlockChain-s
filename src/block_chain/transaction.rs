@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use dryoc::{
     sign::{IncrementalSigner, PublicKey, SecretKey, Signature, SignedMessage, SigningKeyPair},
     types::{ByteArray, Bytes},
@@ -335,11 +335,14 @@ impl Transaction {
         None
     }
     pub fn check_sign(&self, balance: &Balance) -> Result<()> {
-        let public_keys: Vec<PublicKey> = self
-            .rx
-            .iter()
-            .map(|t| t.to_utxo(balance).expect("check_sign").target)
-            .collect();
+        let mut public_keys = vec![];
+        for txin in &self.rx {
+            public_keys.push(
+                txin.to_utxo(balance)
+                    .context("convestion failed")?
+                    .get_pubkey(),
+            );
+        }
 
         // Ici, on utilise zip pour itérer simultanément sur les signatures et les clés publiques.
         for (signature, public_key) in self.signatures.iter().zip(public_keys.iter()) {
@@ -411,14 +414,18 @@ impl Transaction {
     /// return None if negative value
     ///
     /// Need to be CHECKED
-    pub fn remains(&self, balance: &Balance) -> Option<Amount> {
+    pub fn remains(&self, balance: &Balance) -> Result<Amount> {
         let input = self
             .rx
             .iter()
-            .try_fold(0, |acc, txin| txin.to_utxo(balance).map(|f| acc + f.amount));
+            .try_fold(0, |acc, txin| txin.to_utxo(balance).map(|f| acc + f.amount))
+            .context("conversion to_utxo imposible, entrée manquante dans balance ?")?;
 
         let output = self.tx.iter().map(|t| t.amount).sum();
-        input.and_then(|i: Amount| i.checked_sub(output))
+
+        input
+            .checked_sub(output)
+            .with_context(|| format!("remains:{} - {}", input, output))
     }
 }
 
@@ -427,7 +434,7 @@ impl UtxoValidator<&Balance> for Transaction {
         //on lose la propagation d'erreur .. ? add context ?
         let rx_status = self.rx.iter().all(|t| t.valid(arg).unwrap_or(false));
         let tx_status = self.tx.iter().all(|t| t.valid(arg).unwrap_or(false));
-        let sold = self.remains(arg).is_some();
+        let sold = self.remains(arg).is_ok();
         let signature = !self.check_sign(&arg).is_err();
 
         Some(rx_status && tx_status && sold && signature)
@@ -646,7 +653,46 @@ mod tests {
         println!("{compt_user}");
         println!("{balance}");
     }
+/* 
+    #[test]
+    fn simple_signature() {
+        fn update(c: &mut Acount, b: &Balance) {
+            c.refresh_wallet(b.filter_utxo(c.get_pubkey())).unwrap();
+        }
 
+        fn mine(h: u64, block: Block, c: &Acount, b: &mut Balance, t: Vec<Transaction>) -> Block {
+            let transactions =
+                Transaction::transform_for_miner(t, c.get_signkeypair(), h, b).unwrap();
+            let block_1 = block
+                .find_next_block(transactions, Profile::INFINIT, FIRST_DIFFICULTY)
+                .unwrap();
+            // balance.add(&block).unwrap();
+            b.add(&block_1).unwrap();
+            block_1
+        }
+
+        let mut balance = Balance::default();
+        let mut compt_user = Acount::default();
+        let mut compt_miner = Acount::default();
+        let block = Block::default();
+
+        let block_1 = mine(1, block.clone(), &compt_miner, &mut balance, vec![]);
+        block_1.check(&balance).unwrap();
+
+        let block_2 = mine(2, block_1, &compt_miner, &mut balance, vec![]);
+        
+        update(&mut compt_miner, &balance);
+        // block_2.check(&balance).unwrap();
+
+        let mine_to_comt =
+            Transaction::new_transaction(&mut compt_miner, 1, compt_user.get_pubkey()).unwrap();
+        let block_3 = mine(3, block_2, &compt_miner, &mut balance, vec![mine_to_comt]);
+
+        block_3.check(&balance).unwrap();
+
+        println!("{compt_user}");
+        println!("{balance}");
+    } */
 }
 
 // need to test:
