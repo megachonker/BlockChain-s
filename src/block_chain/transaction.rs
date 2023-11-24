@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, ensure, Context, Result};
 use dryoc::{
     sign::{IncrementalSigner, PublicKey, SecretKey, Signature, SignedMessage, SigningKeyPair},
     types::{ByteArray, Bytes},
@@ -344,6 +344,8 @@ impl Transaction {
             );
         }
 
+        ensure!(public_keys.len() == self.signatures.len(),"le nombre de clef pour ouvrire la transaction ne match pas avec le nombre de signature");
+
         // Ici, on utilise zip pour itérer simultanément sur les signatures et les clés publiques.
         for (signature, public_key) in self.signatures.iter().zip(public_keys.iter()) {
             let mut signer = IncrementalSigner::new();
@@ -653,7 +655,42 @@ mod tests {
         println!("{compt_user}");
         println!("{balance}");
     }
-/* 
+
+    #[test]
+    fn single_signature() {
+        let recv = Acount::default();
+
+        //new account
+        let mut acc_sending = Acount::default();
+
+        //add moula
+        let moulat = vec![Utxo::new(
+            10,
+            acc_sending.get_pubkey(),
+            ComeFromID::BlockHeigt(1),
+        )];
+        acc_sending.wallet = moulat.clone();
+
+        let balance = &Balance::new(moulat);
+
+        //create transaciton
+        let mut transa =
+            Transaction::new_transaction(&mut acc_sending, 1, recv.get_pubkey()).unwrap();
+
+        assert!(transa.check_sign(balance).is_ok());
+        println!("{transa}");
+
+        //check if signature altered
+        let e = transa.signatures.first_mut().unwrap();
+        *e = Signature::default();
+        assert!(transa.check_sign(balance).is_err());
+
+        //check if no signature
+        transa.signatures = vec![];
+        assert!(transa.check_sign(balance).is_err())
+    }
+
+    /*
     #[test]
     fn simple_signature() {
         fn update(c: &mut Acount, b: &Balance) {
@@ -680,7 +717,7 @@ mod tests {
         block_1.check(&balance).unwrap();
 
         let block_2 = mine(2, block_1, &compt_miner, &mut balance, vec![]);
-        
+
         update(&mut compt_miner, &balance);
         // block_2.check(&balance).unwrap();
 

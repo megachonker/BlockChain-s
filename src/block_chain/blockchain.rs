@@ -13,7 +13,7 @@ use super::{
 const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
 const TIME_N_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
 // pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
-pub const FIRST_DIFFICULTY: u64 =    100000000000000;
+pub const FIRST_DIFFICULTY: u64 = 100000000000000;
 
 ///  Key of hashmap is the top block of the branch that need to be explorer
 /// Value stored is a tuple of:
@@ -94,6 +94,16 @@ impl Display for Balance {
 }
 
 impl Balance {
+    pub fn new(utxos: Vec<Utxo>) -> Self {
+        let mut utxo_hmap = HashMap::default();
+
+        for utxo in utxos {
+            utxo_hmap.insert(utxo.to_txin(), utxo);
+        }
+
+        Balance { utxo_hmap }
+    }
+
     pub fn filter_utxo(&self, addr: PublicKey) -> Vec<Utxo> {
         self.utxo_hmap
             .iter()
