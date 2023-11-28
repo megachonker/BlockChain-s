@@ -11,7 +11,7 @@ use super::{
     transaction::{HashValue, TxIn, Utxo, UtxoValidator},
 };
 const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
-const TIME_N_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
+const TIME_N_BLOCK: u64 = 100 * 30; //time for 100 blocks in seconds
 // pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
 pub const FIRST_DIFFICULTY: u64 = 100000000000000;
 
@@ -180,8 +180,9 @@ impl Balance {
             .row_to_utxo(block.find_used_utxo())
             .context("imposible de convertire les txin en utxo")?;
 
-        if to_append.is_empty() {
-            error!("add: esaye d'ajouter un block avec 0 utxo en sortie (toute les  transaction on 0 en sortie !) DUE a DEFAULT des test ?")
+        if to_append.is_empty() && block.block_id != 0 {
+            warn!("add: esaye d'ajouter un block avec 0 utxo en sortie (toute les  transaction on 0 en sortie !) DUE a DEFAULT des test ?");
+            
         }
 
         // Append transaction

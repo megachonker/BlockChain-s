@@ -51,12 +51,12 @@ pub struct Cli {
     verbose: String,
 
     /// nombre de thread a utiliser
-    #[arg(long, default_value_t = 1)]
+    #[arg(short,long, default_value_t = 1)]
     threads: u16,
 
     /// crée un nouveaux compte
-    #[arg(long, default_value_t = false)]
-    jouvance: bool,
+    #[arg(short,long, default_value_t = false)]
+    create_account: bool,
 
     /// Stat d'un compte
     #[arg(short, long, default_value_t = false)]
@@ -70,7 +70,7 @@ impl Default for Cli {
             bind: Some(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))),
             ammount: 0,
             destination: "".to_string(),
-            jouvance: false,
+            create_account: false,
             path: "".to_string(),
             threads: 1,
             verbose: "LOG".to_string(),
@@ -88,7 +88,7 @@ fn main() -> Result<()> {
         .init();
 
     // si doit recrée un compte
-    if arg.jouvance {
+    if arg.create_account {
         ensure!(!arg.path.is_empty(), "missing path for create new user !");
 
         client::Client::new_wallet(arg.path.as_str())?;
