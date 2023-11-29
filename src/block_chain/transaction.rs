@@ -1,4 +1,4 @@
-use anyhow::{anyhow, ensure, Context, Result, Ok};
+use anyhow::{anyhow, ensure, Context, Ok, Result};
 use dryoc::{
     sign::{IncrementalSigner, PublicKey, SecretKey, Signature, SignedMessage, SigningKeyPair},
     types::{ByteArray, Bytes},
@@ -249,11 +249,7 @@ impl Transaction {
             //transaction
             Utxo::new(amount, destination, cum.clone()),
             //fragment de transaction a renvoyer a l'envoyeur
-            Utxo::new(
-                sendback,
-                acount.get_pubkey(),
-                cum,
-            ),
+            Utxo::new(sendback, acount.get_pubkey(), cum),
         ];
 
         let sigining_key: Vec<Keypair> = acount
@@ -397,43 +393,44 @@ impl Transaction {
             ComeFromID::BlockHeigt(block_heigt),
         )];
 
-        let mut signer = IncrementalSigner::new();
+        /* let mut signer = IncrementalSigner::new();
         signer.update(&bincode::serialize(&tx).context("can not serialiaze")?);
         let signatures = vec![signer
             .finalize(&key.0.secret_key)
-            .context("wrong signature")?];
+            .context("wrong signature")?]; */
 
         transas.push(Transaction {
             rx: vec![],
             tx,
-            signatures,
+            signatures:vec![Signature::default()] ,
         });
 
         Ok(transas)
     }
 
-    pub fn update_transa_for_miner(transas : & mut Vec<Transaction>, new_transa:  &Transaction, balance: &Balance, key: &Keypair ) -> Result<()>{
+    pub fn update_transa_for_miner(
+        transas: &mut Vec<Transaction>,
+        new_transa: &Transaction,
+        balance: &Balance,
+        key: &Keypair,
+    ) -> Result<()> {
+        let index_miner_transa = transas
+            .iter()
+            .enumerate()
+            .find(|t| t.1.rx.is_empty() && t.1.tx.len() == 1)
+            .unwrap()
+            .0;
 
-        let index_miner_transa = transas.iter().enumerate().find(|t| t.1.rx.is_empty() && t.1.tx.len()==1).unwrap().0;
-
-        let miner_reward = transas[index_miner_transa].tx[0].amount + new_transa.remains(balance).unwrap();
+        let miner_reward =
+            transas[index_miner_transa].tx[0].amount + new_transa.remains(balance).unwrap();
 
         transas[index_miner_transa].tx[0].amount = miner_reward;
 
-        let mut signer = IncrementalSigner::new();
-        signer.update(&bincode::serialize(&transas[index_miner_transa].tx).context("can not serialiaze")?);
-        let signatures = vec![signer
-            .finalize(&key.0.secret_key)
-            .context("wrong signature")?];
-
-        transas[index_miner_transa].signatures = signatures;
+        
 
         transas.push(new_transa.clone());
 
-
         Ok(())
-
-
     }
 
     /// How many remain for the miner
@@ -456,15 +453,18 @@ impl Transaction {
 }
 
 impl UtxoValidator<&Balance> for Transaction {
-    fn valid(&self, arg: &Balance) -> Option<bool> {
+    fn valid(&self, balence: &Balance) -> Option<bool> {
         //on lose la propagation d'erreur .. ? add context ?
-        let rx_status = self.rx.iter().all(|t| t.valid(arg).unwrap_or(false));
+        let rx_status = self.rx.iter().all(|t| t.valid(balence).unwrap_or(false));
         // let tx_status = self.tx.iter().all(|t| t.valid(arg).unwrap_or(false));       //not necessary to be in balence
-        let sold = self.remains(arg).is_ok();
-        let signature = !self.check_sign(&arg).is_err();
-
-
-        Some(rx_status  && sold && signature)
+        let sold = self.remains(balence).is_ok();
+        let signature = if !(self.rx.is_empty() && self.tx.len() == 1) {
+            !self.check_sign(&balence).is_err()
+        } else {
+            true
+        };
+        dbg!(rx_status,sold,signature);
+        Some(rx_status && sold && signature)
     }
 }
 
@@ -687,8 +687,7 @@ mod tests {
 
         //new account
         let mut acc_sending = Acount::default();
-        let  acc_sending_bis = Acount::default();
-        
+        let acc_sending_bis = Acount::default();
 
         let utxo_a = Utxo::new(10, acc_sending.get_pubkey(), ComeFromID::BlockHeigt(1));
         let utxo_b = Utxo::new(2, acc_sending_bis.get_pubkey(), ComeFromID::BlockHeigt(0));
