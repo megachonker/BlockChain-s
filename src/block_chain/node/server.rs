@@ -16,7 +16,7 @@ use tracing::{debug, info, trace, warn};
 use crate::block_chain::{
     block::{mine, Block},
     blockchain::Blockchain,
-    node::network::{Network, Packet, TypeBlock},
+    node::network::{Network, Packet, TypeBlock, TypeTransa},
     transaction::Transaction,
 };
 use crate::{block_chain::acount::Keypair, friendly_name::*};
@@ -204,8 +204,12 @@ impl Server {
                 Event::Transaction(transa) => {
                     let mut minner_stuff_lock = miner_stuff.lock().unwrap();
 
-                    if self.blockchain.transa_is_valid(&transa, &minner_stuff_lock) {
-                        minner_stuff_lock.transa.push(transa.clone());
+                    if self.blockchain.transa_is_valid(&transa, &minner_stuff_lock,&self.blockchain.balance) {
+                        Transaction::update_transa_for_miner(&mut minner_stuff_lock.transa, & transa, &self.blockchain.balance, &self.keypair).unwrap();
+                        self.network.broadcast(Packet::Transaction(TypeTransa::Push(transa))).unwrap();
+                    }
+                    else {
+                        warn!("Recv wrong transaction");
                     }
                 }
                 Event::ClientEvent(event, addr_client) => match event {

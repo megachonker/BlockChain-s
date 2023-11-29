@@ -8,10 +8,10 @@ use tracing_subscriber::fmt::format;
 use super::{
     block::Block,
     node::server::MinerStuff,
-    transaction::{HashValue, TxIn, Utxo, UtxoValidator},
+    transaction::{HashValue, TxIn, Utxo, UtxoValidator, Transaction},
 };
 const N_BLOCK_DIFFICULTY_CHANGE: u64 = 100;
-const TIME_N_BLOCK: u64 = 100 * 30; //time for 100 blocks in seconds
+const TIME_N_BLOCK: u64 = 100 * 60; //time for 100 blocks in seconds
 // pub const FIRST_DIFFICULTY: u64 = 1000000000000000;
 pub const FIRST_DIFFICULTY: u64 = 100000000000000;
 
@@ -205,6 +205,9 @@ impl Balance {
         // self.utxo.iter().for_each(|f| debug!("{}->{:?}", f.0, f.1));debug!("Add");
         Ok(())
     }
+
+
+    
 }
 
 impl UtxoValidator<&Utxo> for Balance {
@@ -549,10 +552,20 @@ impl Blockchain {
         &self,
         transa: &super::transaction::Transaction,
         miner_stuff: &MinerStuff,
+        balence : &Balance
     ) -> bool {
         //check all
-        //NEED TO FIX : check in balence if present, check in miner_stuff.transa to see if utxo is already use or not
-        !miner_stuff.transa.contains(transa)
+        for utxo in & transa.rx{              //horrible can be optimized
+            for t in & miner_stuff.transa{
+                for u in & t.rx{
+                    if u==utxo{
+                        return false;
+                    }
+                }
+            } 
+        }
+        transa.valid(balence).unwrap()
+
     }
 
     pub fn new_difficutly(&mut self) -> u64 {

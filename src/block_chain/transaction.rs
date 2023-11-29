@@ -1,4 +1,4 @@
-use anyhow::{anyhow, ensure, Context, Result};
+use anyhow::{anyhow, ensure, Context, Result, Ok};
 use dryoc::{
     sign::{IncrementalSigner, PublicKey, SecretKey, Signature, SignedMessage, SigningKeyPair},
     types::{ByteArray, Bytes},
@@ -398,10 +398,10 @@ impl Transaction {
         )];
 
         let mut signer = IncrementalSigner::new();
-        signer.update(&bincode::serialize(&tx).context("imposible de serialiser")?);
+        signer.update(&bincode::serialize(&tx).context("can not serialiaze")?);
         let signatures = vec![signer
             .finalize(&key.0.secret_key)
-            .context("signature fausse")?];
+            .context("wrong signature")?];
 
         transas.push(Transaction {
             rx: vec![],
@@ -410,6 +410,30 @@ impl Transaction {
         });
 
         Ok(transas)
+    }
+
+    pub fn update_transa_for_miner(transas : & mut Vec<Transaction>, new_transa:  &Transaction, balance: &Balance, key: &Keypair ) -> Result<()>{
+
+        let index_miner_transa = transas.iter().enumerate().find(|t| t.1.rx.is_empty() && t.1.tx.len()==1).unwrap().0;
+
+        let miner_reward = transas[index_miner_transa].tx[0].amount + new_transa.remains(balance).unwrap();
+
+        transas[index_miner_transa].tx[0].amount = miner_reward;
+
+        let mut signer = IncrementalSigner::new();
+        signer.update(&bincode::serialize(&transas[index_miner_transa].tx).context("can not serialiaze")?);
+        let signatures = vec![signer
+            .finalize(&key.0.secret_key)
+            .context("wrong signature")?];
+
+        transas[index_miner_transa].signatures = signatures;
+
+        transas.push(new_transa.clone());
+
+
+        Ok(())
+
+
     }
 
     /// How many remain for the miner
@@ -421,7 +445,7 @@ impl Transaction {
             .rx
             .iter()
             .try_fold(0, |acc, txin| txin.to_utxo(balance).map(|f| acc + f.amount))
-            .context("conversion to_utxo imposible, entrée manquante dans balance ?")?;
+            .context("can not convert to to_utxo, entry missing in balence ?")?;
 
         let output = self.tx.iter().map(|t| t.amount).sum();
 
@@ -435,11 +459,12 @@ impl UtxoValidator<&Balance> for Transaction {
     fn valid(&self, arg: &Balance) -> Option<bool> {
         //on lose la propagation d'erreur .. ? add context ?
         let rx_status = self.rx.iter().all(|t| t.valid(arg).unwrap_or(false));
-        let tx_status = self.tx.iter().all(|t| t.valid(arg).unwrap_or(false));
+        // let tx_status = self.tx.iter().all(|t| t.valid(arg).unwrap_or(false));       //not necessary to be in balence
         let sold = self.remains(arg).is_ok();
         let signature = !self.check_sign(&arg).is_err();
 
-        Some(rx_status && tx_status && sold && signature)
+
+        Some(rx_status  && sold && signature)
     }
 }
 
