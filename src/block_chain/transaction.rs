@@ -40,10 +40,14 @@ impl TxIn {
 }
 
 impl UtxoValidator<&Balance> for TxIn {
-    fn valid(&self, arg: &Balance) -> Option<bool> {
+    fn valid(&self, balence: &Balance) -> Option<bool> {
         //check if possible to convert
         //check if already spend
-        Some(self.to_owned().to_utxo(arg).is_some())
+        
+        let res = balence.get(self.to_owned());
+        Some( res.is_some() && res.unwrap().1.is_valid())
+
+        // Some(self.to_owned().to_utxo(balence).is_some())
     }
 }
 
@@ -245,12 +249,20 @@ impl Transaction {
 
         let rx: Vec<TxIn> = selected.iter().map(|utxo| utxo.to_txin()).collect();
         let cum = ComeFromID::TxIn(rx.clone());
-        let tx = vec![
-            //transaction
-            Utxo::new(amount, destination, cum.clone()),
-            //fragment de transaction a renvoyer a l'envoyeur
-            Utxo::new(sendback, acount.get_pubkey(), cum),
-        ];
+        let tx = if sendback > 0 {
+            vec![
+                //transaction
+                Utxo::new(amount, destination, cum.clone()),
+                //fragment de transaction a renvoyer a l'envoyeur
+                Utxo::new(sendback, acount.get_pubkey(), cum),
+            ]
+        } else {
+            vec![
+                //transaction
+                Utxo::new(amount, destination, cum.clone()),
+                //fragment de transaction a renvoyer a l'envoyeur
+            ]
+        };
 
         let sigining_key: Vec<Keypair> = acount
             .get_keypair(&selected)
@@ -402,7 +414,7 @@ impl Transaction {
         transas.push(Transaction {
             rx: vec![],
             tx,
-            signatures:vec![Signature::default()] ,
+            signatures: vec![Signature::default()],
         });
 
         Ok(transas)
@@ -425,8 +437,6 @@ impl Transaction {
             transas[index_miner_transa].tx[0].amount + new_transa.remains(balance).unwrap();
 
         transas[index_miner_transa].tx[0].amount = miner_reward;
-
-        
 
         transas.push(new_transa.clone());
 
@@ -463,7 +473,6 @@ impl UtxoValidator<&Balance> for Transaction {
         } else {
             true
         };
-        dbg!(rx_status,sold,signature);
         Some(rx_status && sold && signature)
     }
 }

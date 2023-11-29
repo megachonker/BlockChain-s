@@ -18,5 +18,3 @@ dans la transa si il y a rien en input marquer Miner transaction
 # BUG 
 
 bail!("missing key for unlocking utxo => {}", utxo);  est triger quand la clef priver n'est pas bonne (cargo run -- 127.0.0.2 127.0.0.4  -p other.usr -a 10 -d default.usr)
-
-Quand le il y a du reste pour le miner il ne semble pas le prendre dans ca transa

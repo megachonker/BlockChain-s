@@ -65,12 +65,24 @@ impl PotentialsTopBlock {
     }
 }
 
+
+#[derive(Debug,Clone,PartialEq)]
+pub enum Statue{
+    Used,
+    Valid,
+}
+impl Statue {
+    pub(crate) fn is_valid(&self) -> bool {
+        self == & Statue::Valid
+    }
+}
+
 /// Keep track of transaction and utxo
 /// Used to know the balance of somone ?
 /// need to inplement merkel tree to optimize ?
 #[derive(Clone)]
 pub struct Balance {
-    utxo_hmap: HashMap<TxIn, Utxo>,
+    utxo_hmap: HashMap<TxIn, (Utxo,Statue)>,
 }
 
 /// generate a balance with a default utxo
@@ -80,14 +92,14 @@ impl Default for Balance {
             utxo_hmap: Default::default(),
         };
         let utxo: Utxo = Default::default();
-        b.utxo_hmap.insert(utxo.to_txin(), utxo);
+        b.utxo_hmap.insert(utxo.to_txin(), (utxo,Statue::Valid));
         b
     }
 }
 impl Display for Balance {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for entry in &self.utxo_hmap {
-            write!(f, "{}=>{}", entry.0, entry.1)?
+            write!(f, "{}=>{} ({:?})", entry.0, entry.1.0,entry.1.1)?
         }
         Ok(())
     }
@@ -98,23 +110,27 @@ impl Balance {
         let mut utxo_hmap = HashMap::default();
 
         for utxo in utxos {
-            utxo_hmap.insert(utxo.to_txin(), utxo);
+            utxo_hmap.insert(utxo.to_txin(), (utxo,Statue::Valid));
         }
 
         Balance { utxo_hmap }
     }
 
+    pub fn get(&self, txin : TxIn) -> Option<&(Utxo, Statue)>{
+        self.utxo_hmap.get(&txin)
+    }
+
     pub fn filter_utxo(&self, addr: PublicKey) -> Vec<Utxo> {
         self.utxo_hmap
             .iter()
-            .filter(|(txin, utxo)| utxo.get_pubkey() == addr)
-            .map(|(txin, utxo)| utxo)
+            .filter(|(txin, (utxo,_))| utxo.get_pubkey() == addr)
+            .map(|(txin, (utxo,_))| utxo)
             .cloned()
             .collect()
     }
 
     pub fn txin_to_utxo(&self, input: &TxIn) -> Option<&Utxo> {
-        self.utxo_hmap.get(&input)
+        Some(& self.utxo_hmap.get(&input)?.0)
     }
     pub fn row_to_utxo(&self, input: Vec<TxIn>) -> Option<Vec<Utxo>> {
         input.iter().map(|txo| txo.to_utxo(&self)).collect()
@@ -129,7 +145,10 @@ impl Balance {
     ) -> Result<&Block> {
         src.iter().all(|p| self.sub(p).is_ok());
         for (index, b) in dst.iter().enumerate() {
-            if !self.add(b).is_ok() {
+            let aeaze = self.add(b);
+            if !aeaze.is_ok() {
+                aeaze.unwrap();
+                dbg!(src.iter().map(|b| (b.block_height,b.block_id)).collect::<Vec<(u64,u64)>>(),dst.iter().map(|b| (b.block_height,b.block_id)).collect::<Vec<(u64,u64)>>());
                 debug!("{} as incorrect rx utxo", b);
                 return dst
                     .get(index.checked_sub(1).context("index negatif imposible de sub !")?)
@@ -150,21 +169,21 @@ impl Balance {
         let to_remove = block.find_created_utxo();
         // spended utxo
         let to_append = self
-            .row_to_utxo(block.find_used_utxo())
-            .context("imposible convertire txin en utxo")?;
-
-        for utxo in to_append {
-            self.utxo_hmap.insert(utxo.to_txin(), utxo.clone());
+        .row_to_utxo(block.find_used_utxo())
+        .context("imposible convertire txin en utxo")?;
+    
+    for utxo in to_append {
+        self.utxo_hmap.insert(utxo.to_txin(), (utxo.clone(),Statue::Valid));
+    }
+    
+    for utxo in to_remove {
+        if self.utxo_hmap.insert(utxo.to_txin(), (utxo.clone(),Statue::Used)).is_none() {
+            bail!(
+                "sub: la transa {} qui devais être existante n'es pas dans la hashmap",
+                utxo
+            );
         }
-
-        for utxo in to_remove {
-            if self.utxo_hmap.remove(&utxo.to_txin()).is_none() {
-                bail!(
-                    "sub: la transa {} qui devais être existante n'es pas dans la hashmap",
-                    utxo
-                );
-            }
-        }
+    }
         Ok(())
     }
 
@@ -178,7 +197,7 @@ impl Balance {
         //get utxo to remove
         let to_remove = self
             .row_to_utxo(block.find_used_utxo())
-            .context("imposible de convertire les txin en utxo")?;
+            .context(format!("can not convert txin ({:?}) into utxo",block.find_used_utxo()))?;
 
         if to_append.is_empty() && block.block_id != 0 {
             warn!("add: esaye d'ajouter un block avec 0 utxo en sortie (toute les  transaction on 0 en sortie !) DUE a DEFAULT des test ?");
@@ -187,19 +206,20 @@ impl Balance {
 
         // Append transaction
         for utxo in to_append {
-            if self
-                .utxo_hmap
-                .insert(utxo.to_txin(), utxo.clone())
-                .is_some()
+            let last = self
+            .utxo_hmap
+            .insert(utxo.to_txin(), (utxo.clone(),Statue::Valid));
+            if last.is_some() && last.unwrap().1.is_valid()
             {
+
                 bail!("add: double utxo entry pour {}", utxo)
             }
         }
 
         // Consume transaction
         for utxo in to_remove {
-            if self.utxo_hmap.remove(&utxo.to_txin()).is_none() {
-                bail!("utxo already consumed DOUBLE SPEND DETECT for: {}", utxo);
+            if self.utxo_hmap.insert(utxo.to_txin(), (utxo.clone(),Statue::Used)).is_none(){
+                bail!("Create a Used utxo ");
             }
         }
         // self.utxo.iter().for_each(|f| debug!("{}->{:?}", f.0, f.1));debug!("Add");
