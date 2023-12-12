@@ -43,9 +43,9 @@ impl UtxoValidator<&Balance> for TxIn {
     fn valid(&self, balence: &Balance) -> Option<bool> {
         //check if possible to convert
         //check if already spend
-        
+
         let res = balence.get(self.to_owned());
-        Some( res.is_some() && res.unwrap().1.is_valid())
+        Some(res.is_some() && res.unwrap().1.is_valid())
 
         // Some(self.to_owned().to_utxo(balence).is_some())
     }
@@ -685,9 +685,11 @@ mod tests {
         update(&mut compt_user, &balance);
         assert_eq!(compt_miner.get_sold(), 2);
         assert_eq!(compt_user.get_sold(), 1);
-
+        println!("{block_3}");
         println!("{compt_user}");
+        println!("{compt_miner}");
         println!("{balance}");
+        
     }
 
     #[test]

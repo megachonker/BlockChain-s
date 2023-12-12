@@ -99,7 +99,7 @@ impl Default for Balance {
 impl Display for Balance {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for entry in &self.utxo_hmap {
-            write!(f, "{}=>{} ({:?})", entry.0, entry.1.0,entry.1.1)?
+            writeln!(f, "{}=>{} ({:?})", entry.0, entry.1.0,entry.1.1)?
         }
         Ok(())
     }
@@ -123,7 +123,7 @@ impl Balance {
     pub fn filter_utxo(&self, addr: PublicKey) -> Vec<Utxo> {
         self.utxo_hmap
             .iter()
-            .filter(|(txin, (utxo,_))| utxo.get_pubkey() == addr)
+            .filter(|(txin, (utxo,status))| utxo.get_pubkey() == addr && status == &Statue::Valid)
             .map(|(txin, (utxo,_))| utxo)
             .cloned()
             .collect()
