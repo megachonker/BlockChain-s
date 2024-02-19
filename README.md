@@ -21,7 +21,8 @@ At this time the blockchain is running (in localhost). You can launch another mi
 
 In argument the first IP is the IP of the server want to connect (here the addresse of the first miner) and the second IP is the IP of the miner.
 
-To see statistic of a wallet you can run 
+To see statistic of a wallet you can run  
+
 ```cargo run -- 127.0.0.1 127.0.0.3 -p bob.usr -s ```
 
 127.0.0.3 is the ip of the client which run this command
