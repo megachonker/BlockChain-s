@@ -1,20 +1,40 @@
 # Quick start:
 
-## Start Miner 1
-```cargo r --  127.0.0.2 127.0.0.1 -p test.usr```
+## Create a wallet (cryptographic keys)  
 
-## Start Miner 2
-```cargo r --  127.0.0.1 127.0.0.2 -v TRACE  -p test.usr --threads 10```
+```
+cargo run --  -c   && mv default.usr bob.usr
+```  
 
-## Create Client transaction (in  working)
-```cargo r --  127.0.0.1 127.0.0.4 -v TRACE  -p test.usr -a 1 -d 1```
+It is create a wallet ```bob.usr``` with the keys for the blockchaine.  
+
+## Start a miner  
+
+```cargo run -- 0.0.0.0 127.0.0.1 -p bob.usr```
+
+It launch a miner (with 1 thread, you can modify with --thread) miner mine for the wallet bob.usr
+
+At this time the blockchain is running (in localhost). You can launch another miner with another wallet.
+
+```cargo run --  127.0.0.1 127.0.0.2 -p alice.usr```
+
+
+In argument the first IP is the IP of the server want to connect (here the addresse of the first miner) and the second IP is the IP of the miner.
+
+To see statistic of a wallet you can run 
+```cargo run -- 127.0.0.1 127.0.0.3 -p bob.usr -s ```
+
+127.0.0.3 is the ip of the client which run this command
+
+
+Finally to make a trasaction between alice and bob you can run  
+
+```cargo run -- 127.0.0.1 127.0.0.3 -p bob.usr -a 10 -d alice.usr```
 
 
 
-# ROAD MAP  
 
-dans la transa si il y a rien en input marquer Miner transaction 
+For more information check ```--help option```
 
-# BUG 
 
-bail!("missing key for unlocking utxo => {}", utxo);  est triger quand la clef priver n'est pas bonne (cargo run -- 127.0.0.2 127.0.0.4  -p other.usr -a 10 -d default.usr)
+
